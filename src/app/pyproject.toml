@@ -19,6 +19,7 @@ python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 pydantic-settings = "^2.7.1"
 python-multipart = "^0.0.20"
 gunicorn = "^23.0.0"
+requests = "^2.32.3"
 
 
 [build-system]
