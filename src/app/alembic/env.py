@@ -22,6 +22,7 @@ fileConfig(config.config_file_name)
 
 from app.core.models import SQLModel  # noqa
 from app.models.user import User
+from app.models.epigraph import Epigraph
 # from sqlmodel import SQLModel
 # from app import models
 # from models import *
