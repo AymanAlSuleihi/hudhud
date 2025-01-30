@@ -41,7 +41,7 @@ epigraph_field_map = {
     "culturalNotes": "cultural_notes",
 }
 
-class EpigraphService:
+class EpigraphImportService:
     def __init__(self, session: Session, task_progress_service: TaskProgressService):
         self.session = session
         self.base_url = settings.DASI_API_URL
