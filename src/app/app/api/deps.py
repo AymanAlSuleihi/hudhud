@@ -95,3 +95,7 @@ def get_current_active_superuser_no_error(current_user: CurrentUserNoError) -> U
     if not current_user.is_superuser:
         return None
     return current_user
+
+
+def get_task_progress_service(session: SessionDep) -> TaskProgressService:
+    return TaskProgressService(session)
