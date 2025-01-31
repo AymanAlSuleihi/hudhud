@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from urllib.parse import urlparse
 
 import requests
@@ -20,7 +20,6 @@ from app.models.epigraph import (
     EpigraphUpdate,
     EpigraphsOut,
 )
-from app.services.epigraph import EpigraphService
 
 router = APIRouter()
 

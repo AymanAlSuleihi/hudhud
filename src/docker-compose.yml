@@ -2,9 +2,10 @@ services:
 
   backend:
     build:
-      dockerfile: Dockerfile
+      context: ./backend
+      dockerfile: backend.dockerfile
     volumes:
-      - ./app:/app
+      - ./backend/app:/app
     env_file:
       - .env
     labels:
@@ -20,7 +21,7 @@ services:
     restart: always
     volumes:
       - app-db-data:/var/lib/postgresql/data
-      - ./pg_entrypoint.sh:/docker-entrypoint-initdb.d/pg_entrypoint.sh
+      - ./backend/pg_entrypoint.sh:/docker-entrypoint-initdb.d/pg_entrypoint.sh
     env_file:
       - .env
     environment:

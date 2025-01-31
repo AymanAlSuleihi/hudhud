@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.db.engine import engine
 from app.models.token import TokenPayload
 from app.models.user import User
+from app.services.task_progress import TaskProgressService
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token",
