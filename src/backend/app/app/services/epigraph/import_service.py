@@ -2,44 +2,15 @@ from typing import Dict, Any
 import requests
 import time
 from urllib.parse import urlparse
-from sqlalchemy.orm import Session
 from datetime import datetime
+import re
+
+from sqlalchemy.orm import Session
 
 from app.crud.crud_epigraph import epigraph as crud_epigraph
 from app.models.epigraph import Epigraph, EpigraphCreate, EpigraphUpdate
 from app.services.task_progress import TaskProgressService
 from app.core.config import settings
-
-epigraph_field_map = {
-    "bibliography": "bibliography",
-    "editors": "editors",
-    "textualTypologyConjectural": "textual_typology_conjectural",
-    "concordances": "concordances",
-    "languageLevel1": "language_level_1",
-    "mentionedDate": "mentioned_date",
-    "languageLevel3": "language_level_3",
-    "letterMeasure": "letter_measure",
-    "scriptCursus": "script_cursus",
-    "epigraphText": "epigraph_text",
-    "title": "title",
-    "license": "license",
-    "lastModified": "last_modified_dasi",
-    "alphabet": "alphabet",
-    "apparatusNotes": "aparatus_notes",
-    "languageLevel2": "language_level_2",
-    "chronologyConjectural": "chronology_conjectural",
-    "royalInscription": "royal_inscription",
-    "sites": "sites",
-    "scriptTypology": "script_typology",
-    "uri": "uri",
-    "period": "period",
-    "textualTypology": "textual_typology",
-    "translations": "translations",
-    "writingTechniques": "writing_techniques",
-    "generalNotes": "general_notes",
-    "firstPublished": "first_published",
-    "culturalNotes": "cultural_notes",
-}
 
 class EpigraphImportService:
     def __init__(self, session: Session, task_progress_service: TaskProgressService):
@@ -116,14 +87,18 @@ class EpigraphImportService:
             )
             return {"status": "error", "error": str(e)}
 
+    def _camel_to_snake(self, name: str) -> str:
+        name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+        return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+
     def transfer_fields(self, epigraph_data: Dict[str, Any]) -> EpigraphUpdate:
         epigraph_fields = {}
-        for key, value in epigraph_field_map.items():
-            if key in epigraph_data:
-                if key == "lastModified":
-                    epigraph_fields[value] = datetime.strptime(epigraph_data[key], "%Y-%m-%d")
-                else:
-                    epigraph_fields[value] = epigraph_data[key]
+        for key, value in epigraph_data.items():
+            snake_case_key = self._camel_to_snake(key)
+            if key == "lastModified":
+                epigraph_fields[snake_case_key] = datetime.strptime(value, "%Y-%m-%d")
+            else:
+                epigraph_fields[snake_case_key] = value
         return EpigraphUpdate(**epigraph_fields, dasi_object=epigraph_data)
 
     def _import_single(self, epigraph_id: int) -> Epigraph:
