@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
-from sqlmodel import Column, Field, SQLModel
+from sqlmodel import Column, Field, Relationship, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.models import TimeStampModel
+from app.models.links import EpigraphWordLink
 
 
 class EpigraphBase(SQLModel):
@@ -84,9 +85,12 @@ class Epigraph(
 ):
     id: Optional[int] = Field(default=None, primary_key=True)
 
+    words: list["Word"] = Relationship(back_populates="epigraphs", link_model=EpigraphWordLink)
+
 
 class EpigraphOut(EpigraphBase):
     id: int
+    words: list = None
 
 
 class EpigraphsOut(BaseModel):
