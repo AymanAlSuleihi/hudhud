@@ -30,11 +30,23 @@ class Word(
     epigraphs: list["Epigraph"] = Relationship(back_populates="words", link_model=EpigraphWordLink)
 
     next_id: Optional[int] = Field(default=None, foreign_key="word.id")
-    next: Optional["Word"] = Relationship(back_populates="previous")
+    next: Optional["Word"] = Relationship(
+        back_populates="previous",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Word.next_id]",
+            "uselist": False,
+        }
+    )
 
     previous_id: Optional[int] = Field(default=None, foreign_key="word.id")
-    previous: Optional["Word"] = Relationship(back_populates="next")
-
+    previous: Optional["Word"] = Relationship(
+        back_populates="next",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Word.previous_id]",
+            "remote_side": "[Word.id]",
+            "uselist": False,
+        }
+    )
 
 class WordMinimal(SQLModel):
     id: int
