@@ -5,6 +5,7 @@ from app.api.api_v1.endpoints import (
     login,
     task_progress,
     users,
+    words,
 )
 
 api_router = APIRouter()
@@ -12,3 +13,4 @@ api_router.include_router(epigraphs.router, prefix="/epigraphs", tags=["epigraph
 api_router.include_router(login.router, tags=["login"])
 api_router.include_router(task_progress.router, prefix="/task_progress", tags=["task_progress"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(words.router, prefix="/words", tags=["words"])
