@@ -10,3 +10,13 @@ class EpigraphWordLink(SQLModel, table=True):
     word_id: Optional[int] = Field(
         default=None, foreign_key="word.id", primary_key=True
     )
+
+
+class WordLink(SQLModel, table=True):
+    from_word_id: int = Field(
+        default=None, foreign_key="word.id", primary_key=True
+    )
+    to_word_id: int = Field(
+        default=None, foreign_key="word.id", primary_key=True
+    )
+    count: int = Field(default=1)
