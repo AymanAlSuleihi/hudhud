@@ -14,7 +14,7 @@ class CRUDWord(CRUDBase[Word, WordCreate, WordUpdate]):
     def link_words(self, db: Session, *, from_word: Word, to_word: Word) -> Word:
         link = db.query(WordLink).filter(
             WordLink.from_word_id == from_word.id,
-            WordLink.to_word_id == to_word.id
+            WordLink.to_word_id == to_word.id,
         ).first()
 
         if not link:
@@ -30,6 +30,14 @@ class CRUDWord(CRUDBase[Word, WordCreate, WordUpdate]):
         epigraph = db.query(Epigraph).get(epigraph_id)
         if not epigraph:
             raise ValueError(f"Epigraph with id {epigraph_id} not found")
+
+        link = db.query(EpigraphWordLink).filter(
+            EpigraphWordLink.epigraph_id == epigraph_id,
+            EpigraphWordLink.word_id == word.id,
+        ).first()
+
+        if link:
+            return word
 
         link = EpigraphWordLink(epigraph_id=epigraph_id, word_id=word.id)
         db.add(link)
