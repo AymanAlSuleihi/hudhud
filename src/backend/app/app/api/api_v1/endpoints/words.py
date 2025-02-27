@@ -1,7 +1,8 @@
+import json
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select, func
+from sqlmodel import select, func, asc, desc
 
 from app.api.deps import (
     SessionDep,
@@ -16,6 +17,7 @@ from app.models.word import (
     WordOut,
     WordsOut,
 )
+from app.models.links import EpigraphWordLink, WordLink
 
 
 router = APIRouter()
@@ -40,6 +42,37 @@ def read_words(
     total_count = session.exec(total_count_statement).one()
 
     words_statement = select(Word).offset(skip).limit(limit)
+
+    if filters:
+        filters_dict = json.loads(filters)
+        for key, value in filters_dict.items():
+            if isinstance(value, bool):
+                words_statement = words_statement.where(
+                    getattr(Word, key).is_(value)
+                )
+            else:
+                words_statement = words_statement.where(
+                    getattr(Word, key) == value
+                )
+
+    if sort_field:
+        if sort_field == "words":
+            sort_field = (
+                select(func.count(WordLink.to_word_id))
+                .where(WordLink.from_word_id == Word.id)
+                .scalar_subquery()
+            )
+        elif sort_field == "epigraphs":
+            sort_field = (
+                select(func.count(EpigraphWordLink.epigraph_id))
+                .where(EpigraphWordLink.word_id == Word.id)
+                .scalar_subquery()
+            )
+        if sort_order.lower() == "desc":
+            words_statement = words_statement.order_by(desc(sort_field))
+        else:
+            words_statement = words_statement.order_by(asc(sort_field))
+
     words = session.exec(words_statement).all()
 
     return WordsOut(words=words, count=total_count)
