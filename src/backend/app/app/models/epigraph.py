@@ -93,6 +93,28 @@ class EpigraphOut(EpigraphBase):
     words: list = None
 
 
+class EpigraphMinimal(SQLModel):
+    id: int
+
+
+class EpigraphOutBasic(SQLModel):
+    id: int
+    dasi_id: int
+    title: str
+    uri: str
+    period: Optional[str] = None
+    sites: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    language_level_1: str
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
+    translations: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+
+
 class EpigraphsOut(BaseModel):
     epigraphs: list[EpigraphOut]
+    count: int
+
+
+class EpigraphsOutBasic(BaseModel):
+    epigraphs: list[EpigraphOutBasic]
     count: int
