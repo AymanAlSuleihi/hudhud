@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Noto+Sans+Old+South+Arabian&display=swap");
 
 @import "tailwindcss";
+@plugin "tailwindcss-react-aria-components";
 
 @theme {
   --font-sans: "Montserrat", "sans-serif", "Noto Sans Old South Arabian";
