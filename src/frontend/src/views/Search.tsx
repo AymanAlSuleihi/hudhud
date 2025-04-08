@@ -34,17 +34,20 @@ const Search: React.FC = () => {
 
   console.log("filters", filters)
 
-  const handleSearch = async () => {
+  const handleSearch = async (term: string) => {
+    if (term) {
+      setSearchTerm(term)
+    }
     try {
       setSearchParams({
-        q: searchTerm,
+        q: term,
         sort: sortField,
         order: sortOrder,
         ...filters
       })
 
       const result = await EpigraphsService.epigraphsFilterEpigraphs({
-        translationText: searchTerm,
+        translationText: term,
         sortField: sortField,
         sortOrder: sortOrder,
         filters: JSON.stringify(filters),
@@ -57,7 +60,7 @@ const Search: React.FC = () => {
 
   useEffect(() => {
     if (searchParams.get("q")) {
-      handleSearch()
+      handleSearch(searchParams.get("q") || "")
     }
   }, [])
 
@@ -73,14 +76,18 @@ const Search: React.FC = () => {
 
       <div className="flex flex-wrap gap-4 mb-6">
         <SearchField
-          value={searchTerm}
-          onChange={setSearchTerm}
           onSubmit={handleSearch}
           className="flex-1"
         >
           <Label className="block text-sm font-medium mb-1">Exact Phrase</Label>
           <div className="relative">
             <input 
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      console.log("searchTerm", e.currentTarget.value)
+                      handleSearch(e.currentTarget.value)
+                    }
+                  }}
               className="w-full border border-gray-400 p-2 pl-9 rounded"
               placeholder="Search within translations..."
             />
@@ -111,7 +118,7 @@ const Search: React.FC = () => {
         />
 
         <Button
-          onPress={handleSearch}
+              onPress={() => handleSearch(searchTerm)}
           className="bg-zinc-500 text-white px-4 py-2 rounded self-end"
         >
           Search
@@ -178,6 +185,7 @@ const Search: React.FC = () => {
           </div>
         </div>
       )}
+        </div>
     </div>
   )
 }
