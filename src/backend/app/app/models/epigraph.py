@@ -108,6 +108,9 @@ class EpigraphOutBasic(SQLModel):
     language_level_2: Optional[str] = None
     language_level_3: Optional[str] = None
     translations: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    general_notes: Optional[str] = None
 
 
 class EpigraphsOut(BaseModel):
