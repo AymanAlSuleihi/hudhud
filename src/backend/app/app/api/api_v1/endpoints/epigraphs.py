@@ -20,6 +20,8 @@ from app.models.epigraph import (
     EpigraphOut,
     EpigraphUpdate,
     EpigraphsOut,
+    EpigraphsOutBasic,
+)
 
 logging.basicConfig(
     filename='epigraph_search.log',
@@ -95,6 +97,84 @@ def filter_epigraphs(
     logging.info(f"Found {len(epigraphs)} epigraphs")
 
     return EpigraphsOutBasic(epigraphs=epigraphs, count=len(epigraphs))
+
+@router.get(
+    "/search",
+    response_model=EpigraphsOutBasic,
+)
+def full_text_search_epigraphs(
+    session: SessionDep,
+    search_text: str,
+    fields: Optional[str] = None,
+    sort_field: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    filters: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """
+    Full text search epigraphs by searching within specified fields.
+    """
+    logging.info(f"Full text searching: {search_text}, fields: {fields}, sort_field: {sort_field}, sort_order: {sort_order}")
+
+    query = select(Epigraph)
+
+    if fields:
+        fields = fields.split(",")
+        search_conditions = []
+
+        for field in fields:
+            if field not in Epigraph.__table__.columns:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid field: {field}",
+                )
+
+            column = getattr(Epigraph, field)
+            column_type = str(Epigraph.__table__.columns[field].type)
+
+            if "JSONB" in column_type:
+                search_conditions.append(
+                    text(f"""
+                        EXISTS (
+                            SELECT 1 FROM jsonb_array_elements({field}) as elem
+                            WHERE to_tsvector(elem::text) @@ to_tsquery('{search_text}')
+                        )
+                    """)
+                )
+            else:
+                search_conditions.append(
+                    column.op("@@")(text(f"to_tsquery('{search_text}')"))
+                )
+
+        if search_conditions:
+            query = query.where(or_(*search_conditions))
+
+    if filters:
+        filters_dict = json.loads(filters)
+        for key, value in filters_dict.items():
+            if isinstance(value, bool):
+                query = query.where(
+                    getattr(Epigraph, key).is_(value)
+                )
+            else:
+                query = query.where(
+                    getattr(Epigraph, key) == value
+                )
+
+    epigraph_count = session.exec(select(func.count()).select_from(query)).one()
+
+    if sort_field:
+        if sort_order.lower() == "desc":
+            query = query.order_by(desc(sort_field))
+        else:
+            query = query.order_by(asc(sort_field))
+
+    query = query.offset(skip).limit(limit)
+
+    epigraphs = session.exec(query).all()
+
+    return EpigraphsOutBasic(epigraphs=epigraphs, count=epigraph_count)
 
 
 @router.get(
