@@ -17,6 +17,11 @@ const Search: React.FC = () => {
   const [sortField, setSortField] = useState(searchParams.get("sort") || "period")
   const [sortOrder, setSortOrder] = useState(searchParams.get("order") || "asc")
   const [epigraphs, setEpigraphs] = useState<EpigraphsOutBasic | null>(null)
+  const [searchFields, setSearchFields] = useState({
+    translationText: true,
+    notes: true,
+    bibliography: true,
+  })
   const [fields, setFields] = useState<Record<string, string[]>>({})
   const [filters, setFilters] = useState({})
 
@@ -43,14 +48,24 @@ const Search: React.FC = () => {
         q: term,
         sort: sortField,
         order: sortOrder,
-        ...filters
-      })
+      const field_map = {
+        translationText: searchFields.translationText ? ["translations"] : [],
+        // text: searchFields.text ? ["text"] : [],
+        notes: searchFields.notes ? ["general_notes", "aparatus_notes", "cultural_notes"] : [],
+        bibliography: searchFields.bibliography ? ["bibliography"] : [],
+      }
+      const fields = Object.values(field_map)
+        .flat()
+        .filter(Boolean)
+        .join(',')
 
-      const result = await EpigraphsService.epigraphsFilterEpigraphs({
-        translationText: term,
+      const result = await EpigraphsService.epigraphsFullTextSearchEpigraphs({
+        searchText: term,
+        fields: fields,
         sortField: sortField,
         sortOrder: sortOrder,
-        filters: JSON.stringify(filters),
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
       })
       setEpigraphs(result)
     } catch (error) {
@@ -123,6 +138,40 @@ const Search: React.FC = () => {
         >
           Search
         </Button>
+
+            <div className="w-full flex gap-2 items-center">
+              <Label className="text-sm font-medium">Search within:</Label>
+              <ToggleButton
+                isSelected={searchFields.translationText}
+                onChange={selected => setSearchFields(prev => ({...prev, translationText: selected}))}
+                className={({isSelected}) => `
+                  px-3 py-1 rounded text-sm
+                  ${isSelected ? 'bg-zinc-700 text-white' : 'bg-gray-100'}
+                `}
+              >
+                Translations
+              </ToggleButton>
+              <ToggleButton
+                isSelected={searchFields.notes}
+                onChange={selected => setSearchFields(prev => ({...prev, notes: selected}))}
+                className={({isSelected}) => `
+                  px-3 py-1 rounded text-sm
+                  ${isSelected ? 'bg-zinc-700 text-white' : 'bg-gray-100'}
+                `}
+              >
+                Notes
+              </ToggleButton>
+              <ToggleButton
+                isSelected={searchFields.bibliography}
+                onChange={selected => setSearchFields(prev => ({...prev, bibliography: selected}))}
+                className={({isSelected}) => `
+                  px-3 py-1 rounded text-sm
+                  ${isSelected ? 'bg-zinc-700 text-white' : 'bg-gray-100'}
+                `}
+              >
+                Bibliography
+              </ToggleButton>
+            </div>
       </div>
 
       <AdvancedFilters
