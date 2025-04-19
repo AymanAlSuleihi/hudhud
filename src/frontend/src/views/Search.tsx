@@ -4,10 +4,11 @@ import {
   SearchField, 
   Button,
   Label,
-  Popover
+  Popover,
+  ToggleButton,
 } from "react-aria-components"
 import { EpigraphsService, EpigraphsOutBasic } from "../client"
-import { Select } from "../components/Select"
+import { MySelect, MyItem } from "../components/Select"
 import { MagnifyingGlass } from "@phosphor-icons/react"
 import { MyDisclosure } from "../components/Disclosure"
 import { Drawer } from "../components/Drawer"
@@ -156,21 +157,40 @@ const Search: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl p-4 mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Epigraph Translations Search</h1>
+    <div className="max-w-10/12 p-4 mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Epigraph Search</h1>
 
       <div className="mb-4 space-y-2">
-        <p>The DASI project is missing a search feature for translations, so I built one here.
-           You can sort the results by period, DASI ID, title, or language.</p>
-        <p>At the moment, only exact phrase search is supported.</p>
+        <p>The DASI project is missing a search feature for translations and other fields so I built one here.</p>
+        <p>More features soon. Suggestions and feedback welcome.</p>
       </div>
 
+<div className={`
+        md:grid md:gap-6 
+        transition-[grid-template-columns] duration-75
+      `}>
+        {/* ${isSidebarCollapsed ? 'md:grid-cols-[40px_1fr]' : 'md:grid-cols-[250px_1fr]'}
+      `}> */}
+        {/* <div className={`
+          mb-6 md:mb-0 bg-gray-100 rounded
+          ${isSidebarCollapsed ? 'p-1' : 'p-4'}
+        `}> */}
+          {/* <AdvancedFilters
+            values={filters}
+            onChange={setFilters}
+            fields={fields}
+            isCollapsed={isSidebarCollapsed}
+            onCollapseToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          /> */}
+        {/* </div> */}
+
+        <div>
       <div className="flex flex-wrap gap-4 mb-6">
         <SearchField
           onSubmit={handleSearch}
           className="flex-1"
         >
-          <Label className="block text-sm font-medium mb-1">Exact Phrase</Label>
+          <Label className="block text-sm font-medium mb-1">Phrase</Label>
           <div className="relative">
             <input 
                   onKeyDown={e => {
@@ -180,37 +200,44 @@ const Search: React.FC = () => {
                     }
                   }}
               className="w-full border border-gray-400 p-2 pl-9 rounded"
-              placeholder="Search within translations..."
+              placeholder="Search..."
+defaultValue={searchTerm}
             />
             <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
           </div>
         </SearchField>
 
-        <Select 
+        <MySelect 
           label="Sort By"
           selectedKey={sortField}
-          onSelectionChange={(key) => setSortField(key.toString())}
-          options={[
-            { id: "period", label: "Period" },
-            { id: "dasi_id", label: "DASI ID" },
-            { id: "title", label: "Title" },
-            { id: "language_level_1", label: "Language" }
-          ]}
-        />
+          onSelectionChange={(key) => {
+                if (typeof key === 'string') {
+                  setSortField(key)
+                }
+              }}
+            >
+              <MyItem key="period" id="period">Period</MyItem>
+              <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
+              <MyItem key="title" id="title">Title</MyItem>
+              <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
+            </MySelect>
 
-        <Select
+        <MySelect
           label="Sort Order"
           selectedKey={sortOrder}
-          onSelectionChange={(key) => setSortOrder(key.toString())}
-          options={[
-            { id: "asc", label: "Ascending" },
-            { id: "desc", label: "Descending" }
-          ]}
-        />
+          onSelectionChange={(key) => {
+                if (typeof key === 'string') {
+                  setSortOrder(key)
+                }
+              }}
+            >
+              <MyItem key="asc" id="asc">Ascending</MyItem>
+              <MyItem key="desc" id="desc">Descending</MyItem>
+            </MySelect>
 
         <Button
               onPress={() => handleSearch(searchTerm)}
-          className="bg-zinc-500 text-white px-4 py-2 rounded self-end"
+          className="bg-zinc-500 text-white px-4 py-2 rounded self-end flex items-center gap-2"
         >
               {isSearching ? (
                 <Spinner colour="#fff" />
