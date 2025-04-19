@@ -9,7 +9,7 @@ import {
 import { EpigraphsService, EpigraphsOutBasic } from "../client"
 import { Select } from "../components/Select"
 import { MagnifyingGlass } from "@phosphor-icons/react"
-import { AdvancedFilters } from "../components/AdvancedFilters"
+import { MyDisclosure } from "../components/Disclosure"
 
 const Search: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -244,6 +244,67 @@ const Search: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                    {epigraph.general_notes && (
+                      <div className="mt-4">
+                        <MyDisclosure title="General Notes">
+                          <div className="text-sm bg-gray-100/70 p-3 rounded">
+                            <p>{epigraph.general_notes}</p>
+                          </div>
+                        </MyDisclosure>
+                      </div>
+                    )}
+                    {epigraph.aparatus_notes && (
+                      <div className="mt-4">
+                        <MyDisclosure title="Apparatus Notes">
+                          <div className="space-y-2">
+                            {epigraph.aparatus_notes.map((note, idx) => (
+                              <div key={idx} className="text-sm bg-gray-100/70 p-3 rounded">
+                                <p>{note.note}</p>
+                                {note.line && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    Line: {note.line}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </MyDisclosure>
+                      </div>
+                    )}
+                    {epigraph.cultural_notes && (
+                      <div className="mt-4">
+                        <MyDisclosure title="Cultural Notes">
+                          <div className="space-y-2">
+                            {epigraph.cultural_notes.map((note, idx) => (
+                              <div key={idx} className="text-sm bg-gray-100/70 p-3 rounded">
+                                <p>{note.note}</p>
+                                {note.topic && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    Topic: {note.topic}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </MyDisclosure>
+                      </div>
+                    )}
+                    {epigraph.bibliography && (
+                      <div className="mt-4">
+                        <MyDisclosure title="Bibliography">
+                          <div className="space-y-2">
+                            {epigraph.bibliography.map((bib, idx) => (
+                              <div key={idx} className="text-sm bg-gray-100/70 p-3 rounded">
+                                <p>{bib.reference}</p>
+                                {bib.page && (
+                                  <p className="text-gray-500 text-xs mt-1">
+                                    Page: {bib.page}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </MyDisclosure>
                   </div>
                 )}
               </div>
