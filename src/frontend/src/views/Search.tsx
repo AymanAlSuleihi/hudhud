@@ -10,6 +10,7 @@ import { EpigraphsService, EpigraphsOutBasic } from "../client"
 import { Select } from "../components/Select"
 import { MagnifyingGlass } from "@phosphor-icons/react"
 import { MyDisclosure } from "../components/Disclosure"
+import { Spinner } from "../components/Spinner"
 
 const Search: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -33,6 +34,7 @@ const Search: React.FC = () => {
     transIdx: -1,
     lines: [],
   })
+  const [isSearching, setIsSearching] = useState(false)
   type Note = {
     note: string
     line?: string
@@ -74,6 +76,7 @@ const Search: React.FC = () => {
       setSearchTerm(term)
     }
     try {
+      setIsSearching(true)
       setSearchParams({
         q: term,
         sort: sortField,
@@ -104,6 +107,8 @@ const Search: React.FC = () => {
       setCurrentPage(page)
     } catch (error) {
       console.error("Error fetching epigraphs:", error)
+    } finally {
+      setIsSearching(false)
     }
   }
 
@@ -206,7 +211,11 @@ const Search: React.FC = () => {
               onPress={() => handleSearch(searchTerm)}
           className="bg-zinc-500 text-white px-4 py-2 rounded self-end"
         >
-          Search
+              {isSearching ? (
+                <Spinner colour="#fff" />
+              ) : (
+                "Search"
+              )}
         </Button>
 
             <div className="w-full flex gap-2 items-center">
