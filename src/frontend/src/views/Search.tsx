@@ -10,6 +10,7 @@ import { EpigraphsService, EpigraphsOutBasic } from "../client"
 import { Select } from "../components/Select"
 import { MagnifyingGlass } from "@phosphor-icons/react"
 import { MyDisclosure } from "../components/Disclosure"
+import { Drawer } from "../components/Drawer"
 import { Spinner } from "../components/Spinner"
 
 const Search: React.FC = () => {
@@ -452,6 +453,29 @@ const Search: React.FC = () => {
         </div>
       )}
         </div>
+      </div>
+      <Drawer 
+        isOpen={selectedNote.note !== null}
+        onClose={() => setSelectedNote({ transIdx: -1, note: null, text: null, lineNumber: null })}
+      >
+        {selectedNote.note && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 p-3 rounded">
+              <p className="text-sm text-gray-500 mb-1">Line {selectedNote.lineNumber}</p>
+              <p className="font-medium">{selectedNote.text}</p>
+            </div>
+            <div>
+              <p className="font-medium text-sm text-gray-600 mb-2">Note</p>
+              <p>{selectedNote.note.note}</p>
+              {selectedNote.note.line && (
+                <p className="text-gray-500 text-sm mt-2">
+                  References line(s): {selectedNote.note.line}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   )
 }
