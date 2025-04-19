@@ -22,22 +22,8 @@ const Search: React.FC = () => {
     notes: true,
     bibliography: true,
   })
-  const [fields, setFields] = useState<Record<string, string[]>>({})
-  const [filters, setFilters] = useState({})
-
-  useEffect(() => {
-    const fetchFields = async () => {
-      EpigraphsService.epigraphsGetAllFieldValues()
-        .then((response) => {setFields(response) })
-        .catch((error) => {
-          console.error("Error fetching fields:", error)
-        }
-      )
-    }
-    fetchFields()
-  }, [])
-
-  console.log("filters", filters)
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
+  const [pageSize] = useState(25)
 
   const handleSearch = async (term: string) => {
     if (term) {
@@ -48,6 +34,9 @@ const Search: React.FC = () => {
         q: term,
         sort: sortField,
         order: sortOrder,
+        page: page.toString(),
+      })
+
       const field_map = {
         translationText: searchFields.translationText ? ["translations"] : [],
         // text: searchFields.text ? ["text"] : [],
@@ -68,6 +57,7 @@ const Search: React.FC = () => {
         limit: pageSize,
       })
       setEpigraphs(result)
+      setCurrentPage(page)
     } catch (error) {
       console.error("Error fetching epigraphs:", error)
     }
@@ -75,9 +65,36 @@ const Search: React.FC = () => {
 
   useEffect(() => {
     if (searchParams.get("q")) {
-      handleSearch(searchParams.get("q") || "")
+      const page = Number(searchParams.get("page")) || 1
+      handleSearch(searchParams.get("q") || "", page)
     }
   }, [])
+
+  const renderPagination = () => {
+    if (!epigraphs) return null
+    const totalPages = Math.ceil(epigraphs.count / pageSize)
+    return (
+      <div className="mt-6 flex justify-center gap-2">
+        <button
+          onClick={() => handleSearch(searchTerm, currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span className="px-3 py-1">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => handleSearch(searchTerm, currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl p-4 mx-auto">
@@ -232,6 +249,7 @@ const Search: React.FC = () => {
               </div>
             ))}
           </div>
+              {renderPagination()}
         </div>
       )}
         </div>
