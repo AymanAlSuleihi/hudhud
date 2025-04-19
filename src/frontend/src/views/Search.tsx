@@ -24,8 +24,52 @@ const Search: React.FC = () => {
   })
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
   const [pageSize] = useState(25)
+  const [highlightedLines, setHighlightedLines] = useState<{
+    epigraphIdx: number,
+    transIdx: number,
+    lines: number[],
+  }>({
+    epigraphIdx: -1,
+    transIdx: -1,
+    lines: [],
+  })
+  type Note = {
+    note: string
+    line?: string
+    topic?: string
+  }
 
-  const handleSearch = async (term: string) => {
+  const [selectedNote, setSelectedNote] = useState<{
+    transIdx: number,
+    note: Note | null,
+    text: string | null,
+    lineNumber: number | null
+  }>({ transIdx: -1, note: null, text: null, lineNumber: null })
+
+  const parseLineRange = (lineStr: string | undefined): number[] => {
+    if (!lineStr) return []
+    return lineStr.split('-').map(Number).reduce((lines, num, i, range) => {
+      if (range.length === 2 && i === 0) {
+        return [...Array(range[1] - range[0] + 1)].map((_, i) => range[0] + i)
+      }
+      return [...lines, num]
+    }, [] as number[])
+  }
+
+  // useEffect(() => {
+  //   const fetchFields = async () => {
+  //     EpigraphsService.epigraphsGetAllFieldValues()
+  //       .then((response) => {setFields(response) })
+  //       .catch((error) => {
+  //         console.error("Error fetching fields:", error)
+  //       }
+  //     )
+  //   }
+  //   fetchFields()
+  // }, [])
+
+
+  const handleSearch = async (term: string, page: number = currentPage) => {
     if (term) {
       setSearchTerm(term)
     }
@@ -94,6 +138,15 @@ const Search: React.FC = () => {
         </button>
       </div>
     )
+  }
+
+  const handleNoteClick = (idx: number, note: Note, text: string, lineNumber: number) => {
+    setSelectedNote({ 
+      transIdx: idx, 
+      note,
+      text,
+      lineNumber
+    })
   }
 
   return (
@@ -191,17 +244,11 @@ const Search: React.FC = () => {
             </div>
       </div>
 
-      <AdvancedFilters
-        values={filters}
-        onChange={setFilters}
-        fields={fields}
-      />
-
       {epigraphs && (
         <div>
           <p className="mb-4">Found {epigraphs.count} results</p>
           <div className="space-y-4">
-            {epigraphs.epigraphs.map((epigraph) => (
+                {epigraphs.epigraphs.map((epigraph, epigraphIdx) => (
               <div key={epigraph.id} className="border border-gray-400 p-4 rounded-sm">
                 <div className="flex justify-between mb-2">
                   <h2 className="font-bold">{epigraph.title}</h2>
@@ -232,18 +279,100 @@ const Search: React.FC = () => {
                 {epigraph.translations && epigraph.translations.length > 0 && (
                   <div className="mt-4">
                     <h3 className="font-medium mb-2">Translations:</h3>
-                    <div className="space-y-2">
+                        <div className="space-y-4">
                       {epigraph.translations.map((trans, idx) => (
-                        <div key={idx} className="text-sm bg-gray-100/70 p-3 rounded">
-                          <p>{trans.text}</p>
+                            <div key={idx} className="bg-gray-100/70 rounded p-3 border border-gray-400">
+                              <div className="mb-4">
+                                <pre className="font-sans whitespace-pre-wrap">
+                                  {trans.text.split('\n').map((line, i) => (
+                                    <span 
+                                      key={i} 
+                                      className={`flex px-4 py-[2px] hover:bg-slate-200 cursor-pointer transition-colors
+                                        ${highlightedLines.epigraphIdx === epigraphIdx &&
+                                          highlightedLines.transIdx === idx && 
+                                          highlightedLines.lines.includes(i + 1) ? 'bg-slate-200' : ''}`}
+                                      onMouseEnter={() => setHighlightedLines({
+                                        epigraphIdx: epigraphIdx,
+                                        transIdx: idx,
+                                        lines: [i + 1]
+                                      })}
+                                      onMouseLeave={() => setHighlightedLines({
+                                        epigraphIdx: -1,
+                                        transIdx: -1,
+                                        lines: []
+                                      })}
+                                      onClick={() => {
+                                        const note = trans.notes?.find(n => 
+                                          parseLineRange(n.line).includes(i + 1)
+                                        )
+                                        if (note) {
+                                          handleNoteClick(idx, note, line, i + 1)
+                                        }
+                                      }}
+                                      data-line={i + 1}
+                                    >
+                                      <span className="text-gray-400 w-8 shrink-0 select-none">{i + 1}</span>
+                                      <span>{line}</span>
+                                    </span>
+                                  ))}
+                                </pre>
+                                <div className="justify-between flex flex-wrap gap-2 mt-2">
                           {trans.language && (
-                            <p className="text-gray-500 text-xs mt-1">
+                                    <p className="text-gray-500 text-xs">
                               Language: {trans.language}
                             </p>
+                                  )}
+                                  {trans.label && (
+                                    <p className="text-gray-500 text-xs">
+                                      Label: {trans.label}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {trans.notes && trans.notes.length > 0 && (
+                                <div className="border-t border-gray-200 p-3 mt-3">
+                                  <p className="text-sm font-medium mb-2">Translation Notes:</p>
+                                  <div className="space-y-1">
+                                    {trans.notes.map((note, noteIdx) => (
+                                      <div 
+                                        key={noteIdx} 
+                                        className={`flex px-3 py-[2px] rounded text-sm hover:bg-slate-200 cursor-pointer transition-colors
+                                          ${note.line &&
+                                            highlightedLines.transIdx === idx && 
+                                            highlightedLines.epigraphIdx === epigraphIdx &&
+                                            parseLineRange(note.line).some(l => 
+                                              highlightedLines.lines.includes(l)) ? '!bg-slate-200' : ''}`}
+                                        onMouseEnter={() => note.line && setHighlightedLines({
+                                          epigraphIdx: epigraphIdx,
+                                          transIdx: idx,
+                                          lines: parseLineRange(note.line)
+                                        })}
+                                        onMouseLeave={() => setHighlightedLines({
+                                          epigraphIdx: -1,
+                                          transIdx: -1,
+                                          lines: []
+                                        })}
+                                        onClick={() => {
+                                          const lineNum = parseLineRange(note.line)[0]
+                                          const text = trans.text.split('\n')[lineNum - 1]
+                                          handleNoteClick(idx, note, text, lineNum)
+                                        }}
+                                        data-line={note.line}
+                                      >
+                                        <span className="text-gray-400 w-8 shrink-0 select-none">{note.line}</span>
+                                        <span>{note.note}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                           )}
                         </div>
                       ))}
                     </div>
+                      </div>
+                    )}
+
                     {epigraph.general_notes && (
                       <div className="mt-4">
                         <MyDisclosure title="General Notes">
