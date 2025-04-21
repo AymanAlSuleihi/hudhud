@@ -124,7 +124,7 @@ def full_text_search_epigraphs(
 
     if fields:
         fields = fields.split(",")
-        search_conditions = []
+        field_vectors = []
 
         for field in fields:
             if field not in Epigraph.__table__.columns:
@@ -137,21 +137,19 @@ def full_text_search_epigraphs(
             column_type = str(Epigraph.__table__.columns[field].type)
 
             if "JSONB" in column_type:
-                search_conditions.append(
+                field_vectors.append(
                     text(f"""
-                        EXISTS (
-                            SELECT 1 FROM jsonb_array_elements({field}) as elem
-                            WHERE to_tsvector(elem::text) @@ to_tsquery('{search_text}')
-                        )
+                        (SELECT string_agg(elem::text, ' ') 
+                         FROM jsonb_array_elements({field}) as elem)
                     """)
                 )
             else:
-                search_conditions.append(
-                    column.op("@@")(text(f"to_tsquery('{search_text}')"))
-                )
+                field_vectors.append(text(f"COALESCE({field}::text, '')"))
 
-        if search_conditions:
-            query = query.where(or_(*search_conditions))
+        combined_vector = " || ' ' || ".join(str(v) for v in field_vectors)
+        query = query.where(
+            text(f"to_tsvector('english', {combined_vector}) @@ plainto_tsquery('english', :search_text)")
+        ).params(search_text=processed_search_text)
 
     if filters:
         filters_dict = json.loads(filters)
