@@ -117,6 +117,9 @@ def full_text_search_epigraphs(
     """
     logging.info(f"Full text searching: {search_text}, fields: {fields}, sort_field: {sort_field}, sort_order: {sort_order}")
 
+    cleaned_text = re.sub(r'[!@#$%^&*()+=\[\]{};:"\\|,.<>/?]', ' ', search_text)
+    processed_search_text = ' '.join(cleaned_text.split())
+
     query = select(Epigraph)
 
     if fields:
