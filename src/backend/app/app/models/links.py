@@ -21,6 +21,24 @@ class EpigraphWordLink(SQLModel, table=True):
     )
 
 
+class EpigraphObjectLink(SQLModel, table=True):
+    epigraph_id: Optional[int] = Field(
+        default=None, foreign_key="epigraph.id", primary_key=True
+    )
+    object_id: Optional[int] = Field(
+        default=None, foreign_key="object.id", primary_key=True
+    )
+
+
+class ObjectSiteLink(SQLModel, table=True):
+    object_id: Optional[int] = Field(
+        default=None, foreign_key="object.id", primary_key=True
+    )
+    site_id: Optional[int] = Field(
+        default=None, foreign_key="site.id", primary_key=True
+    )
+
+
 class WordLink(SQLModel, table=True):
     from_word_id: int = Field(
         default=None, foreign_key="word.id", primary_key=True
