@@ -15,5 +15,14 @@ class CRUDTaskProgress(CRUDBase[TaskProgress, TaskProgressCreate, TaskProgressUp
             self.model.status.in_([TaskStatus.PENDING, TaskStatus.RUNNING])
         ).order_by(self.model.created_at.desc()).first()
 
+    def remove(self, db: Session, *, id: int = None, uuid: str = None) -> Optional[TaskProgress]:
+        if id:
+            task = db.query(self.model).filter(self.model.id == id).first()
+        elif uuid:
+            task = self.get_by_uuid(db, uuid=uuid)
+        db.delete(task)
+        db.commit()
+        return task
+
 
 task_progress = CRUDTaskProgress(TaskProgress)
