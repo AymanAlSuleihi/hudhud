@@ -59,7 +59,7 @@ def read_task_progress_by_id(
     """
     Retrieve task progress by id.
     """
-    task_progress = crud_task_progress.get(session, task_id=task_id)
+    task_progress = crud_task_progress.get(session, id=task_id)
     if not task_progress:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -80,7 +80,7 @@ def read_task_progress_by_uuid(
     """
     Retrieve task progress by uuid.
     """
-    task_progress = crud_task_progress.get_by_uuid(session, uuid)
+    task_progress = crud_task_progress.get_by_uuid(session, uuid=uuid)
     if not task_progress:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -117,7 +117,7 @@ def create_task_progress(
     """
     Create new task progress.
     """
-    task_progress = crud_task_progress.create(session, task_progress_in)
+    task_progress = crud_task_progress.create(session, obj_in=task_progress_in)
     return task_progress
 
 
@@ -134,7 +134,11 @@ def update_task_progress(
     """
     Update task progress.
     """
-    task_progress = crud_task_progress.update(session, task_id, task_progress_in)
+    task_progress = crud_task_progress.update(
+        session,
+        db_obj=task_id,
+        obj_in=task_progress_in,
+    )
     return task_progress
 
 
@@ -150,4 +154,4 @@ def delete_task_progress(
     """
     Delete task progress.
     """
-    return crud_task_progress.remove(session, task_id)
+    return crud_task_progress.remove(session, id=task_id)
