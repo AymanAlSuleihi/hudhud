@@ -17,6 +17,8 @@ class TaskProgressService:
         task = crud_task_progress.get_unfinished_task(self.session, task_type=task_type)
         if task:
             self.update_progress(
+                uuid=task.uuid,
+                processed=task.processed_items,
                 status=TaskStatus.RUNNING
             )
             return task
