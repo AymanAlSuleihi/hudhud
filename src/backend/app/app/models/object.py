@@ -80,16 +80,34 @@ class Object(
     sites: list["Site"] = Relationship(back_populates="objects", link_model=ObjectSiteLink)
 
 
-class ObjectOut(ObjectBase):
-    id: int
-    epigraphs: list = []
-    sites: list = []
-
-
-class ObjectMinimal(SQLModel):
+class ObjectOut(SQLModel):
     id: int
     dasi_id: int
-    dasi_object: dict = Field(sa_column=Column(JSONB), default={})
+    title: str
+    uri: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    period: Optional[str] = None
+    deposits: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    materials: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    shape: Optional[str] = None
+    measures: Optional[str] = None
+    decorations: Optional[list[Union[dict, list]]] = Field(sa_column=Column(JSONB), default=[])
+    support_type_level_1: Optional[str] = None
+    support_type_level_2: Optional[str] = None
+    support_type_level_3: Optional[str] = None
+    support_type_level_4: Optional[str] = None
+    support_notes: Optional[str] = None
+    deposit_notes: Optional[str] = None
+    cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    license: str
+    editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    first_published: Optional[str] = None
+    last_modified: Optional[datetime] = None
+    epigraphs: list[EpigraphMinimal] = []
+    sites: list[SiteMinimal] = []
 
 
 class ObjectsOut(SQLModel):

@@ -92,13 +92,40 @@ class Epigraph(
     words: list["Word"] = Relationship(back_populates="epigraphs", link_model=EpigraphWordLink)
 
 
-class EpigraphOut(EpigraphBase):
+class EpigraphOut(SQLModel):
     id: int
-    words: list = None
-
-
-class EpigraphMinimal(SQLModel):
-    id: int
+    dasi_id: int
+    title: str
+    uri: str
+    epigraph_text: str
+    translations: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    period: Optional[str] = None
+    chronology_conjectural: bool
+    mentioned_date: Optional[str] = None
+    sites: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    language_level_1: str
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
+    alphabet: Optional[str] = None
+    script_typology: Optional[str] = None
+    script_cursus: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    textual_typology: Optional[str] = None
+    textual_typology_conjectural: bool
+    letter_measure: Optional[str] = None
+    writing_techniques: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    royal_inscription: bool
+    cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    general_notes: Optional[str] = None
+    bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    license: str
+    first_published: Optional[str] = None
+    editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    last_modified: Optional[datetime] = None
+    # words: list = None
+    objects: list[ObjectMinimal] = []
+    site_objs: list[SiteMinimal] = []
 
 
 class EpigraphOutBasic(SQLModel):

@@ -92,24 +92,40 @@ class Site(
     objects: list["Object"] = Relationship(back_populates="sites", link_model=ObjectSiteLink)
 
 
-class SiteOut(SiteBase):
+class SiteOut(SQLModel):
     id: int
-    # epigraphs: list = None
-
-
-class SiteMinimal(SQLModel):
-    id: int
-    dasi_id: int
-    uri: str
-    modern_name: str
-    ancient_name: str
+    dasi_id: Optional[int] = None
+    uri: Optional[str] = None
+    modern_name: Optional[str] = None
+    ancient_name: Optional[str] = None
     country: Optional[str] = None
     governorate: Optional[str] = None
     geographical_area: Optional[str] = None
+    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
+    coordinates_accuracy: Optional[str] = None
+    location_and_toponomy: Optional[str] = None
+    type_of_site: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    license: str
+    license: Optional[str] = None
     first_published: Optional[str] = None
-    last_modified_dasi: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
+    general_description: Optional[str] = None
+    notes: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    classical_sources: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    archaeological_missions: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    travellers: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    history_of_research: Optional[str] = None
+    chronology: Optional[str] = None
+    monuments: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    structures: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    deities: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    tribe: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    identification: Optional[str] = None
+    kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    language: Optional[str] = None
+    epigraphs: list[EpigraphMinimal] = []
+    objects: list[ObjectMinimal] = []
 
 
 class SitesOut(SQLModel):
