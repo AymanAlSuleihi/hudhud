@@ -69,6 +69,26 @@ def read_site(
     return site
 
 
+@router.get(
+    "/dasi_id/{dasi_id}",
+    response_model=SiteOut,
+)
+def read_site_by_dasi_id(
+    dasi_id: int,
+    session: SessionDep,
+) -> SiteOut:
+    """
+    Retrieve a site by DASI ID.
+    """
+    site = crud_site.get_by_dasi_id(session, dasi_id=dasi_id)
+    if not site:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Site not found",
+        )
+    return site
+
+
 @router.post(
     "/",
     response_model=SiteOut,
