@@ -17,29 +17,29 @@ class SiteBase(SQLModel):
     country: Optional[str] = None
     governorate: Optional[str] = None
     geographical_area: Optional[str] = None
+    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
+    coordinates_accuracy: Optional[str] = None
+    location_and_toponomy: Optional[str] = None
+    type_of_site: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     license: str
     first_published: Optional[str] = None
     last_modified: Optional[datetime] = None
+    general_description: Optional[str] = None
     notes: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    monuments: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    identification: Optional[str] = None
     classical_sources: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
-    coordinates_accuracy: Optional[str] = None
-    location_and_toponomy: Optional[str] = None
-    general_description: Optional[str] = None
     archaeological_missions: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     travellers: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    language: Optional[str] = None
-    type_of_site: Optional[str] = None
+    history_of_research: Optional[str] = None
+    chronology: Optional[str] = None
+    monuments: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     structures: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     deities: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     tribe: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    chronology: Optional[str] = None
-    history_of_research: Optional[str] = None
+    identification: Optional[str] = None
+    kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    language: Optional[str] = None
 
 
 class SiteCreate(SiteBase):
@@ -55,29 +55,29 @@ class SiteUpdate(SQLModel):
     country: Optional[str] = None
     governorate: Optional[str] = None
     geographical_area: Optional[str] = None
+    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
+    coordinates_accuracy: Optional[str] = None
+    location_and_toponomy: Optional[str] = None
+    type_of_site: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     license: Optional[str] = None
     first_published: Optional[str] = None
     last_modified: Optional[datetime] = None
+    general_description: Optional[str] = None
     notes: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    monuments: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    identification: Optional[str] = None
     classical_sources: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
-    coordinates_accuracy: Optional[str] = None
-    location_and_toponomy: Optional[str] = None
-    general_description: Optional[str] = None
     archaeological_missions: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     travellers: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    language: Optional[str] = None
-    type_of_site: Optional[str] = None
+    history_of_research: Optional[str] = None
+    chronology: Optional[str] = None
+    monuments: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     structures: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     deities: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     tribe: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
-    chronology: Optional[str] = None
-    history_of_research: Optional[str] = None
+    identification: Optional[str] = None
+    kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
+    language: Optional[str] = None
 
 
 class Site(
