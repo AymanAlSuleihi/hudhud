@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.models import TimeStampModel
 from app.models.links import EpigraphSiteLink, EpigraphWordLink, EpigraphObjectLink, ObjectSiteLink, WordLink
+from app.models.minimal import EpigraphMinimal, ObjectMinimal, SiteMinimal
 
 
 class EpigraphBase(SQLModel):

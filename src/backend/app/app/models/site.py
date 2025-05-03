@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.models import TimeStampModel
 from app.models.links import EpigraphSiteLink, ObjectSiteLink
+from app.models.minimal import EpigraphMinimal, ObjectMinimal, SiteMinimal
 
 
 class SiteBase(SQLModel):
