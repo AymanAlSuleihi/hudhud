@@ -20,7 +20,7 @@ class SiteBase(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     license: str
     first_published: Optional[str] = None
-    last_modified_dasi: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
 
 
 class SiteCreate(SiteBase):
@@ -39,7 +39,7 @@ class SiteUpdate(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     license: Optional[str] = None
     first_published: Optional[str] = None
-    last_modified_dasi: Optional[datetime] = None
+    last_modified: Optional[datetime] = None
 
 
 class Site(
