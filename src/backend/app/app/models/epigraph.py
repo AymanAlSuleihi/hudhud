@@ -125,7 +125,7 @@ class EpigraphOut(SQLModel):
     last_modified: Optional[datetime] = None
     # words: list = None
     objects: list[ObjectMinimal] = []
-    site_objs: list[SiteMinimal] = []
+    sites_objs: list[SiteMinimal] = []
 
 
 class EpigraphOutBasic(SQLModel):
