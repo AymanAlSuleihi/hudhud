@@ -133,14 +133,24 @@ def full_text_search_epigraphs(
                     detail=f"Invalid field: {field}",
                 )
 
-            column = getattr(Epigraph, field)
             column_type = str(Epigraph.__table__.columns[field].type)
 
             if "JSONB" in column_type:
                 field_vectors.append(
                     text(f"""
-                        (SELECT string_agg(elem::text, ' ') 
-                         FROM jsonb_array_elements({field}) as elem)
+                        CASE 
+                            WHEN {field} IS NULL THEN ''
+                            WHEN jsonb_typeof({field}) = 'array' THEN
+                                COALESCE((
+                                    SELECT string_agg(CASE 
+                                        WHEN jsonb_typeof(value) = 'object' AND value ? 'text'
+                                        THEN value #>> '{{text}}'
+                                        ELSE value #>> '{{}}'
+                                    END, ' ')
+                                    FROM jsonb_array_elements({field})
+                                ), '')
+                            ELSE {field}::text
+                        END
                     """)
                 )
             else:
@@ -148,7 +158,7 @@ def full_text_search_epigraphs(
 
         combined_vector = " || ' ' || ".join(str(v) for v in field_vectors)
         query = query.where(
-            text(f"to_tsvector('english', {combined_vector}) @@ plainto_tsquery('english', :search_text)")
+            text(f"to_tsvector({combined_vector}) @@ plainto_tsquery(:search_text)")
         ).params(search_text=processed_search_text)
 
     if filters:
@@ -164,6 +174,7 @@ def full_text_search_epigraphs(
                 )
 
     epigraph_count = session.exec(select(func.count()).select_from(query)).one()
+    logging.info(f"Found {epigraph_count} epigraphs")
 
     if sort_field:
         if sort_order.lower() == "desc":
