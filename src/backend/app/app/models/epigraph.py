@@ -20,7 +20,7 @@ class EpigraphBase(SQLModel):
     chronology_conjectural: bool
     mentioned_date: Optional[str] = None
     sites: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    language_level_1: str
+    language_level_1: Optional[str] = None
     language_level_2: Optional[str] = None
     language_level_3: Optional[str] = None
     alphabet: Optional[str] = None
@@ -103,7 +103,7 @@ class EpigraphOut(SQLModel):
     chronology_conjectural: bool
     mentioned_date: Optional[str] = None
     sites: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    language_level_1: str
+    language_level_1: Optional[str] = None
     language_level_2: Optional[str] = None
     language_level_3: Optional[str] = None
     alphabet: Optional[str] = None
@@ -135,7 +135,7 @@ class EpigraphOutBasic(SQLModel):
     uri: str
     period: Optional[str] = None
     sites: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    language_level_1: str
+    language_level_1: Optional[str] = None
     language_level_2: Optional[str] = None
     language_level_3: Optional[str] = None
     translations: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
