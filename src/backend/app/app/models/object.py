@@ -35,6 +35,7 @@ class ObjectBase(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     first_published: Optional[str] = None
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
 
 
 class ObjectCreate(ObjectBase):
@@ -67,6 +68,7 @@ class ObjectUpdate(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     first_published: Optional[str] = None
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
 
 
 class Object(
@@ -106,6 +108,7 @@ class ObjectOut(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     first_published: Optional[str] = None
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
     epigraphs: list[EpigraphMinimal] = []
     sites: list[SiteMinimal] = []
 
