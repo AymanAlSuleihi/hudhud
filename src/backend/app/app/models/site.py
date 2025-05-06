@@ -18,7 +18,7 @@ class SiteBase(SQLModel):
     country: Optional[str] = None
     governorate: Optional[str] = None
     geographical_area: Optional[str] = None
-    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=())
+    coordinates: Optional[tuple[float, float]] = Field(sa_column=Column(JSONB), default=None)
     coordinates_accuracy: Optional[str] = None
     location_and_toponomy: Optional[str] = None
     type_of_site: Optional[str] = None
