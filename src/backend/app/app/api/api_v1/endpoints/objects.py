@@ -69,6 +69,26 @@ def read_object(
     return obj
 
 
+@router.get(
+    "/dasi_id/{dasi_id}",
+    response_model=ObjectOut,
+)
+def read_object_by_dasi_id(
+    dasi_id: int,
+    session: SessionDep,
+) -> ObjectOut:
+    """
+    Retrieve a single object by DASI ID.
+    """
+    obj = crud_object.get_by_dasi_id(session, dasi_id=dasi_id)
+    if not obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Object not found",
+        )
+    return obj
+
+
 @router.post(
     "/",
     response_model=ObjectOut,
