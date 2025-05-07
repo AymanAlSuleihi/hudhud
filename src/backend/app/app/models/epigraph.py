@@ -40,6 +40,7 @@ class EpigraphBase(SQLModel):
     first_published: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
 
 
 class EpigraphCreate(EpigraphBase):
@@ -77,6 +78,7 @@ class EpigraphUpdate(SQLModel):
     first_published: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
 
 
 class Epigraph(
@@ -123,6 +125,7 @@ class EpigraphOut(SQLModel):
     first_published: Optional[str] = None
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     last_modified: Optional[datetime] = None
+    dasi_published: Optional[bool] = None
     # words: list = None
     objects: list[ObjectMinimal] = []
     sites_objs: list[SiteMinimal] = []
