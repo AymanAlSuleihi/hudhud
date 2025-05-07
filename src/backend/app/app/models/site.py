@@ -41,6 +41,7 @@ class SiteBase(SQLModel):
     identification: Optional[str] = None
     kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     language: Optional[str] = None
+    dasi_published: Optional[bool] = None
 
 
 class SiteCreate(SiteBase):
@@ -79,6 +80,7 @@ class SiteUpdate(SQLModel):
     identification: Optional[str] = None
     kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     language: Optional[str] = None
+    dasi_published: Optional[bool] = None
 
 
 class Site(
@@ -124,6 +126,7 @@ class SiteOut(SQLModel):
     identification: Optional[str] = None
     kingdom: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     language: Optional[str] = None
+    dasi_published: Optional[bool] = None
     epigraphs: list[EpigraphMinimal] = []
     objects: list[ObjectMinimal] = []
 
