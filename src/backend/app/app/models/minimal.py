@@ -17,9 +17,14 @@ class ObjectMinimal(SQLModel):
     dasi_id: int
     title: str
     deposits: Optional[list[dict]] = []
+    support_notes: Optional[str] = None
+    deposit_notes: Optional[str] = None
+    cultural_notes: Optional[list[dict]] = []
+    bibliography: Optional[list[dict]] = []
 
 
 class EpigraphMinimal(SQLModel):
     id: int
     dasi_id: int
     title: str
+    period: Optional[str] = None
