@@ -40,10 +40,35 @@ def read_sites(
     """
     Retrieve sites.
     """
-    total_count_statement = select(func.count()).select_from(Site)
+    sites_statement = select(Site)
+
+    if filters:
+        filters_dict = json.loads(filters)
+        for key, value in filters_dict.items():
+            if isinstance(value, bool):
+                sites_statement = sites_statement.where(
+                    getattr(Site, key).is_(value)
+                )
+            elif isinstance(value, dict) and "not" in value and value["not"] is False:
+                sites_statement = sites_statement.where(
+                    getattr(Site, key).isnot(False)
+                )
+            else:
+                sites_statement = sites_statement.where(
+                    getattr(Site, key).ilike(f"%{value}%")
+                )
+
+    total_count_statement = select(func.count()).select_from(sites_statement)
     total_count = session.exec(total_count_statement).one()
 
-    sites_statement = select(Site).offset(skip).limit(limit)
+    sites_statement = sites_statement.offset(skip).limit(limit)
+
+    if sort_field:
+        if sort_order == "desc":
+            sites_statement = sites_statement.order_by(desc(getattr(Site, sort_field)))
+        else:
+            sites_statement = sites_statement.order_by(asc(getattr(Site, sort_field)))
+
     sites = session.exec(sites_statement).all()
 
     return SitesOut(sites=sites, count=total_count)
