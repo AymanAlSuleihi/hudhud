@@ -1,7 +1,7 @@
 import React from "react"
 import { EpigraphOut } from "../client"
 import { Link } from "react-router-dom"
-import { Eye, ArrowSquareOut } from "@phosphor-icons/react"
+import { Eye, ArrowSquareOut, WarningCircle } from "@phosphor-icons/react"
 import { MyDisclosure } from "./Disclosure"
 import TextRenderer from "./TextRenderer"
 import { Button, Tooltip, TooltipTrigger, OverlayArrow } from "react-aria-components"
@@ -229,14 +229,20 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       </div>
     </div>
 
-    {/* {epigraph.epigraph_text && (
+    {epigraph.epigraph_text && (
       <div className="mt-4">
-        <h3 className="font-medium mb-2">Text:</h3>
+<div className="flex items-center gap-2 mb-2">
+        <h3 className="font-medium">Text:</h3>
+<div className="flex items-center gap-1 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
+            <WarningCircle size={12} />
+            Development in progress - Text rendering may be inaccurate or incomplete.
+          </div>
+        </div>
         <div className="text-sm bg-gray-100/70 p-3 rounded">
           <TextRenderer text={epigraph.epigraph_text} />
         </div>
       </div>
-    )} */}
+    )}
 
     {epigraph.translations && epigraph.translations.length > 0 && (
       <div className="mt-4">
