@@ -1,163 +1,184 @@
 import React, { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { EpigraphsService, EpigraphsOutBasic } from "../client"
+import { EpigraphsService, EpigraphsOut } from "../client"
+import { EpigraphCard } from "../components/EpigraphCard"
+import { Spinner } from "../components/Spinner"
+import { MySelect, MyItem } from "../components/Select"
 
 const Epigraphs: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "")
+  const [epigraphs, setEpigraphs] = useState<EpigraphsOut | null>(null)
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
+  const [pageSize, setPageSize] = useState(Number(searchParams.get("pageSize") || 25))
   const [sortField, setSortField] = useState(searchParams.get("sort") || "period")
   const [sortOrder, setSortOrder] = useState(searchParams.get("order") || "asc")
-  const [epigraphs, setEpigraphs] = useState<EpigraphsOutBasic | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSearch = async () => {
+  const fetchEpigraphs = async (page: number = 1, size: number = pageSize, sort: string = sortField, order: string = sortOrder) => {
     try {
-      setSearchParams({
-        q: searchTerm,
-        sort: sortField,
-        order: sortOrder,
+      setIsLoading(true)
+      setSearchParams({ 
+        page: page.toString(),
+        pageSize: size.toString(),
+        sort: sort,
+        order: order
       })
-
-      const result = await EpigraphsService.epigraphsFilterEpigraphs({
-        translationText: searchTerm,
-        sortField: sortField,
-        sortOrder: sortOrder,
+      
+      const result = await EpigraphsService.epigraphsReadEpigraphs({
+        skip: (page - 1) * size,
+        limit: size,
+        sortField: sort,
+        sortOrder: order,
+        filters: JSON.stringify({
+          dasi_published: true,
+        }),
       })
       setEpigraphs(result)
+      setCurrentPage(page)
+      setPageSize(size)
+      setSortField(sort)
+      setSortOrder(order)
     } catch (error) {
       console.error("Error fetching epigraphs:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    if (searchParams.get("q")) {
-      handleSearch()
-    }
+    const page = Number(searchParams.get("page")) || 1
+    const size = Number(searchParams.get("pageSize")) || 25
+    const sort = searchParams.get("sort") || "period"
+    const order = searchParams.get("order") || "asc"
+    fetchEpigraphs(page, size, sort, order)
   }, [])
+
+  const handlePageSizeChange = (newSize: number) => {
+    const currentFirstItem = (currentPage - 1) * pageSize + 1
+    const newPage = Math.ceil(currentFirstItem / newSize)
+    fetchEpigraphs(newPage, newSize, sortField, sortOrder)
+  }
+
+  const handleSortChange = (newSort: string) => {
+    fetchEpigraphs(1, pageSize, newSort, sortOrder)
+  }
+
+  const handleOrderChange = (newOrder: string) => {
+    fetchEpigraphs(1, pageSize, sortField, newOrder)
+  }
+
+  const renderPagination = () => {
+    if (!epigraphs) return null
+    const totalPages = Math.ceil(epigraphs.count / pageSize)
+    return (
+      <div className="mt-6 flex flex-col sm:flex-row justify-between items-end gap-4">
+        <div className="sm:flex-1"></div>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => fetchEpigraphs(currentPage - 1, pageSize, sortField, sortOrder)}
+            disabled={currentPage <= 1 || isLoading}
+            className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="px-3 py-1">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => fetchEpigraphs(currentPage + 1, pageSize, sortField, sortOrder)}
+            disabled={currentPage >= totalPages || isLoading}
+            className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+        
+        <div className="flex items-end gap-2 sm:flex-1 sm:justify-end">
+          <MySelect
+            label="Results per page"
+            selectedKey={pageSize.toString()}
+            onSelectionChange={(key) => {
+              if (typeof key === "string") {
+                handlePageSizeChange(Number(key))
+              }
+            }}
+            buttonClassName="h-8 max-h-8"
+          >
+            <MyItem key="10" id="10">10</MyItem>
+            <MyItem key="25" id="25">25</MyItem>
+            <MyItem key="50" id="50">50</MyItem>
+            <MyItem key="100" id="100">100</MyItem>
+            <MyItem key="200" id="200">200</MyItem>
+            <MyItem key="500" id="500">500</MyItem>
+            <MyItem key="1000" id="1000">1000</MyItem>
+          </MySelect>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl p-4 mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Epigraph Translations Search</h1>
+      <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
 
-      <p className="mb-4">
-        The DASI project is missing a search feature for translations, so I built one here.
-        You can sort the results by period, DASI ID, title, or language.
-      </p>
-
-      <p className="mb-4">
-        At the moment, only exact phrase search is supported. More advanced search features will be added in the future.
-      </p>
-
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex justify-between items-end gap-2 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-1">
-            Exact Phrase
-          </label>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="border border-gray-400 p-2 rounded"
-            placeholder="Search within translations..."
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Sort By
-          </label>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value)}
-            className="border border-gray-400 p-2 rounded"
-          >
-            <option value="period">Period</option>
-            <option value="dasi_id">DASI ID</option>
-            <option value="title">Title</option>
-            <option value="language_level_1">Language</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Sort Order
-          </label>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            className="border border-gray-400 p-2 rounded"
-          >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
+          {epigraphs && (
+            <p>Showing {Math.min(pageSize, epigraphs.epigraphs.length)} of {epigraphs.count} total epigraphs</p>
+          )}
         </div>
         
-        <button
-          onClick={handleSearch}
-          className="bg-zinc-500 text-white px-4 py-2 rounded self-end"
-        >
-          Search
-        </button>
+        <div className="flex gap-2">
+          <MySelect
+            label="Sort By"
+            selectedKey={sortField}
+            onSelectionChange={(key) => {
+              if (typeof key === "string") {
+                handleSortChange(key)
+              }
+            }}
+            buttonClassName="h-8 max-h-8"
+          >
+            <MyItem key="period" id="period">Period</MyItem>
+            <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
+            <MyItem key="title" id="title">Title</MyItem>
+            <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
+          </MySelect>
+
+          <MySelect
+            label="Sort Order"
+            selectedKey={sortOrder}
+            onSelectionChange={(key) => {
+              if (typeof key === "string") {
+                handleOrderChange(key)
+              }
+            }}
+            buttonClassName="h-8 max-h-8"
+          >
+            <MyItem key="asc" id="asc">Ascending</MyItem>
+            <MyItem key="desc" id="desc">Descending</MyItem>
+          </MySelect>
+        </div>
       </div>
 
-      {epigraphs && (
+      {epigraphs && !isLoading ? (
         <div>
-          <p className="mb-4">Found {epigraphs.count} results</p>
           <div className="space-y-4">
             {epigraphs.epigraphs.map((epigraph) => (
-              <div key={epigraph.id} className="border border-gray-400 p-4 rounded-sm">
-                <div className="flex justify-between mb-2">
-                  <h2 className="font-bold">{epigraph.title}</h2>
-                  <div>
-                    <span className="text-gray-500">DASI ID: {epigraph.dasi_id}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap justify-between gap-1 mb-4 text-sm">
-                  <div>
-                    <span className="font-medium">Period:</span> {epigraph.period || "Unknown"}
-                  </div>
-                  <div>
-                    <span className="font-medium">Language:</span>{' '}
-                    {[
-                      epigraph.language_level_1,
-                      epigraph.language_level_2,
-                      epigraph.language_level_3
-                    ].filter(Boolean).join(' → ')}
-                  </div>
-                  <div>
-                    <span className="font-medium">Sites:</span>{' '}
-                    {epigraph.sites?.map((site) => site.name).join(', ') || "Unknown"}
-                  </div>
-                  <div className="self-start">
-                    <a href={epigraph.uri} target="_blank" rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline">
-                      View Source
-                    </a>
-                  </div>
-                </div>
-
-                {epigraph.translations && epigraph.translations.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="font-medium mb-2">Translations:</h3>
-                    <div className="space-y-2">
-                      {epigraph.translations.map((trans, idx) => (
-                        <div key={idx} className="text-sm bg-gray-100/70 p-3 rounded">
-                          <p>{trans.text}</p>
-                          {trans.language && (
-                            <p className="text-gray-500 text-xs mt-1">
-                              Language: {trans.language}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <EpigraphCard
+                key={epigraph.id}
+                epigraph={epigraph}
+                notes={true}
+                bibliography={true}
+              />
             ))}
           </div>
+          {renderPagination()}
+        </div>
+      ) : (
+        <div className="flex justify-center">
+          <Spinner size="w-10 h-10" colour="#666" />
         </div>
       )}
     </div>
