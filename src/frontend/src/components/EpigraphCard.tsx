@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { Eye, ArrowSquareOut } from "@phosphor-icons/react"
 import { MyDisclosure } from "./Disclosure"
 import TextRenderer from "./TextRenderer"
+import { Button, Tooltip, TooltipTrigger, OverlayArrow } from "react-aria-components"
 
 interface EpigraphCardProps {
   epigraph: EpigraphOut
@@ -51,11 +52,25 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
             View on Hudhud
             <Eye size={16} />
           </Link>
-          <a href={epigraph.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-gray-700 hover:text-gray-500 transition-colors font-semibold">
-            View on DASI
-            <ArrowSquareOut size={16} />
-          </a>
-          <span className="text-gray-500">DASI ID: {epigraph.dasi_id}</span>
+          <TooltipTrigger delay={0}>
+            <Button className="flex items-center gap-1 text-gray-700 hover:text-gray-500 transition-colors font-semibold p-0 bg-transparent border-none">
+              <a href={epigraph.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                View on DASI
+                <ArrowSquareOut size={16} />
+              </a>
+            </Button>
+            <Tooltip>
+              <OverlayArrow>
+                <svg width={8} height={8} viewBox="0 0 8 8">
+                  <path d="M0 0 L4 4 L8 0" />
+                </svg>
+              </OverlayArrow>
+              <div className="bg-gray-100 border-gray-200 border drop-shadow px-2 py-1 rounded text-xs max-w-xs">
+                Note: DASI may be temporarily offline or experiencing downtime
+              </div>
+            </Tooltip>
+          </TooltipTrigger>
+          <span className="text-gray-700 font-semibold">DASI ID: {epigraph.dasi_id}</span>
         </div>
       </div>
     </div>
