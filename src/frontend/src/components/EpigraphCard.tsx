@@ -75,9 +75,9 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-0 text-sm mt-2 divide-y md:divide-y-0 md:divide-x divide-gray-200">
       {/* Temporal data */}
-      <div>
+      <div className="p-4">
         <h3 className="font-semibold text-gray-700 mb-2">Temporal</h3>
         <div>
           <span className="font-medium">Period:</span> {epigraph.period || "Unknown"}
@@ -104,7 +104,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       </div>
 
       {/* Physical data */}
-      <div>
+      <div className="p-4">
         <h3 className="font-semibold text-gray-700 mb-2">Physical</h3>
         {epigraph.objects && epigraph.objects.length > 0 && (
           <div>
@@ -133,7 +133,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       </div>
 
       {/* Linguistic data */}
-      <div>
+      <div className="p-4">
         <h3 className="font-semibold text-gray-700 mb-2">Linguistic</h3>
         <div>
           <span className="font-medium">Language: </span> {[
@@ -176,7 +176,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       </div>
 
       {/* Spatial data */}
-      <div>
+      <div className="p-4">
         <h3 className="font-semibold text-gray-700 mb-2">Spatial</h3>
         {epigraph.sites_objs && epigraph.sites_objs.length > 0 && (
           <div>
@@ -231,9 +231,9 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
 
     {epigraph.epigraph_text && (
       <div className="mt-4">
-<div className="flex items-center gap-2 mb-2">
-        <h3 className="font-medium">Text:</h3>
-<div className="flex items-center gap-1 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="font-medium">Text:</h3>
+          <div className="flex items-center gap-1 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
             <WarningCircle size={12} />
             Development in progress - Text rendering may be inaccurate or incomplete.
           </div>
