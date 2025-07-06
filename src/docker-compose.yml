@@ -10,7 +10,7 @@ services:
       - .env
     labels:
       - traefik.enable=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.rule=Host(`hudhud.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`))
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.rule=Host(`hudhud.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/public`))
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend.tls=true
       - traefik.http.services.${STACK_NAME?Variable not set}-backend.loadbalancer.server.port=8081
     networks:
