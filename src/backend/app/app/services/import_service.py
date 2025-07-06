@@ -1,10 +1,15 @@
 from datetime import datetime
 import re
-from typing import Dict, Any, Generic, TypeVar, Type
+import os
+import shutil
+from pathlib import Path
+from typing import Dict, Any, Generic, TypeVar, Type, Optional
 import requests
 import time
+import asyncio
 from urllib.parse import urlparse
 
+import aiohttp
 from sqlalchemy.orm import Session
 
 from app.crud.base import CRUDBase
@@ -78,10 +83,10 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except ValueError:
             return link
 
-        rec_id_part = [p for p in link.split('&') if 'recId=' in p]
+        rec_id_part = [p for p in link.split("&") if "recId=" in p]
         if rec_id_part:
             try:
-                dasi_id = int(rec_id_part[0].split('=')[1])
+                dasi_id = int(rec_id_part[0].split("=")[1])
             except (ValueError, IndexError):
                 return link
         else:
@@ -391,6 +396,210 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 uuid=task_id,
                 processed=total_imported,
                 total=(end_id - start_id + 1),
+                status="failed",
+                error=str(e),
+            )
+            return {"status": "error", "error": str(e)}
+
+    async def import_image(
+        self,
+        rec_id: int,
+        size: str = "high",
+        save_directory: str = "public",
+        rate_limit_delay: float = 1.0,
+    ) -> Optional[str]:
+        """
+        Import an image from DASI.
+        """
+        await asyncio.sleep(rate_limit_delay)
+
+        image_url = f"https://dasi.cnr.it/de/cgi-bin/wsimg.pl?recId={rec_id}&size={size}"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    response.raise_for_status()
+
+                    content_type = response.headers.get("content-type", "")
+                    if not content_type.startswith("image/"):
+                        return None
+
+                    images_dir = Path(save_directory) / "images"
+                    images_dir.mkdir(parents=True, exist_ok=True)
+
+                    filename = f"rec_{rec_id}_{size}.jpg"
+                    file_path = images_dir / filename
+
+                    with open(file_path, "wb") as f:
+                        async for chunk in response.content.iter_chunked(8192):
+                            f.write(chunk)
+
+                    relative_path = f"images/{filename}"
+                    return relative_path
+
+        except aiohttp.ClientError as e:
+            # TODO: logging.error(f"Error downloading image for rec ID {rec_id}: {e}")
+            return None
+        except Exception as e:
+            # TODO: logging.error(f"Error saving image for rec ID {rec_id}: {e}")
+            return None
+
+    async def import_images_range(
+        self,
+        task_id: str,
+        start_id: int,
+        end_id: int,
+        image_size: str = "high",
+        rate_limit_delay: float = 1.0,
+    ) -> dict:
+        """
+        Import images for a range of record IDs.
+        """
+        successful_downloads = 0
+        failed_downloads = 0
+        downloaded_images = []
+        total_range = end_id - start_id + 1
+
+        try:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=0,
+                total=total_range,
+                status="running",
+            )
+
+            for i, rec_id in enumerate(range(start_id, end_id + 1)):
+                image_path = await self.import_image(
+                    rec_id=rec_id,
+                    size=image_size,
+                    save_directory="public",
+                    rate_limit_delay=rate_limit_delay,
+                )
+
+                if image_path:
+                    successful_downloads += 1
+                    downloaded_images.append({
+                        "rec_id": rec_id,
+                        "image_path": image_path
+                    })
+                else:
+                    failed_downloads += 1
+
+                if (i + 1) % 10 == 0 or (i + 1) == total_range:
+                    self.task_progress_service.update_progress(
+                        uuid=task_id,
+                        processed=i + 1,
+                        total=total_range,
+                        status="running",
+                    )
+
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_range,
+                total=total_range,
+                status="completed",
+            )
+
+            return {
+                "status": "success",
+                "total_processed": total_range,
+                "successful_downloads": successful_downloads,
+                "failed_downloads": failed_downloads,
+                "downloaded_images": downloaded_images[:100]
+            }
+
+        except Exception as e:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=successful_downloads + failed_downloads,
+                total=total_range,
+                status="failed",
+                error=str(e),
+            )
+            return {"status": "error", "error": str(e)}
+
+    async def import_all_images(
+        self,
+        task_id: str,
+        start_rec_id: int = 1,
+        image_size: str = "high",
+        rate_limit_delay: float = 2.0,
+        max_consecutive_failures: int = 50,
+    ) -> dict:
+        """
+        Import all images from DASI.
+        """
+        try:
+            current_rec_id = start_rec_id
+            consecutive_failures = 0
+            successful_downloads = 0
+            total_attempts = 0
+            downloaded_images = []
+
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=0,
+                total=None,
+                status="running",
+            )
+
+            while consecutive_failures < max_consecutive_failures:
+                total_attempts += 1
+
+                image_path = await self.import_image(
+                    rec_id=current_rec_id,
+                    size=image_size,
+                    save_directory="public",
+                    rate_limit_delay=rate_limit_delay,
+                )
+
+                if image_path:
+                    consecutive_failures = 0
+                    successful_downloads += 1
+                    downloaded_images.append({
+                        "rec_id": current_rec_id,
+                        "image_path": image_path
+                    })
+
+                    if successful_downloads % 10 == 0:
+                        self.task_progress_service.update_progress(
+                            uuid=task_id,
+                            processed=successful_downloads,
+                            total=None,
+                            status="running",
+                        )
+                else:
+                    consecutive_failures += 1
+                current_rec_id += 1
+
+                if total_attempts % 100 == 0:
+                    self.task_progress_service.update_progress(
+                        uuid=task_id,
+                        processed=successful_downloads,
+                        total=None,
+                        status="running",
+                    )
+
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=successful_downloads,
+                total=total_attempts,
+                status="completed",
+            )
+
+            return {
+                "status": "success",
+                "total_attempts": total_attempts,
+                "successful_downloads": successful_downloads,
+                "final_rec_id": current_rec_id - 1,
+                "consecutive_failures": consecutive_failures,
+                "downloaded_images": downloaded_images[:100]
+            }
+
+        except Exception as e:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=0,
                 status="failed",
                 error=str(e),
             )
