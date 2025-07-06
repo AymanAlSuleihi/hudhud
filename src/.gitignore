@@ -1,1 +1,4 @@
 __pycache__
+
+**backend/**/public/**/*.jpg
+**backend/**/private/**/*.jpg
