@@ -47,23 +47,24 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         obj_in: Union[UpdateSchemaType, Dict[str, Any]],
         **kwargs: Any,
     ) -> ModelType:
-        obj_data = jsonable_encoder(db_obj)
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
             update_data = obj_in.dict(exclude_unset=True)
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
+
+        for field, value in update_data.items():
+            if hasattr(db_obj, field):
+                if field == "embedding" and value is not None:
+                    if hasattr(value, "tolist"):
+                        value = value.tolist()
+                    elif not isinstance(value, list):
+                        value = list(value)
+                setattr(db_obj, field, value)
+
         for key, value in kwargs.items():
             setattr(db_obj, key, value)
+
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
         return db_obj
-
-    def remove(self, db: Session, *, id: int) -> ModelType:
-        obj = db.query(self.model).get(id)
-        db.delete(obj)
-        db.commit()
-        return obj
