@@ -33,7 +33,7 @@ services:
       - traefik-public
 
   db:
-    image: postgres
+    image: pgvector/pgvector:pg17
     restart: always
     volumes:
       - app-db-data:/var/lib/postgresql/data
