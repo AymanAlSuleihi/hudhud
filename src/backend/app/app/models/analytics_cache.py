@@ -3,7 +3,7 @@ from typing import Optional
 from sqlmodel import Column, Field, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
 
-from app.core.models import TimeStampModel, UUIDModel
+from app.core.models import TimeStampModel
 
 
 class AnalyticsCacheBase(SQLModel):
@@ -22,7 +22,6 @@ class AnalyticsCacheUpdate(SQLModel):
 
 class AnalyticsCache(
     TimeStampModel,
-    UUIDModel,
     AnalyticsCacheBase,
     table=True
 ):
