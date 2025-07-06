@@ -84,7 +84,10 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str
     USERS_OPEN_REGISTRATION: bool = False
 
+    OPENAI_API_KEY: str
+
     DASI_API_URL: str
+    DASI_ADDRESS: str
 
     class Config:
         case_sensitive = True
