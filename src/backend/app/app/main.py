@@ -37,3 +37,4 @@ def read_root():
     return {"Hello": "World"}
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.mount("/public", StaticFiles(directory="public"), name="public")
