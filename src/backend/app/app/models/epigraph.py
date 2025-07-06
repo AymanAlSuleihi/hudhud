@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlmodel import Column, Field, Relationship, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
 
 from app.core.models import TimeStampModel
 from app.models.links import EpigraphSiteLink, EpigraphWordLink, EpigraphObjectLink, ObjectSiteLink, WordLink
@@ -41,6 +42,7 @@ class EpigraphBase(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     last_modified: Optional[datetime] = None
     dasi_published: Optional[bool] = None
+    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(3072), nullable=True, default=None), default=None)
 
 
 class EpigraphCreate(EpigraphBase):
@@ -79,6 +81,7 @@ class EpigraphUpdate(SQLModel):
     editors: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     last_modified: Optional[datetime] = None
     dasi_published: Optional[bool] = None
+    embedding: Optional[list[float]] = Field(sa_column=Column(Vector(3072), nullable=True, default=None), default=None)
 
 
 class Epigraph(
