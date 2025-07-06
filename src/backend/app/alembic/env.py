@@ -5,6 +5,7 @@ import os
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 from logging.config import fileConfig
+import pgvector
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,6 +25,17 @@ from app.core.models import SQLModel  # noqa
 from app.models.user import User
 from app.models.epigraph import Epigraph
 from app.models.task_progress import TaskProgress
+from app.models.analytics_cache import AnalyticsCache
+from app.models.word import Word
+from app.models.site import Site
+from app.models.object import Object
+from app.models.links import (
+    EpigraphWordLink,
+    WordLink,
+    EpigraphSiteLink,
+    EpigraphObjectLink,
+    ObjectSiteLink,
+)
 # from sqlmodel import SQLModel
 # from app import models
 # from models import *
@@ -65,6 +77,18 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+def do_run_migrations(connection):
+    connection.dialect.ischema_names["vector"] = pgvector.sqlalchemy.Vector
+
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online():
     """Run migrations in 'online' mode.
 
@@ -79,12 +103,13 @@ def run_migrations_online():
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata, compare_type=True
-        )
+        # context.configure(
+        #     connection=connection, target_metadata=target_metadata, compare_type=True
+        # )
 
-        with context.begin_transaction():
-            context.run_migrations()
+        # with context.begin_transaction():
+        #     context.run_migrations()
+        do_run_migrations(connection)
 
 
 if context.is_offline_mode():
