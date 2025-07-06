@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Optional, Sequence, Self
-from pydantic import BaseModel
-from sqlmodel import Column, Field, Relationship, select, SQLModel
+from typing import Optional, Union
+from sqlmodel import Column, Field, Relationship, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.models import TimeStampModel
