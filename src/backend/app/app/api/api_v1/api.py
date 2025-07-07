@@ -8,6 +8,7 @@ from app.api.api_v1.endpoints import (
     words,
     sites,
     objects,
+    ask,
 )
 
 api_router = APIRouter()
@@ -18,3 +19,4 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(words.router, prefix="/words", tags=["words"])
 api_router.include_router(sites.router, prefix="/sites", tags=["sites"])
 api_router.include_router(objects.router, prefix="/objects", tags=["objects"])
+api_router.include_router(ask.router, prefix="/ask", tags=["ask"])
