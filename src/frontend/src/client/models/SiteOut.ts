@@ -1,0 +1,43 @@
+/* generated using openapi-typescript-codegen -- do not edit */
+/* istanbul ignore file */
+/* tslint:disable */
+/* eslint-disable */
+import type { EpigraphMinimal } from './EpigraphMinimal';
+import type { ObjectMinimal } from './ObjectMinimal';
+export type SiteOut = {
+    id: number;
+    dasi_id?: (number | null);
+    uri?: (string | null);
+    modern_name?: (string | null);
+    ancient_name?: (string | null);
+    country?: (string | null);
+    governorate?: (string | null);
+    geographical_area?: (string | null);
+    coordinates?: (any[] | null);
+    coordinates_accuracy?: (string | null);
+    location_and_toponomy?: (string | null);
+    type_of_site?: (string | null);
+    editors?: null;
+    license?: (string | null);
+    first_published?: (string | null);
+    last_modified?: (string | null);
+    general_description?: (string | null);
+    notes?: (Array<string> | null);
+    bibliography?: null;
+    classical_sources?: (Array<string> | null);
+    archaeological_missions?: (Array<string> | null);
+    travellers?: (Array<string> | null);
+    history_of_research?: (string | null);
+    chronology?: (string | null);
+    monuments?: null;
+    structures?: (Array<string> | null);
+    deities?: (Array<string> | null);
+    tribe?: (Array<string> | null);
+    identification?: (string | null);
+    kingdom?: (Array<string> | null);
+    language?: (string | null);
+    dasi_published?: (boolean | null);
+    epigraphs?: Array<EpigraphMinimal>;
+    objects?: Array<ObjectMinimal>;
+};
+

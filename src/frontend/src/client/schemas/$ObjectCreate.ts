@@ -2,37 +2,28 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $EpigraphUpdate = {
+export const $ObjectCreate = {
     properties: {
         dasi_object: {
-            type: 'any-of',
-            contains: [{
-                type: 'dictionary',
-                contains: {
-                    properties: {
-                    },
+            type: 'dictionary',
+            contains: {
+                properties: {
                 },
-            }, {
-                type: 'null',
-            }],
+            },
         },
         dasi_id: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
+            type: 'number',
+            isRequired: true,
         },
         title: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
+            type: 'string',
+            isRequired: true,
         },
         uri: {
+            type: 'string',
+            isRequired: true,
+        },
+        start_date: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -40,17 +31,11 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        epigraph_text: {
+        end_date: {
             type: 'any-of',
             contains: [{
                 type: 'string',
             }, {
-                type: 'null',
-            }],
-        },
-        translations: {
-            type: 'any-of',
-            contains: [{
                 type: 'null',
             }],
         },
@@ -62,73 +47,13 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        chronology_conjectural: {
+        deposits: {
             type: 'any-of',
             contains: [{
-                type: 'boolean',
-            }, {
                 type: 'null',
             }],
         },
-        mentioned_date: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        sites: {
-            type: 'array',
-            contains: {
-                type: 'dictionary',
-                contains: {
-                    properties: {
-                    },
-                },
-            },
-        },
-        language_level_1: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        language_level_2: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        language_level_3: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        alphabet: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        script_typology: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        script_cursus: {
+        materials: {
             type: 'any-of',
             contains: [{
                 type: 'array',
@@ -139,7 +64,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        textual_typology: {
+        shape: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -147,15 +72,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        textual_typology_conjectural: {
-            type: 'any-of',
-            contains: [{
-                type: 'boolean',
-            }, {
-                type: 'null',
-            }],
-        },
-        letter_measure: {
+        measures: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -163,21 +80,56 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        writing_techniques: {
+        decorations: {
             type: 'any-of',
             contains: [{
-                type: 'array',
-                contains: {
-                    type: 'string',
-                },
+                type: 'null',
+            }],
+        },
+        support_type_level_1: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
             }, {
                 type: 'null',
             }],
         },
-        royal_inscription: {
+        support_type_level_2: {
             type: 'any-of',
             contains: [{
-                type: 'boolean',
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        support_type_level_3: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        support_type_level_4: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        support_notes: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        deposit_notes: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
             }, {
                 type: 'null',
             }],
@@ -185,20 +137,6 @@ export const $EpigraphUpdate = {
         cultural_notes: {
             type: 'any-of',
             contains: [{
-                type: 'null',
-            }],
-        },
-        aparatus_notes: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        general_notes: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
                 type: 'null',
             }],
         },
@@ -220,10 +158,12 @@ export const $EpigraphUpdate = {
             }],
         },
         license: {
+            type: 'string',
+            isRequired: true,
+        },
+        editors: {
             type: 'any-of',
             contains: [{
-                type: 'string',
-            }, {
                 type: 'null',
             }],
         },
@@ -232,12 +172,6 @@ export const $EpigraphUpdate = {
             contains: [{
                 type: 'string',
             }, {
-                type: 'null',
-            }],
-        },
-        editors: {
-            type: 'any-of',
-            contains: [{
                 type: 'null',
             }],
         },
@@ -254,23 +188,6 @@ export const $EpigraphUpdate = {
             type: 'any-of',
             contains: [{
                 type: 'boolean',
-            }, {
-                type: 'null',
-            }],
-        },
-        images: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        embedding: {
-            type: 'any-of',
-            contains: [{
-                type: 'array',
-                contains: {
-                    type: 'number',
-                },
             }, {
                 type: 'null',
             }],

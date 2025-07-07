@@ -13,7 +13,7 @@ export type EpigraphCreate = {
     chronology_conjectural: boolean;
     mentioned_date?: (string | null);
     sites?: null;
-    language_level_1: string;
+    language_level_1?: (string | null);
     language_level_2?: (string | null);
     language_level_3?: (string | null);
     alphabet?: (string | null);
@@ -32,6 +32,9 @@ export type EpigraphCreate = {
     license: string;
     first_published?: (string | null);
     editors?: null;
-    last_modified_dasi?: (string | null);
+    last_modified?: (string | null);
+    dasi_published?: (boolean | null);
+    images?: null;
+    embedding?: (Array<number> | null);
 };
 

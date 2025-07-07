@@ -2,7 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $EpigraphUpdate = {
+export const $SiteUpdate = {
     properties: {
         dasi_object: {
             type: 'any-of',
@@ -24,14 +24,6 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        title: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
         uri: {
             type: 'any-of',
             contains: [{
@@ -40,7 +32,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        epigraph_text: {
+        modern_name: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -48,13 +40,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        translations: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        period: {
+        ancient_name: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -62,15 +48,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        chronology_conjectural: {
-            type: 'any-of',
-            contains: [{
-                type: 'boolean',
-            }, {
-                type: 'null',
-            }],
-        },
-        mentioned_date: {
+        country: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -78,17 +56,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        sites: {
-            type: 'array',
-            contains: {
-                type: 'dictionary',
-                contains: {
-                    properties: {
-                    },
-                },
-            },
-        },
-        language_level_1: {
+        governorate: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -96,7 +64,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        language_level_2: {
+        geographical_area: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -104,7 +72,17 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        language_level_3: {
+        coordinates: {
+            type: 'any-of',
+            contains: [{
+                type: 'any[]',
+                maxItems: 2,
+                minItems: 2,
+            }, {
+                type: 'null',
+            }],
+        },
+        coordinates_accuracy: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -112,7 +90,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        alphabet: {
+        location_and_toponomy: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -120,7 +98,7 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        script_typology: {
+        type_of_site: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -128,94 +106,9 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        script_cursus: {
+        editors: {
             type: 'any-of',
             contains: [{
-                type: 'array',
-                contains: {
-                    type: 'string',
-                },
-            }, {
-                type: 'null',
-            }],
-        },
-        textual_typology: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        textual_typology_conjectural: {
-            type: 'any-of',
-            contains: [{
-                type: 'boolean',
-            }, {
-                type: 'null',
-            }],
-        },
-        letter_measure: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        writing_techniques: {
-            type: 'any-of',
-            contains: [{
-                type: 'array',
-                contains: {
-                    type: 'string',
-                },
-            }, {
-                type: 'null',
-            }],
-        },
-        royal_inscription: {
-            type: 'any-of',
-            contains: [{
-                type: 'boolean',
-            }, {
-                type: 'null',
-            }],
-        },
-        cultural_notes: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        aparatus_notes: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        general_notes: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        bibliography: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
-        concordances: {
-            type: 'any-of',
-            contains: [{
-                type: 'array',
-                contains: {
-                    type: 'string',
-                },
-            }, {
                 type: 'null',
             }],
         },
@@ -235,12 +128,6 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        editors: {
-            type: 'any-of',
-            contains: [{
-                type: 'null',
-            }],
-        },
         last_modified: {
             type: 'any-of',
             contains: [{
@@ -250,27 +137,150 @@ export const $EpigraphUpdate = {
                 type: 'null',
             }],
         },
-        dasi_published: {
+        general_description: {
             type: 'any-of',
             contains: [{
-                type: 'boolean',
+                type: 'string',
             }, {
                 type: 'null',
             }],
         },
-        images: {
+        notes: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        bibliography: {
             type: 'any-of',
             contains: [{
                 type: 'null',
             }],
         },
-        embedding: {
+        classical_sources: {
             type: 'any-of',
             contains: [{
                 type: 'array',
                 contains: {
-                    type: 'number',
+                    type: 'string',
                 },
+            }, {
+                type: 'null',
+            }],
+        },
+        archaeological_missions: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        travellers: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        history_of_research: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        chronology: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        monuments: {
+            type: 'any-of',
+            contains: [{
+                type: 'null',
+            }],
+        },
+        structures: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        deities: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        tribe: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        identification: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        kingdom: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'string',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
+        language: {
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
+        },
+        dasi_published: {
+            type: 'any-of',
+            contains: [{
+                type: 'boolean',
             }, {
                 type: 'null',
             }],

@@ -32,6 +32,9 @@ export type EpigraphUpdate = {
     license?: (string | null);
     first_published?: (string | null);
     editors?: null;
-    last_modified_dasi?: (string | null);
+    last_modified?: (string | null);
+    dasi_published?: (boolean | null);
+    images?: null;
+    embedding?: (Array<number> | null);
 };
 

@@ -2,8 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ObjectMinimal } from './ObjectMinimal';
+import type { SiteMinimal } from './SiteMinimal';
 export type EpigraphOut = {
-    dasi_object?: Record<string, any>;
+    id: number;
     dasi_id: number;
     title: string;
     uri: string;
@@ -13,7 +15,7 @@ export type EpigraphOut = {
     chronology_conjectural: boolean;
     mentioned_date?: (string | null);
     sites?: null;
-    language_level_1: string;
+    language_level_1?: (string | null);
     language_level_2?: (string | null);
     language_level_3?: (string | null);
     alphabet?: (string | null);
@@ -32,7 +34,10 @@ export type EpigraphOut = {
     license: string;
     first_published?: (string | null);
     editors?: null;
-    last_modified_dasi?: (string | null);
-    id: number;
+    last_modified?: (string | null);
+    dasi_published?: (boolean | null);
+    images?: null;
+    objects?: Array<ObjectMinimal>;
+    sites_objs?: Array<SiteMinimal>;
 };
 

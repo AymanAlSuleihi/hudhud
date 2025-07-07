@@ -4,12 +4,9 @@
 /* eslint-disable */
 export const $EpigraphOut = {
     properties: {
-        dasi_object: {
-            type: 'dictionary',
-            contains: {
-                properties: {
-                },
-            },
+        id: {
+            type: 'number',
+            isRequired: true,
         },
         dasi_id: {
             type: 'number',
@@ -60,8 +57,12 @@ export const $EpigraphOut = {
             }],
         },
         language_level_1: {
-            type: 'string',
-            isRequired: true,
+            type: 'any-of',
+            contains: [{
+                type: 'string',
+            }, {
+                type: 'null',
+            }],
         },
         language_level_2: {
             type: 'any-of',
@@ -196,7 +197,7 @@ export const $EpigraphOut = {
                 type: 'null',
             }],
         },
-        last_modified_dasi: {
+        last_modified: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -205,9 +206,31 @@ export const $EpigraphOut = {
                 type: 'null',
             }],
         },
-        id: {
-            type: 'number',
-            isRequired: true,
+        dasi_published: {
+            type: 'any-of',
+            contains: [{
+                type: 'boolean',
+            }, {
+                type: 'null',
+            }],
+        },
+        images: {
+            type: 'any-of',
+            contains: [{
+                type: 'null',
+            }],
+        },
+        objects: {
+            type: 'array',
+            contains: {
+                type: 'ObjectMinimal',
+            },
+        },
+        sites_objs: {
+            type: 'array',
+            contains: {
+                type: 'SiteMinimal',
+            },
         },
     },
 } as const;

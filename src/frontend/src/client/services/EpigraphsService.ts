@@ -66,6 +66,105 @@ export class EpigraphsService {
         });
     }
     /**
+     * Filter Epigraphs
+     * Filter epigraphs by searching within all translations.
+     * @returns EpigraphsOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsFilterEpigraphs({
+        translationText,
+        sortField,
+        sortOrder,
+        filters,
+    }: {
+        translationText: string,
+        sortField?: (string | null),
+        sortOrder?: (string | null),
+        filters?: (string | null),
+    }): CancelablePromise<EpigraphsOut> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/filter',
+            query: {
+                'translation_text': translationText,
+                'sort_field': sortField,
+                'sort_order': sortOrder,
+                'filters': filters,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Full Text Search Epigraphs
+     * Full text search epigraphs by searching within specified fields.
+     * If include_objects is True, will also search in related objects using object_fields.
+     * @returns EpigraphsOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsFullTextSearchEpigraphs({
+        searchText,
+        fields,
+        sortField,
+        sortOrder,
+        filters,
+        skip,
+        limit = 100,
+        includeObjects = false,
+        objectFields,
+    }: {
+        searchText: string,
+        fields?: (string | null),
+        sortField?: (string | null),
+        sortOrder?: (string | null),
+        filters?: (string | null),
+        skip?: number,
+        limit?: number,
+        includeObjects?: boolean,
+        objectFields?: (string | null),
+    }): CancelablePromise<EpigraphsOut> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/search',
+            query: {
+                'search_text': searchText,
+                'fields': fields,
+                'sort_field': sortField,
+                'sort_order': sortOrder,
+                'filters': filters,
+                'skip': skip,
+                'limit': limit,
+                'include_objects': includeObjects,
+                'object_fields': objectFields,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Semantic Search Epigraphs
+     * @returns EpigraphsOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsSemanticSearchEpigraphs({
+        text,
+    }: {
+        text: string,
+    }): CancelablePromise<EpigraphsOut> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/semantic_search/{text}',
+            path: {
+                'text': text,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Read Epigraph By Id
      * Retrieve epigraph by ID.
      * @returns EpigraphOut Successful Response
@@ -136,15 +235,121 @@ export class EpigraphsService {
         });
     }
     /**
+     * Read Epigraph By Dasi Id
+     * Retrieve epigraph by DASI ID.
+     * @returns EpigraphOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsReadEpigraphByDasiId({
+        dasiId,
+    }: {
+        dasiId: number,
+    }): CancelablePromise<EpigraphOut> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/dasi_id/{dasi_id}',
+            path: {
+                'dasi_id': dasiId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Read Epigraph Text By Id
+     * Retrieve epigraph text by ID.
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsReadEpigraphTextById({
+        epigraphId,
+    }: {
+        epigraphId: number,
+    }): CancelablePromise<Record<string, string>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/{epigraph_id}/text',
+            path: {
+                'epigraph_id': epigraphId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get All Field Values
+     * Get all possible values for all fields.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetAllFieldValues(): CancelablePromise<Record<string, Array<any>>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/fields/all',
+        });
+    }
+    /**
+     * Get Filtered Field Values
+     * Get field values based on current filters.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetFilteredFieldValues({
+        filters,
+    }: {
+        filters?: (string | null),
+    }): CancelablePromise<Record<string, Array<any>>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/fields/filtered',
+            query: {
+                'filters': filters,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Import Epigraphs
      * Import epigraphs from external api.
      * @returns any Successful Response
      * @throws ApiError
      */
-    public static epigraphsImportEpigraphs(): CancelablePromise<any> {
+    public static epigraphsImportEpigraphs(): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/epigraphs/import',
+        });
+    }
+    /**
+     * Import Epigraphs Range
+     * Import epigraphs from external api in a range.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsImportEpigraphsRange({
+        startId,
+        endId,
+        dasiPublished,
+    }: {
+        startId: number,
+        endId: number,
+        dasiPublished?: boolean,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/import_range',
+            query: {
+                'start_id': startId,
+                'end_id': endId,
+                'dasi_published': dasiPublished,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
         });
     }
     /**
@@ -161,6 +366,28 @@ export class EpigraphsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/epigraphs/import_metrics/{task_id}',
+            path: {
+                'task_id': taskId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Import Images Metrics
+     * Get import images task metrics and progress.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsImportImagesMetrics({
+        taskId,
+    }: {
+        taskId: string,
+    }): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/import_images/metrics/{task_id}',
             path: {
                 'task_id': taskId,
             },
@@ -201,8 +428,66 @@ export class EpigraphsService {
      */
     public static epigraphsTransferFields(): CancelablePromise<any> {
         return __request(OpenAPI, {
-            method: 'POST',
+            method: 'PUT',
             url: '/api/v1/epigraphs/transfer_fields',
+        });
+    }
+    /**
+     * Link To Sites
+     * Link epigraphs to sites.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsLinkToSites(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/epigraphs/link_to_sites/all',
+        });
+    }
+    /**
+     * Link To Objects
+     * Link epigraphs to objects.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsLinkToObjects(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/epigraphs/link_to_objects/all',
+        });
+    }
+    /**
+     * Generate Embeddings All
+     * Generate embeddings for all epigraphs.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGenerateEmbeddingsAll(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/epigraphs/generate_embeddings/all',
+        });
+    }
+    /**
+     * Generate Embeddings
+     * Generate embeddings for a specific epigraph.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGenerateEmbeddings({
+        epigraphId,
+    }: {
+        epigraphId: number,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/epigraphs/generate_embeddings/{epigraph_id}',
+            path: {
+                'epigraph_id': epigraphId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
         });
     }
     /**
@@ -239,6 +524,282 @@ export class EpigraphsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/epigraphs/analysis/writing_techniques',
+        });
+    }
+    /**
+     * Parse Words
+     * Parse words in epigraph.epigraph_text.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsParseWords({
+        epigraphId,
+    }: {
+        epigraphId: number,
+    }): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/{epigraph_id}/parse-words',
+            path: {
+                'epigraph_id': epigraphId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Parse All Words
+     * Parse words in all epigraphs.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsParseAllWords(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/parse-words',
+        });
+    }
+    /**
+     * Get Similar Epigraphs
+     * Get epigraphs similar to the given epigraph based on embeddings.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetSimilarEpigraphs({
+        epigraphId,
+        distanceThreshold,
+        limit = 10,
+        filters,
+    }: {
+        epigraphId: number,
+        distanceThreshold?: (number | null),
+        limit?: number,
+        filters?: (string | null),
+    }): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/{epigraph_id}/similar',
+            path: {
+                'epigraph_id': epigraphId,
+            },
+            query: {
+                'distance_threshold': distanceThreshold,
+                'limit': limit,
+                'filters': filters,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Import All Images
+     * Import all images from DASI starting from start_rec_id until no more images are found.
+     * Stops after max_consecutive_failures consecutive 404s or non-image responses.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsImportAllImages({
+        startRecId = 1,
+        imageSize = 'high',
+        rateLimitDelay = 2,
+        maxConsecutiveFailures = 50,
+    }: {
+        startRecId?: number,
+        imageSize?: string,
+        rateLimitDelay?: number,
+        maxConsecutiveFailures?: number,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/import_images/all',
+            query: {
+                'start_rec_id': startRecId,
+                'image_size': imageSize,
+                'rate_limit_delay': rateLimitDelay,
+                'max_consecutive_failures': maxConsecutiveFailures,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Import Images Range
+     * Import images for a specific range of record IDs.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsImportImagesRange({
+        startRecId,
+        endRecId,
+        imageSize = 'high',
+        rateLimitDelay = 2,
+    }: {
+        startRecId: number,
+        endRecId: number,
+        imageSize?: string,
+        rateLimitDelay?: number,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/import_images/range',
+            query: {
+                'start_rec_id': startRecId,
+                'end_rec_id': endRecId,
+                'image_size': imageSize,
+                'rate_limit_delay': rateLimitDelay,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Scrape Epigraphs Images Range
+     * Scrape image details for epigraphs in a DASI ID range.
+     * Includes retry logic for 500 server errors.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsScrapeEpigraphsImagesRange({
+        startDasiId,
+        endDasiId,
+        rateLimitDelay = 10,
+        maxRetries = 1,
+    }: {
+        startDasiId: number,
+        endDasiId: number,
+        rateLimitDelay?: number,
+        maxRetries?: number,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/scrape_images/range',
+            query: {
+                'start_dasi_id': startDasiId,
+                'end_dasi_id': endDasiId,
+                'rate_limit_delay': rateLimitDelay,
+                'max_retries': maxRetries,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Scrape All Epigraphs Images
+     * Scrape image details for epigraphs that haven't been scraped yet (images is null).
+     * If update_existing is True, will also re-scrape epigraphs that already have been processed.
+     * Includes retry logic for 500 server errors.
+     *
+     * Note: After scraping, the images field is always updated:
+     * - null: Not scraped yet
+     * - []: Scraped but no images found
+     * - [...]: Scraped and images found
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsScrapeAllEpigraphsImages({
+        rateLimitDelay = 10,
+        updateExisting = false,
+        maxRetries = 1,
+    }: {
+        rateLimitDelay?: number,
+        updateExisting?: boolean,
+        maxRetries?: number,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/scrape_images/all',
+            query: {
+                'rate_limit_delay': rateLimitDelay,
+                'update_existing': updateExisting,
+                'max_retries': maxRetries,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Scrape Epigraph Images Single
+     * Scrape image details for a single epigraph by DASI ID.
+     * Includes retry logic for 500 server errors.
+     * @returns EpigraphOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsScrapeEpigraphImagesSingle({
+        dasiId,
+        rateLimitDelay = 10,
+        maxRetries = 1,
+    }: {
+        dasiId: number,
+        rateLimitDelay?: number,
+        maxRetries?: number,
+    }): CancelablePromise<EpigraphOut> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/scrape_images/{dasi_id}',
+            path: {
+                'dasi_id': dasiId,
+            },
+            query: {
+                'rate_limit_delay': rateLimitDelay,
+                'max_retries': maxRetries,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Scrape Images Metrics
+     * Get scrape images task metrics and progress.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsScrapeImagesMetrics({
+        taskId,
+    }: {
+        taskId: string,
+    }): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/scrape_images/metrics/{task_id}',
+            path: {
+                'task_id': taskId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Scrape Images Status
+     * Get statistics about image scraping status for all epigraphs.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetScrapeImagesStatus(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/scrape_images/status',
+        });
+    }
+    /**
+     * Move Images Free From Copyright
+     * Move images that are free from copyright from private to public storage and update epigraph records.
+     * This function is for retroactively processing already scraped epigraphs.
+     * New scraping automatically handles copyright-free images.
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsMoveImagesFreeFromCopyright(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/epigraphs/images/copyright',
         });
     }
 }

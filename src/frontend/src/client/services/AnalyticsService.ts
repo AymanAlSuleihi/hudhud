@@ -55,6 +55,39 @@ export class AnalyticsService {
         });
     }
     /**
+     * Period Distribution Line
+     * Generate period distribution data for ECharts line chart
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsPeriodDistributionLine({
+        requestBody,
+    }: {
+        requestBody: Array<number>,
+    }): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/analytics/period_distribution_line',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Translated Status Distribution
+     * Generate translated status distribution data for ECharts pie chart
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsTranslatedStatusDistribution(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/analytics/translated_status_distribution',
+        });
+    }
+    /**
      * Period Script Typology Distribution
      * Generate period and script typology distribution data for ECharts stacked bar chart
      * @returns any Successful Response
@@ -112,6 +145,66 @@ export class AnalyticsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/analytics/test',
+        });
+    }
+    /**
+     * Site Heatmap
+     * Cache site heatmap data
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsSiteHeatmap(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/analytics/cache/site_heatmap',
+        });
+    }
+    /**
+     * Get Site Heatmap
+     * Get cached site heatmap data
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsGetSiteHeatmap(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/analytics/site_heatmap',
+        });
+    }
+    /**
+     * Cache
+     * Cache analytics data
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsCache(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/analytics/cache',
+        });
+    }
+    /**
+     * Language Period Map
+     * Cache language by period map data
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsLanguagePeriodMap(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/analytics/cache/language_period_map',
+        });
+    }
+    /**
+     * Get Language Period Map
+     * Get cached language period map data
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static analyticsGetLanguagePeriodMap(): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/analytics/language_period_map',
         });
     }
 }
