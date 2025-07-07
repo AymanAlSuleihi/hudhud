@@ -10,6 +10,8 @@ from app.api.deps import (
     get_current_active_superuser_no_error,
 )
 from app.crud.crud_object import obj as crud_object
+from app.crud.crud_site import site as crud_site
+from app.crud.crud_epigraph import epigraph as crud_epigraph
 from app.models.object import (
     Object,
     ObjectCreate,
@@ -168,3 +170,149 @@ def import_objects(
     background_tasks.add_task(object_import_service.import_all, task.uuid, 10)
 
     return {"task_id": task.uuid}
+
+
+@router.post(
+    "/import_range",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def import_objects_range(
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+    start_id: int,
+    end_id: int,
+    dasi_published: Optional[bool] = None,
+) -> dict:
+    """
+    Import objects from external api in a range.
+    """
+    task_service = TaskProgressService(session)
+    task = task_service.get_or_create_task("import_objects_range")
+
+    object_import_service = ObjectImportService(session, task_service)
+    background_tasks.add_task(
+        object_import_service.import_range,
+        task.uuid,
+        start_id,
+        end_id,
+        dasi_published,
+        10
+    )
+
+    return {"task_id": task.uuid}
+
+
+@router.get(
+    "/fields/dasi_object",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def get_dasi_object_fields(
+    session: SessionDep,
+):
+    """
+    Get list of fields in all site.dasi_object jsonb column.
+    """
+    fields_statement = select(
+        func.jsonb_object_keys(Object.dasi_object)
+    ).distinct()
+    fields = session.exec(fields_statement).all()
+    return fields
+
+
+@router.get(
+    "/fields/dasi_object/missing",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def get_dasi_object_missing_fields(
+    session: SessionDep,
+):
+    """
+    Get list of fields which are not in all Object.dasi_object jsonb column.
+    """
+    fields_statement = select(
+        func.jsonb_object_keys(Object.dasi_object)
+    ).distinct()
+    fields = session.exec(fields_statement).all()
+
+    all_fields = set(fields)
+    missing_fields = set()
+    for field in all_fields:
+        field_statement = select(
+            func.count()
+        ).where(
+            ~func.jsonb_exists(Object.dasi_object, field)
+        )
+        count = session.exec(field_statement).one()
+        if count > 0:
+            missing_fields.add(field)
+    return missing_fields
+
+
+@router.post(
+    "/transfer_fields",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def transfer_fields(
+    session: SessionDep,
+) -> None:
+    """
+    Transfer fields for every object that's already in the db.
+    """
+    object_import_service = ObjectImportService(session, TaskProgressService(session))
+    objects = session.exec(select(Object)).all()
+
+    for obj in objects:
+        object_update = object_import_service.transfer_fields(obj.dasi_object)
+        crud_object.update(session, db_obj=obj, obj_in=object_update)
+
+    return {"status": "success", "message": "Fields transferred for all objects"}
+
+
+@router.put(
+    "/link_to_sites/all",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def link_to_sites(
+    session: SessionDep,
+) -> dict:
+    """
+    Link all objects to their sites.
+    """
+    objects = session.exec(select(Object)).all()
+    for obj in objects:
+        site_list = obj.dasi_object.get("sites", [])
+        site_dasi_ids = [
+            int(site["@id"].split("/")[-1])
+            for site in site_list
+            if "@id" in site
+        ]
+        for site_dasi_id in site_dasi_ids:
+            site = crud_site.get_by_dasi_id(session, dasi_id=site_dasi_id)
+            if site:
+                crud_object.link_to_site(session, obj=obj, site_id=site.id)
+    return {"status": "success", "message": "Linked all objects to their sites"}
+
+
+@router.put(
+    "/link_to_epigraphs/all",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def link_to_epigraphs(
+    session: SessionDep,
+) -> dict:
+    """
+    Link all objects to their epigraphs.
+    """
+    objects = session.exec(select(Object)).all()
+    for obj in objects:
+        epigraph_list = obj.dasi_object.get("epigraphs", [])
+        epigraph_dasi_ids = [
+            int(epigraph["@id"].split("/")[-1])
+            for epigraph in epigraph_list
+            if "@id" in epigraph
+        ]
+        for epigraph_dasi_id in epigraph_dasi_ids:
+            epigraph = crud_epigraph.get_by_dasi_id(session, dasi_id=epigraph_dasi_id)
+            if epigraph:
+                crud_object.link_to_epigraph(session, obj=obj, epigraph_id=epigraph.id)
+    return {"status": "success", "message": "Linked all objects to their epigraphs"}
