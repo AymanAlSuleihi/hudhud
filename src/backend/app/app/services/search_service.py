@@ -97,13 +97,10 @@ class SearchService:
         Leave the filters object empty or omit it entirely if no filters are explicitly mentioned.
 
         Available epigraph fields for searching:
-        translations, general_notes, aparatus_notes, cultural_notes, bibliography
+        translations, general_notes, aparatus_notes, cultural_notes, bibliography, title
 
         Available object fields for searching:
-        support_notes, deposit_notes, cultural_notes, bibliography, deposits
-
-        IMPORTANT: For each query, use ONLY A SINGLE WORD for the "search_text" parameter. 
-        Choose the most important keyword from the user's query.
+        support_notes, deposit_notes, cultural_notes, bibliography, deposits, title
 
         Return a JSON object with these parameters:
         {{
@@ -188,13 +185,13 @@ class SearchService:
     def _validate_query_fields(self, query_params: Dict[str, Any], filter_options: Dict[str, List[str]]):
         """Helper method to validate query fields and filters."""
         if "fields" in query_params:
-            valid_fields = ["translations", "general_notes", "aparatus_notes", "cultural_notes", "bibliography"]
+            valid_fields = ["translations", "general_notes", "aparatus_notes", "cultural_notes", "bibliography", "title"]
             fields_list = query_params["fields"].split(",") if query_params["fields"] else []
             valid_fields_list = [field for field in fields_list if field.strip() in valid_fields]
             query_params["fields"] = ",".join(valid_fields_list) if valid_fields_list else None
 
         if "object_fields" in query_params:
-            valid_object_fields = ["support_notes", "deposit_notes", "cultural_notes", "bibliography", "deposits"]
+            valid_object_fields = ["support_notes", "deposit_notes", "cultural_notes", "bibliography", "deposits", "title"]
             object_fields_list = query_params["object_fields"].split(",") if query_params["object_fields"] else []
             valid_object_fields_list = [field for field in object_fields_list if field.strip() in valid_object_fields]
             query_params["object_fields"] = ",".join(valid_object_fields_list) if valid_object_fields_list else None
