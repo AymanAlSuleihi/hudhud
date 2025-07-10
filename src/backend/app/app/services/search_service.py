@@ -13,6 +13,7 @@ from app.models.links import EpigraphObjectLink
 from app.core.config import settings
 from app.utils import parse_period
 from app.services.embeddings_service import EmbeddingsService
+from app.services.opensearch_service import OpenSearchService
 
 
 class QueryFormat(BaseModel):
@@ -38,6 +39,12 @@ class SearchService:
         else:
             self.client = None
             logging.warning("OpenAI API key not configured. AI features will be disabled.")
+
+        try:
+            self.opensearch = OpenSearchService()
+        except Exception as e:
+            logging.warning(f"OpenSearch not available: {e}. Falling back to PostgreSQL search.")
+            self.opensearch = None
 
     def get_filter_options(self) -> Dict[str, List[str]]:
         """Get filter options for epigraphs."""
@@ -496,3 +503,155 @@ class SearchService:
         logging.info(f"Semantic search found {len(epigraphs)} epigraphs out of {total_count} total.")
 
         return EpigraphsOut(epigraphs=epigraphs, count=total_count)
+
+    def opensearch_full_text_search(
+        self,
+        search_text: str,
+        fields: Optional[str] = None,
+        sort_field: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        filters: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+        include_objects: bool = False,
+        object_fields: Optional[str] = None,
+    ) -> Tuple[List[Epigraph], int]:
+        """
+        Perform full text search using OpenSearch. Fallback to PostgreSQL.
+        """
+        if not self.opensearch:
+            logging.info("OpenSearch not available, using PostgreSQL full text search")
+            return self.full_text_search(
+                search_text=search_text,
+                fields=fields,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                filters=filters,
+                skip=skip,
+                limit=limit,
+                include_objects=include_objects,
+                object_fields=object_fields
+            )
+
+        try:
+            logging.info(
+                "OpenSearch full text searching: %s, fields: %s, sort_field: %s, sort_order: %s",
+                search_text,
+                fields,
+                sort_field,
+                sort_order,
+            )
+
+            search_fields = None
+            if fields:
+                search_fields = [field.strip() for field in fields.split(",")]
+
+            search_filters = {}
+            if filters:
+                filters_dict = json.loads(filters) if isinstance(filters, str) else filters
+                search_filters.update(filters_dict)
+
+            opensearch_results = self.opensearch.search_epigraphs(
+                query=search_text,
+                fields=search_fields,
+                filters=search_filters,
+                sort_field=sort_field,
+                sort_order=sort_order or "asc",
+                skip=skip,
+                limit=limit,
+            )
+
+            epigraph_ids = [int(hit["_source"]["id"]) for hit in opensearch_results["hits"]]
+            total_count = opensearch_results["total"]
+
+            if not epigraph_ids:
+                return [], 0
+
+            query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+
+            epigraphs_dict = {epigraph.id: epigraph for epigraph in self.session.exec(query).all()}
+            ordered_epigraphs = [
+                epigraphs_dict[eid]
+                for eid in epigraph_ids
+                if eid in epigraphs_dict
+            ]
+
+            logging.info(
+                f"OpenSearch found {total_count} epigraphs, returned {len(ordered_epigraphs)}"
+            )
+            return ordered_epigraphs, total_count
+
+        except Exception as e:
+            logging.error(f"OpenSearch error, falling back to PostgreSQL: {e}")
+            return self.full_text_search(
+                search_text=search_text,
+                fields=fields,
+                sort_field=sort_field,
+                sort_order=sort_order,
+                filters=filters,
+                skip=skip,
+                limit=limit,
+                include_objects=include_objects,
+                object_fields=object_fields,
+            )
+
+    def index_epigraph_to_opensearch(self, epigraph: Epigraph):
+        """Index a single epigraph to OpenSearch."""
+        if self.opensearch:
+            try:
+                self.opensearch.index_epigraph(epigraph)
+                logging.info(f"Indexed epigraph {epigraph.id} to OpenSearch")
+            except Exception as e:
+                logging.error(f"Failed to index epigraph {epigraph.id} to OpenSearch: {e}")
+
+    def bulk_index_epigraphs_to_opensearch(self, epigraphs: List[Epigraph]):
+        """Bulk index epigraphs to OpenSearch."""
+        if self.opensearch:
+            try:
+                success, failed = self.opensearch.bulk_index_epigraphs(epigraphs)
+                logging.info(
+                    f"Bulk indexed {success} epigraphs to OpenSearch, {len(failed)} failed"
+                )
+                return success, failed
+            except Exception as e:
+                logging.error(f"Failed to bulk index epigraphs to OpenSearch: {e}")
+                return 0, []
+
+    def reindex_all_epigraphs(self):
+        """Reindex all published epigraphs to OpenSearch."""
+        if not self.opensearch:
+            logging.warning("OpenSearch not available for reindexing")
+            return
+
+        try:
+            self.opensearch.create_index()
+
+            query = select(Epigraph).where(Epigraph.dasi_published.is_not(False))
+            epigraphs = self.session.exec(query).all()
+
+            batch_size = 100
+            total_indexed = 0
+
+            for i in range(0, len(epigraphs), batch_size):
+                batch = epigraphs[i:i + batch_size]
+                success, failed = self.bulk_index_epigraphs_to_opensearch(batch)
+                if failed:
+                    logging.warning(f"Failed to index the following epigraph IDs: {[e.id for e in failed]}")
+                total_indexed += success
+
+            logging.info(f"Reindexed {total_indexed} epigraphs to OpenSearch")
+            return total_indexed
+
+        except Exception as e:
+            logging.error(f"Failed to reindex epigraphs: {e}")
+            raise
+
+    def get_opensearch_stats(self) -> Dict[str, Any]:
+        """Get OpenSearch index statistics."""
+        if self.opensearch:
+            try:
+                return self.opensearch.get_index_stats()
+            except Exception as e:
+                logging.error(f"Failed to get OpenSearch stats: {e}")
+                return {}
+        return {"error": "OpenSearch not available"}
