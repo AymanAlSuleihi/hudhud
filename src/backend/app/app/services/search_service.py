@@ -105,7 +105,7 @@ class SearchService:
         Return a JSON object with these parameters:
         {{
             "primary_query": {{
-                "search_text": "single_most_important_word",
+                "search_text": "main search terms or keywords",
                 "fields": "comma-separated epigraph fields to search",
                 "object_fields": "comma-separated object fields to search",
                 "include_objects": true/false,
@@ -115,7 +115,7 @@ class SearchService:
             }},
             "alternative_queries": [
                 {{
-                    "search_text": "another_single_important_word",
+                    "search_text": "alternative search terms or keywords",
                     "fields": "comma-separated epigraph fields to search",
                     "object_fields": "comma-separated object fields to search",
                     "include_objects": true/false,
@@ -127,11 +127,10 @@ class SearchService:
         }}
 
         For the alternative queries:
-        1. Use different individual words that represent key concepts from the query
+        1. Use different terms or phrases that represent key concepts from the query
         2. Try different field combinations
         3. Consider different filters that might be relevant
         4. Include broader or more specific terms
-        5. Remember to use ONLY A SINGLE WORD for each search_text
         """
 
         try:
@@ -160,16 +159,11 @@ class SearchService:
 
             primary_query = search_params.primary_query.dict()
 
-            if "search_text" in primary_query:
-                primary_query["search_text"] = primary_query["search_text"].split()[0]
-
             self._validate_query_fields(primary_query, filter_options)
 
             alternative_queries = []
             for alt_query_model in search_params.alternative_queries:
                 alt_query = alt_query_model.dict()
-                if "search_text" in alt_query:
-                    alt_query["search_text"] = alt_query["search_text"].split()[0]
 
                 self._validate_query_fields(alt_query, filter_options)
                 alternative_queries.append(alt_query)
@@ -180,7 +174,7 @@ class SearchService:
             }
         except Exception as e:
             logging.error(f"Error transforming query with AI: {e}")
-            return {"primary_query": {"search_text": user_query.split()[0]}, "alternative_queries": []}
+            return {"primary_query": {"search_text": user_query}, "alternative_queries": []}
 
     def _validate_query_fields(self, query_params: Dict[str, Any], filter_options: Dict[str, List[str]]):
         """Helper method to validate query fields and filters."""
@@ -464,7 +458,7 @@ class SearchService:
         sort_order = search_params.get("sort_order")
         filters = search_params.get("filters")
 
-        return self.full_text_search(
+        return self.opensearch_full_text_search(
             search_text=search_text,
             fields=fields,
             include_objects=include_objects,
