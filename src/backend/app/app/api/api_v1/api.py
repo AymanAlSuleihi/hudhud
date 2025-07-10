@@ -9,6 +9,7 @@ from app.api.api_v1.endpoints import (
     sites,
     objects,
     ask,
+    opensearch,
 )
 
 api_router = APIRouter()
@@ -20,3 +21,4 @@ api_router.include_router(words.router, prefix="/words", tags=["words"])
 api_router.include_router(sites.router, prefix="/sites", tags=["sites"])
 api_router.include_router(objects.router, prefix="/objects", tags=["objects"])
 api_router.include_router(ask.router, prefix="/ask", tags=["ask"])
+api_router.include_router(opensearch.router, prefix="/opensearch", tags=["opensearch"])
