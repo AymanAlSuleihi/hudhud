@@ -163,161 +163,23 @@ def full_text_search_epigraphs(
     object_fields: Optional[str] = None,
 ):
     """
-    Full text search epigraphs by searching within specified fields.
-    If include_objects is True, will also search in related objects using object_fields.
+    Full text search epigraphs using OpenSearch when available, falling back to PostgreSQL.
     """
-    # Test
-    include_objects = True
-    object_fields = "support_notes,deposit_notes,cultural_notes,bibliography,deposits"
+    search_service = SearchService(session)
 
-    logging.info(f"Full text searching: {search_text}, fields: {fields}, include_objects: {include_objects}, object_fields: {object_fields}, sort_field: {sort_field}, sort_order: {sort_order}")
+    epigraphs, count = search_service.opensearch_full_text_search(
+        search_text=search_text,
+        fields=fields,
+        sort_field=sort_field,
+        sort_order=sort_order,
+        filters=filters,
+        skip=skip,
+        limit=limit,
+        include_objects=include_objects,
+        object_fields=object_fields,
+    )
 
-    cleaned_text = re.sub(r'[!@#$%^&*()+=\[\]{};:"\\|,.<>/?]', ' ', search_text)
-    processed_search_text = ' '.join(cleaned_text.split())
-
-    search_words = processed_search_text.split()
-    if search_words:
-        tsquery_parts = []
-        for word in search_words:
-            clean_word = re.sub(r'[^\w]', '', word)
-            if clean_word:
-                tsquery_parts.append(clean_word)
-        
-        if tsquery_parts:
-            tsquery_string = ' & '.join(tsquery_parts)
-        else:
-            tsquery_string = processed_search_text
-    else:
-        tsquery_string = processed_search_text
-    
-    logging.info(f"Original search: '{search_text}' -> Processed: '{processed_search_text}' -> TSQuery: '{tsquery_string}'")
-
-    base_query = select(Epigraph)
-
-    base_query = base_query.where(Epigraph.dasi_published.is_not(False))
-
-    if include_objects:
-        from app.models.object import Object
-        from app.models.links import EpigraphObjectLink
-        base_query = base_query.outerjoin(EpigraphObjectLink, Epigraph.id == EpigraphObjectLink.epigraph_id)
-        base_query = base_query.outerjoin(Object, EpigraphObjectLink.object_id == Object.id)
-        base_query = base_query.where(or_(Object.id.is_(None), Object.dasi_published.is_not(False)))
-        base_query = base_query.distinct()
-
-    search_conditions = []
-
-    if fields:
-        fields = fields.split(",")
-        field_vectors = []
-
-        for field in fields:
-            if field not in Epigraph.__table__.columns:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid epigraph field: {field}",
-                )
-
-            column_type = str(Epigraph.__table__.columns[field].type)
-
-            if "JSONB" in column_type:
-                field_vectors.append(
-                    text(f"""
-                        CASE 
-                            WHEN {Epigraph.__tablename__}.{field} IS NULL THEN ''
-                            WHEN jsonb_typeof({Epigraph.__tablename__}.{field}) = 'array' THEN
-                                COALESCE((
-                                    SELECT string_agg(CASE 
-                                        WHEN jsonb_typeof(value) = 'object' AND value ? 'text'
-                                        THEN value #>> '{{text}}'
-                                        ELSE value #>> '{{}}'
-                                    END, ' ')
-                                    FROM jsonb_array_elements({Epigraph.__tablename__}.{field})
-                                ), '')
-                            ELSE {Epigraph.__tablename__}.{field}::text
-                        END
-                    """)
-                )
-            else:
-                field_vectors.append(text(f"COALESCE({Epigraph.__tablename__}.{field}::text, '')"))
-
-        if field_vectors:
-            combined_vector = " || ' ' || ".join(str(v) for v in field_vectors)
-            search_conditions.append(
-                text(f"to_tsvector({combined_vector}) @@ to_tsquery(:tsquery_string)")
-            )
-
-    if include_objects and object_fields:
-        from app.models.object import Object
-        
-        object_fields_list = object_fields.split(",")
-        object_field_vectors = []
-
-        for field in object_fields_list:
-            if field not in Object.__table__.columns:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid object field: {field}",
-                )
-
-            column_type = str(Object.__table__.columns[field].type)
-
-            if "JSONB" in column_type:
-                object_field_vectors.append(
-                    text(f"""
-                        CASE 
-                            WHEN {Object.__tablename__}.{field} IS NULL THEN ''
-                            WHEN jsonb_typeof({Object.__tablename__}.{field}) = 'array' THEN
-                                COALESCE((
-                                    SELECT string_agg(CASE 
-                                        WHEN jsonb_typeof(value) = 'object' AND value ? 'text'
-                                        THEN value #>> '{{text}}'
-                                        ELSE value #>> '{{}}'
-                                    END, ' ')
-                                    FROM jsonb_array_elements({Object.__tablename__}.{field})
-                                ), '')
-                            ELSE {Object.__tablename__}.{field}::text
-                        END
-                    """)
-                )
-            else:
-                object_field_vectors.append(text(f"COALESCE({Object.__tablename__}.{field}::text, '')"))
-
-        if object_field_vectors:
-            combined_object_vector = " || ' ' || ".join(str(v) for v in object_field_vectors)
-            search_conditions.append(
-                text(f"to_tsvector({combined_object_vector}) @@ to_tsquery(:tsquery_string)")
-            )
-
-    if search_conditions:
-        base_query = base_query.where(or_(*search_conditions))
-        base_query = base_query.params(tsquery_string=tsquery_string)
-
-    if filters:
-        filters_dict = json.loads(filters)
-        for key, value in filters_dict.items():
-            if isinstance(value, bool):
-                base_query = base_query.where(
-                    getattr(Epigraph, key).is_(value)
-                )
-            else:
-                base_query = base_query.where(
-                    getattr(Epigraph, key) == value
-                )
-
-    epigraph_count = session.exec(select(func.count()).select_from(base_query.subquery())).one()
-    logging.info(f"Found {epigraph_count} epigraphs")
-
-    if sort_field:
-        if sort_order.lower() == "desc":
-            base_query = base_query.order_by(desc(getattr(Epigraph, sort_field)))
-        else:
-            base_query = base_query.order_by(asc(getattr(Epigraph, sort_field)))
-
-    base_query = base_query.offset(skip).limit(limit)
-
-    epigraphs = session.exec(base_query).all()
-
-    return EpigraphsOut(epigraphs=epigraphs, count=epigraph_count)
+    return EpigraphsOut(epigraphs=epigraphs, count=count)
 
 
 @router.get(
