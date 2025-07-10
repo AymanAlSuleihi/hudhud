@@ -1,0 +1,93 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: backend.dockerfile
+    volumes:
+      - ./backend/app:/app
+    env_file:
+      - .dev.env
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/public`))
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.tls=true
+      - traefik.http.services.${STACK_NAME?Variable not set}-backend.loadbalancer.server.port=8081
+    networks:
+      - traefik-public
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ./Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - ./frontend/node_modules:/app/node_modules
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.rule=Host(`hudhud-dev.${DOMAIN}`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.tls=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.rule=PathPrefix(`/`)
+      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=5002
+    networks:
+      - traefik-public
+
+  db:
+    image: pgvector/pgvector:pg17
+    restart: always
+    volumes:
+      - app-db-data:/var/lib/postgresql/data
+      - ./backend/pg_entrypoint.sh:/docker-entrypoint-initdb.d/pg_entrypoint.sh
+    env_file:
+      - .dev.env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    networks:
+      - traefik-public
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD?Variable not set}
+      - plugins.security.ssl.transport.enforce_hostname_verification=false
+      - plugins.security.ssl.http.enabled=false
+      - plugins.security.allow_default_init_securityindex=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - traefik-public
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - OPENSEARCH_USERNAME=${OPENSEARCH_USERNAME?Variable not set}
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD?Variable not set}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-dashboards.rule=Host(`opensearch-dev.${DOMAIN}`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-dashboards.tls=true
+      - traefik.http.services.${STACK_NAME?Variable not set}-dashboards.loadbalancer.server.port=5601
+    networks:
+      - traefik-public
+
+volumes:
+  app-db-data:
+  opensearch-data:
+
+networks:
+  traefik-public:
+    external: ${TRAEFIK_PUBLIC_NETWORK_IS_EXTERNAL-true}
