@@ -81,9 +81,15 @@ def read_epigraphs(
 
     if sort_field:
         if sort_order and sort_order.lower() == "desc":
-            epigraphs_statement = epigraphs_statement.order_by(desc(getattr(Epigraph, sort_field)))
+            if sort_field in ["period", "language_level_1"]:
+                epigraphs_statement = epigraphs_statement.order_by(desc(getattr(Epigraph, sort_field)), desc(Epigraph.id))
+            else:
+                epigraphs_statement = epigraphs_statement.order_by(desc(getattr(Epigraph, sort_field)))
         else:
-            epigraphs_statement = epigraphs_statement.order_by(asc(getattr(Epigraph, sort_field)))
+            if sort_field in ["period", "language_level_1"]:
+                epigraphs_statement = epigraphs_statement.order_by(asc(getattr(Epigraph, sort_field)), asc(Epigraph.id))
+            else:
+                epigraphs_statement = epigraphs_statement.order_by(asc(getattr(Epigraph, sort_field)))
 
     epigraphs_statement = epigraphs_statement.offset(skip).limit(limit)
 
@@ -135,9 +141,15 @@ def filter_epigraphs(
 
     if sort_field:
         if sort_order.lower() == "desc":
-            query = query.order_by(desc(sort_field))
+            if sort_field in ["period", "language_level_1"]:
+                query = query.order_by(desc(sort_field), desc(Epigraph.id))
+            else:
+                query = query.order_by(desc(sort_field))
         else:
-            query = query.order_by(asc(sort_field))
+            if sort_field in ["period", "language_level_1"]:
+                query = query.order_by(asc(sort_field), asc(Epigraph.id))
+            else:
+                query = query.order_by(asc(sort_field))
 
     epigraphs = session.exec(query).all()
 
