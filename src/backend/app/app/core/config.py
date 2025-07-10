@@ -86,6 +86,9 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str
 
+    OPENSEARCH_USERNAME: str
+    OPENSEARCH_PASSWORD: str
+
     DASI_API_URL: str
     DASI_ADDRESS: str
 
