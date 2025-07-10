@@ -1,0 +1,694 @@
+import logging
+import re
+from typing import Dict, List, Optional, Any
+
+from opensearchpy import OpenSearch
+from opensearchpy.exceptions import NotFoundError, RequestError
+from sqlmodel import Session
+
+from app.core.config import settings
+from app.models.epigraph import Epigraph
+
+logger = logging.getLogger(__name__)
+
+
+class OpenSearchService:
+    def __init__(self):
+        """Initialize OpenSearch client."""
+        self.client = OpenSearch(
+            hosts=[{"host": "opensearch", "port": 9200}],
+            http_auth=(
+                settings.OPENSEARCH_USERNAME,
+                settings.OPENSEARCH_PASSWORD,
+            ),
+            use_ssl=False,
+            verify_certs=False,
+            ssl_show_warn=False,
+        )
+        self.index_name = "epigraphs"
+
+        try:
+            info = self.client.info()
+            logger.info(f"Connected to OpenSearch: {info['version']['number']}")
+        except Exception as e:
+            logger.error(f"Failed to connect to OpenSearch: {e}")
+            raise
+
+    def create_index(self):
+        """Create the epigraphs index with mapping."""
+        mapping = {
+            "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "analysis": {
+                    "analyzer": {
+                        "custom_text_analyzer": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "stop", "snowball"]
+                        }
+                    }
+                }
+            },
+            "mappings": {
+                "properties": {
+                    "id": {"type": "integer"},
+                    "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+                    "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+                    "dasi_id": {"type": "integer"},
+                    "title": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"}
+                        }
+                    },
+                    "uri": {"type": "keyword"},
+                    "epigraph_text": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer"
+                    },
+                    "translations": {
+                        "type": "nested",
+                        "dynamic": "true",
+                        "properties": {
+                            "text": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "language": {"type": "keyword"},
+                            "label": {"type": "keyword"},
+                            "notes": {
+                                "type": "nested",
+                                "properties": {
+                                    "line": {"type": "keyword"},
+                                    "note": {
+                                        "type": "text",
+                                        "analyzer": "custom_text_analyzer"
+                                    }
+                                }
+                            },
+                            "bibliography": {
+                                "type": "nested",
+                                "properties": {
+                                    "page": {"type": "keyword"},
+                                    "reference": {
+                                        "type": "text",
+                                        "analyzer": "custom_text_analyzer"
+                                    },
+                                    "id": {"type": "keyword"},
+                                    "first_authors": {"type": "keyword"},
+                                    "quotation_label": {"type": "keyword"},
+                                    "reference_short": {
+                                        "type": "text",
+                                        "analyzer": "custom_text_analyzer"
+                                    }
+                                }
+                            },
+                            "editors": {
+                                "type": "nested",
+                                "properties": {
+                                    "date": {
+                                        "type": "date",
+                                        "format": "yyyy/MM/dd||yyyy-MM-dd||dd/MM/yyyy||dd-MM-yyyy||d/M/yy||dd/MM/yy||d/M/yyyy||dd/MM/yyyy||yyyy/M/d||yyyy/M/dd||yyyy/MM/d||dd/M/yyyy||strict_date_optional_time||epoch_millis"
+                                    },
+                                    "name": {"type": "keyword"},
+                                    "responsibility": {"type": "keyword"}
+                                }
+                            }
+                        }
+                    },
+                    "period": {"type": "keyword"},
+                    "chronology_conjectural": {"type": "boolean"},
+                    "mentioned_date": {"type": "text"},
+                    "sites": {
+                        "type": "nested",
+                        "properties": {
+                            "name": {"type": "keyword"},
+                            "id": {"type": "integer"},
+                            "uri": {"type": "keyword"},
+                            "coordinates": {"type": "geo_point"},
+                            "latitude": {"type": "float"},
+                            "longitude": {"type": "float"},
+                            "region": {"type": "keyword"},
+                            "country": {"type": "keyword"}
+                        }
+                    },
+                    "language_level_1": {"type": "keyword"},
+                    "language_level_2": {"type": "keyword"},
+                    "language_level_3": {"type": "keyword"},
+                    "alphabet": {"type": "keyword"},
+                    "script_typology": {"type": "keyword"},
+                    "script_cursus": {"type": "keyword"},
+                    "textual_typology": {"type": "keyword"},
+                    "textual_typology_conjectural": {"type": "boolean"},
+                    "letter_measure": {"type": "text"},
+                    "writing_techniques": {"type": "keyword"},
+                    "royal_inscription": {"type": "boolean"},
+                    "cultural_notes": {
+                        "type": "nested",
+                        "dynamic": "true",
+                        "properties": {
+                            "note": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "topic": {"type": "keyword"}
+                        }
+                    },
+                    "aparatus_notes": {
+                        "type": "nested",
+                        "properties": {
+                            "line": {"type": "keyword"},
+                            "note": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            }
+                        }
+                    },
+                    "general_notes": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer"
+                    },
+                    "bibliography": {
+                        "type": "nested",
+                        "properties": {
+                            "text": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "reference": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "page": {"type": "keyword"},
+                            "title": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "author": {"type": "keyword"},
+                            "year": {"type": "keyword"},
+                            "id": {"type": "keyword"},
+                            "first_authors": {"type": "keyword"},
+                            "quotation_label": {"type": "keyword"},
+                            "reference_short": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            }
+                        }
+                    },
+                    "concordances": {"type": "keyword"},
+                    "license": {"type": "keyword"},
+                    "first_published": {"type": "date", "format": "yyyy||yyyy-MM||yyyy-MM-dd"},
+                    "editors": {
+                        "type": "nested",
+                        "properties": {
+                            "date": {
+                                "type": "date",
+                                "format": "yyyy/MM/dd||yyyy-MM-dd||dd/MM/yyyy||dd-MM-yyyy||d/M/yy||dd/MM/yy||d/M/yyyy||dd/MM/yyyy||yyyy/M/d||yyyy/M/dd||yyyy/MM/d||strict_date_optional_time||epoch_millis"
+                            },
+                            "name": {"type": "keyword"},
+                            "role": {"type": "keyword"},
+                            "institution": {"type": "keyword"}
+                        }
+                    },
+                    "last_modified": {"type": "date"},
+                    "dasi_published": {"type": "boolean"},
+                    "images": {
+                        "type": "nested",
+                        "properties": {
+                            "caption": {"type": "text"},
+                            "is_main": {"type": "boolean"},
+                            "image_id": {"type": "keyword"},
+                            "copyright_free": {"type": "boolean"}
+                        }
+                    },
+                    # Object
+                    "support_notes": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer"
+                    },
+                    "deposit_notes": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer"
+                    },
+                    "object_cultural_notes": {
+                        "type": "nested",
+                        "dynamic": "true",
+                        "properties": {
+                            "note": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "topic": {"type": "keyword"}
+                        }
+                    },
+                    "deposits": {
+                        "type": "nested",
+                        "dynamic": "true",
+                        "properties": {
+                            "settlement": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "institution": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            },
+                            "privateCollection": {"type": "boolean"},
+                            "identificationNumber": {"type": "keyword"},
+                            "repository": {
+                                "type": "text",
+                                "analyzer": "custom_text_analyzer"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        try:
+            if self.client.indices.exists(index=self.index_name):
+                logger.info(f"Index '{self.index_name}' already exists")
+                return
+
+            response = self.client.indices.create(index=self.index_name, body=mapping)
+            logger.info(f"Created index '{self.index_name}': {response}")
+        except Exception as e:
+            logger.error(f"Error creating index: {e}")
+            raise
+
+    def index_epigraph(self, epigraph: Epigraph):
+        """Index a single epigraph."""
+        try:
+            doc = self._epigraph_to_document(epigraph)
+
+            response = self.client.index(
+                index=self.index_name,
+                id=epigraph.id,
+                body=doc,
+                refresh=True
+            )
+            logger.debug(f"Indexed epigraph {epigraph.id}: {response['result']}")
+            return response
+        except Exception as e:
+            logger.error(f"Error indexing epigraph {epigraph.id}: {e}")
+            raise
+
+    def bulk_index_epigraphs(self, epigraphs: List[Epigraph]):
+        """Bulk index multiple epigraphs."""
+        from opensearchpy.helpers import bulk
+        
+        def generate_docs():
+            for epigraph in epigraphs:
+                yield {
+                    "_index": self.index_name,
+                    "_id": epigraph.id,
+                    "_source": self._epigraph_to_document(epigraph)
+                }
+
+        try:
+            success, failed = bulk(self.client, generate_docs(), refresh=True)
+            logger.info(f"Bulk indexed {success} epigraphs, {len(failed)} failed")
+            return success, failed
+        except Exception as e:
+            logger.error(f"Error bulk indexing epigraphs: {e}")
+            raise
+
+    def search_epigraphs(
+        self,
+        query: str,
+        fields: Optional[List[str]] = None,
+        filters: Optional[Dict[str, Any]] = None,
+        sort_field: Optional[str] = None,
+        sort_order: str = "asc",
+        skip: int = 0,
+        limit: int = 100
+    ) -> Dict[str, Any]:
+        """Search epigraphs using OpenSearch."""
+
+        all_nested_fields = {
+            "translations": ["text", "notes.note", "bibliography.reference", "bibliography.reference_short", "editors.name"],
+            "cultural_notes": ["note"],
+            "aparatus_notes": ["note"],
+            "bibliography": ["text", "reference", "title", "reference_short"],
+            "sites": ["name"],
+            "editors": ["name"],
+            "images": ["caption"],
+            "object_cultural_notes": ["note"],
+            "deposits": ["settlement", "institution", "repository"]
+        }
+
+        all_regular_fields = [
+            "title",
+            "epigraph_text",
+            "general_notes",
+            "support_notes",
+            "deposit_notes"
+        ]
+
+        if fields:
+            nested_fields = {}
+            regular_fields = []
+
+            for field in fields:
+                if "." in field:
+                    nested_path = field.split(".")[0]
+                    nested_subfield = field.split(".", 1)[1]
+
+                    if nested_path in all_nested_fields:
+                        if nested_path not in nested_fields:
+                            nested_fields[nested_path] = []
+                        if nested_subfield in all_nested_fields[nested_path]:
+                            nested_fields[nested_path].append(nested_subfield)
+                else:
+                    if field in all_nested_fields:
+                        nested_fields[field] = all_nested_fields[field]
+                    else:
+                        field_without_boost = field.split("^")[0]
+                        for reg_field in all_regular_fields:
+                            if reg_field.split("^")[0] == field_without_boost:
+                                regular_fields.append(field)
+                                break
+
+            object_nested_fields = ["object_cultural_notes", "deposits"]
+            object_regular_fields = ["support_notes", "deposit_notes"]
+
+            for obj_field in object_nested_fields:
+                if obj_field not in nested_fields:
+                    nested_fields[obj_field] = all_nested_fields[obj_field]
+
+            for obj_field in object_regular_fields:
+                if obj_field not in [f.split("^")[0] for f in regular_fields]:
+                    regular_fields.append(obj_field)
+        else:
+            nested_fields = all_nested_fields
+            regular_fields = all_regular_fields
+
+        must_queries = []
+
+        if regular_fields:
+            must_queries.append({
+                "multi_match": {
+                    "query": query,
+                    "fields": regular_fields,
+                    "type": "cross_fields"
+                }
+            })
+
+        for nested_path, nested_field_list in nested_fields.items():
+            nested_query = {
+                "nested": {
+                    "path": nested_path,
+                    "query": {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [f"{nested_path}.{field}" for field in nested_field_list]
+                        }
+                    }
+                }
+            }
+            must_queries.append(nested_query)
+
+        search_body = {
+            "query": {
+                "bool": {
+                    "should": must_queries,
+                    "minimum_should_match": 1,
+                    "filter": [
+                        {"term": {"dasi_published": True}}
+                    ]
+                }
+            },
+            "from": skip,
+            "size": limit,
+            "highlight": {
+                "fields": {
+                    "title": {},
+                    "epigraph_text": {},
+                    "general_notes": {},
+                    "translations.text": {},
+                    "translations.notes.note": {},
+                    "translations.bibliography.reference": {},
+                    "translations.bibliography.reference_short": {},
+                    "cultural_notes.note": {},
+                    "aparatus_notes.note": {},
+                    "bibliography.text": {},
+                    "bibliography.reference": {},
+                    "bibliography.title": {},
+                    "bibliography.reference_short": {},
+                    "images.caption": {},
+                    "support_notes": {},
+                    "deposit_notes": {},
+                    "object_cultural_notes.note": {},
+                    "deposits.settlement": {},
+                    "deposits.institution": {},
+                    "deposits.repository": {}
+                }
+            }
+        }
+
+        if filters:
+            for field, value in filters.items():
+                if isinstance(value, bool):
+                    search_body["query"]["bool"]["filter"].append({"term": {field: value}})
+                elif isinstance(value, list):
+                    search_body["query"]["bool"]["filter"].append({"terms": {field: value}})
+                else:
+                    search_body["query"]["bool"]["filter"].append({"term": {field: value}})
+
+        if sort_field:
+            search_body["sort"] = [{sort_field: {"order": sort_order}}]
+        else:
+            search_body["sort"] = ["_score"]
+
+        try:
+            response = self.client.search(index=self.index_name, body=search_body)
+            return {
+                "hits": response["hits"]["hits"],
+                "total": response["hits"]["total"]["value"],
+                "max_score": response["hits"]["max_score"]
+            }
+        except Exception as e:
+            logger.error(f"Error searching epigraphs: {e}")
+            raise
+
+    def suggest_terms(self, query: str, field: str = "title") -> List[str]:
+        """Get search suggestions."""
+        suggest_body = {
+            "suggest": {
+                "term_suggestion": {
+                    "text": query,
+                    "term": {
+                        "field": field
+                    }
+                }
+            }
+        }
+
+        try:
+            response = self.client.search(index=self.index_name, body=suggest_body)
+            suggestions = []
+            for suggestion in response["suggest"]["term_suggestion"]:
+                for option in suggestion["options"]:
+                    suggestions.append(option["text"])
+            return suggestions
+        except Exception as e:
+            logger.error(f"Error getting suggestions: {e}")
+            return []
+
+    def delete_epigraph(self, epigraph_id: int):
+        """Delete an epigraph from the index."""
+        try:
+            response = self.client.delete(index=self.index_name, id=epigraph_id)
+            logger.debug(f"Deleted epigraph {epigraph_id}: {response['result']}")
+            return response
+        except NotFoundError:
+            logger.warning(f"Epigraph {epigraph_id} not found in index")
+        except Exception as e:
+            logger.error(f"Error deleting epigraph {epigraph_id}: {e}")
+            raise
+
+    def delete_index(self):
+        """Delete the epigraphs index."""
+        try:
+            if self.client.indices.exists(index=self.index_name):
+                response = self.client.indices.delete(index=self.index_name)
+                logger.info(f"Deleted index '{self.index_name}': {response}")
+                return response
+            else:
+                logger.info(f"Index '{self.index_name}' does not exist")
+        except Exception as e:
+            logger.error(f"Error deleting index: {e}")
+            raise
+
+    def _clean_date_value(self, value):
+        """Return None for empty or unparseable dates, else the normalized value."""
+        if not value or not isinstance(value, str):
+            return None
+        try:
+            from dateutil.parser import parse
+            dt = parse(value, dayfirst=False, yearfirst=False, fuzzy=True)
+            return dt.date().isoformat()
+        except Exception:
+            return None
+
+    def _clean_editors_dates(self, editors):
+        """Ensure editors.date is None if empty string or misformatted, for both list and dict cases."""
+        if isinstance(editors, list):
+            for ed in editors:
+                if isinstance(ed, dict) and "date" in ed:
+                    ed["date"] = self._clean_date_value(ed["date"])
+        elif isinstance(editors, dict):
+            if "date" in editors:
+                editors["date"] = self._clean_date_value(editors["date"])
+        return editors
+
+    def _epigraph_to_document(self, epigraph: Epigraph) -> Dict[str, Any]:
+        """Convert an Epigraph object to an OpenSearch document."""
+        doc = {
+            "id": epigraph.id,
+            "dasi_id": epigraph.dasi_id,
+            "title": epigraph.title,
+            "uri": epigraph.uri,
+            "period": epigraph.period,
+            "chronology_conjectural": epigraph.chronology_conjectural,
+            "mentioned_date": epigraph.mentioned_date,
+            "language_level_1": epigraph.language_level_1,
+            "language_level_2": epigraph.language_level_2,
+            "language_level_3": epigraph.language_level_3,
+            "alphabet": epigraph.alphabet,
+            "script_typology": epigraph.script_typology,
+            "textual_typology": epigraph.textual_typology,
+            "textual_typology_conjectural": epigraph.textual_typology_conjectural,
+            "letter_measure": epigraph.letter_measure,
+            "royal_inscription": epigraph.royal_inscription,
+            "general_notes": epigraph.general_notes,
+            "license": epigraph.license,
+            "first_published": epigraph.first_published,
+            "last_modified": epigraph.last_modified.isoformat() if epigraph.last_modified else None,
+            "dasi_published": epigraph.dasi_published if epigraph.dasi_published is not None else True,
+            "created_at": epigraph.created_at.isoformat() if epigraph.created_at else None,
+            "updated_at": epigraph.updated_at.isoformat() if epigraph.updated_at else None
+        }
+
+        if epigraph.epigraph_text:
+            epigraph_text = epigraph.epigraph_text
+            epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph_text)
+            epigraph_text = re.sub(r"<[^>]*>", "", epigraph_text)
+            doc["epigraph_text"] = epigraph_text
+
+        if epigraph.translations:
+            translations = epigraph.translations
+            for t in translations:
+                if "editors" in t:
+                    t["editors"] = self._clean_editors_dates(t["editors"])
+            doc["translations"] = translations
+
+        if epigraph.sites:
+            doc["sites"] = epigraph.sites
+
+        if epigraph.script_cursus:
+            doc["script_cursus"] = epigraph.script_cursus
+
+        if epigraph.writing_techniques:
+            doc["writing_techniques"] = epigraph.writing_techniques
+
+        if epigraph.cultural_notes:
+            doc["cultural_notes"] = epigraph.cultural_notes
+
+        if epigraph.aparatus_notes:
+            doc["aparatus_notes"] = epigraph.aparatus_notes
+
+        if epigraph.bibliography:
+            doc["bibliography"] = epigraph.bibliography
+
+        if epigraph.concordances:
+            doc["concordances"] = epigraph.concordances
+
+        if epigraph.editors:
+            doc["editors"] = self._clean_editors_dates(epigraph.editors)
+
+        if epigraph.images:
+            doc["images"] = epigraph.images
+
+        if hasattr(epigraph, "objects") and epigraph.objects:
+            all_support_notes = []
+            all_deposit_notes = []
+            all_object_cultural_notes = []
+            all_deposits = []
+
+            for obj in epigraph.objects:
+                if obj.support_notes:
+                    all_support_notes.append(obj.support_notes)
+                if obj.deposit_notes:
+                    all_deposit_notes.append(obj.deposit_notes)
+                if obj.cultural_notes:
+                    all_object_cultural_notes.extend(obj.cultural_notes)
+                if obj.deposits:
+                    all_deposits.extend(obj.deposits)
+
+            if all_support_notes:
+                doc["support_notes"] = " ".join(all_support_notes)
+            if all_deposit_notes:
+                doc["deposit_notes"] = " ".join(all_deposit_notes)
+            if all_object_cultural_notes:
+                doc["object_cultural_notes"] = all_object_cultural_notes
+            if all_deposits:
+                doc["deposits"] = all_deposits
+
+        return doc
+
+    def get_index_stats(self) -> Dict[str, Any]:
+        """Get index statistics."""
+        try:
+            stats = self.client.indices.stats(index=self.index_name)
+            return {
+                "document_count": stats["indices"][self.index_name]["total"]["docs"]["count"],
+                "index_size": stats["indices"][self.index_name]["total"]["store"]["size_in_bytes"]
+            }
+        except Exception as e:
+            logger.error(f"Error getting index stats: {e}")
+            return {}
+
+    def test_nested_search(self, query: str, nested_path: str = "translations", nested_field: str = "text") -> Dict[str, Any]:
+        """Test search specifically for nested fields - useful for debugging."""
+        search_body = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "nested": {
+                                "path": nested_path,
+                                "query": {
+                                    "match": {
+                                        f"{nested_path}.{nested_field}": query
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "filter": [
+                        {"term": {"dasi_published": True}}
+                    ]
+                }
+            },
+            "size": 10,
+            "highlight": {
+                "fields": {
+                    f"{nested_path}.{nested_field}": {}
+                }
+            },
+            "_source": ["id", "title", nested_path]
+        }
+
+        try:
+            response = self.client.search(index=self.index_name, body=search_body)
+            return {
+                "hits": response["hits"]["hits"],
+                "total": response["hits"]["total"]["value"],
+                "query_used": search_body
+            }
+        except Exception as e:
+            logger.error(f"Error in nested search test: {e}")
+            raise
