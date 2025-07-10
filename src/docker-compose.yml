@@ -45,8 +45,48 @@ services:
     networks:
       - traefik-public
 
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD?Variable not set}
+      - plugins.security.ssl.transport.enforce_hostname_verification=false
+      - plugins.security.ssl.http.enabled=false
+      - plugins.security.allow_default_init_securityindex=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - traefik-public
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - OPENSEARCH_USERNAME=${OPENSEARCH_USERNAME?Variable not set}
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD?Variable not set}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-dashboards.rule=Host(`opensearch.${DOMAIN}`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-dashboards.tls=true
+      - traefik.http.services.${STACK_NAME?Variable not set}-dashboards.loadbalancer.server.port=5601
+    networks:
+      - traefik-public
+
 volumes:
   app-db-data:
+  opensearch-data:
 
 networks:
   traefik-public:
