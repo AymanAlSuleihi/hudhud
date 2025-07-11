@@ -252,18 +252,20 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
 
   return (
     <div>
-      <div className="flex items-center text-sm mb-2 ml-5">
-        <ToggleButton 
-          isSelected={showMarkers}
-          onChange={setShowMarkers}
-          className="group flex items-center px-3 py-2 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50 data-[selected]:bg-zinc-600 data-[selected]:text-white transition-colors cursor-pointer"
-        >
-          <span className="font-medium whitespace-nowrap">
-            Semantic Markers
-          </span>
-        </ToggleButton>
-        <div className="flex items-center gap-1 p-2 ml-3 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
-          <WarningCircle size={12} />
+      <div className="flex flex-col lg:flex-row lg:items-center text-sm mb-2 ml-5 gap-2">
+        <div className="flex-shrink-0 w-auto">
+          <ToggleButton 
+            isSelected={showMarkers}
+            onChange={setShowMarkers}
+            className="group flex items-center px-3 py-2 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50 data-[selected]:bg-zinc-600 data-[selected]:text-white transition-colors cursor-pointer w-auto min-w-[140px] max-w-[180px]"
+          >
+            <span className="font-medium whitespace-nowrap">
+              Semantic Markers
+            </span>
+          </ToggleButton>
+        </div>
+        <div className="flex items-center gap-1 p-2 lg:ml-3 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
+          <WarningCircle size={16} className="min-w-[16px] min-h-[16px]" />
           Development in progress - Text rendering may be inaccurate, incomplete, or misaligned.
         </div>
       </div>
