@@ -340,10 +340,21 @@ class OpenSearchService:
         skip: int = 0,
         limit: int = 100
     ) -> Dict[str, Any]:
-        """Search epigraphs using OpenSearch."""
+        """Searches epigraphs in the OpenSearch index"""
 
-        all_nested_fields = {
-            "translations": ["text", "notes.note", "bibliography.reference", "bibliography.reference_short", "editors.name"],
+        searchable_fields = {
+            "title": None,
+            "epigraph_text": None,
+            "general_notes": None,
+            "support_notes": None,
+            "deposit_notes": None,
+            "translations": [
+                "text",
+                "notes.note",
+                "bibliography.reference",
+                "bibliography.reference_short",
+                "editors.name"
+            ],
             "cultural_notes": ["note"],
             "aparatus_notes": ["note"],
             "bibliography": ["text", "reference", "title", "reference_short"],
@@ -354,81 +365,115 @@ class OpenSearchService:
             "deposits": ["settlement", "institution", "repository"]
         }
 
-        all_regular_fields = [
-            "title",
-            "epigraph_text",
-            "general_notes",
-            "support_notes",
-            "deposit_notes"
-        ]
-
-        if fields:
-            nested_fields = {}
-            regular_fields = []
-
-            for field in fields:
-                if "." in field:
-                    nested_path = field.split(".")[0]
-                    nested_subfield = field.split(".", 1)[1]
-
-                    if nested_path in all_nested_fields:
-                        if nested_path not in nested_fields:
-                            nested_fields[nested_path] = []
-                        if nested_subfield in all_nested_fields[nested_path]:
-                            nested_fields[nested_path].append(nested_subfield)
+        if not fields:
+            search_fields = []
+            for field_name, subfields in searchable_fields.items():
+                if subfields is None:
+                    search_fields.append(field_name)
                 else:
-                    if field in all_nested_fields:
-                        nested_fields[field] = all_nested_fields[field]
-                    else:
-                        field_without_boost = field.split("^")[0]
-                        for reg_field in all_regular_fields:
-                            if reg_field.split("^")[0] == field_without_boost:
-                                regular_fields.append(field)
-                                break
-
-            object_nested_fields = ["object_cultural_notes", "deposits"]
-            object_regular_fields = ["support_notes", "deposit_notes"]
-
-            for obj_field in object_nested_fields:
-                if obj_field not in nested_fields:
-                    nested_fields[obj_field] = all_nested_fields[obj_field]
-
-            for obj_field in object_regular_fields:
-                if obj_field not in [f.split("^")[0] for f in regular_fields]:
-                    regular_fields.append(obj_field)
+                    search_fields.extend([field_name + "." + subfield for subfield in subfields])
         else:
-            nested_fields = all_nested_fields
-            regular_fields = all_regular_fields
+            search_fields = []
+            for f in fields:
+                if f in searchable_fields and searchable_fields[f] is not None:
+                    search_fields.extend([f + "." + sub for sub in searchable_fields[f]])
+                else:
+                    search_fields.append(f)
 
-        must_queries = []
+        top_fields = [f for f in search_fields if "." not in f]
+        nested_fields = [f for f in search_fields if "." in f]
 
-        if regular_fields:
-            must_queries.append({
-                "multi_match": {
-                    "query": query,
-                    "fields": regular_fields,
-                    "type": "cross_fields"
-                }
-            })
+        ngram_fields = [f for f in top_fields]
+        stemmed_fields = [f for f in top_fields]
+        keyword_fields = [f + ".keyword" for f in top_fields]
 
-        for nested_path, nested_field_list in nested_fields.items():
-            nested_query = {
-                "nested": {
-                    "path": nested_path,
-                    "query": {
-                        "multi_match": {
+        has_wildcard = "*" in query or "?" in query
+        should_queries = []
+        if has_wildcard:
+            if top_fields:
+                should_queries.append({
+                    "query_string": {
+                        "query": query,
+                        "fields": top_fields,
+                        "default_operator": "AND",
+                        "analyze_wildcard": True,
+                        "boost": 3
+                    }
+                })
+                if keyword_fields:
+                    should_queries.append({
+                        "query_string": {
                             "query": query,
-                            "fields": [f"{nested_path}.{field}" for field in nested_field_list]
+                            "fields": keyword_fields,
+                            "default_operator": "AND",
+                            "analyze_wildcard": True,
+                            "boost": 5
+                        }
+                    })
+            for nf in nested_fields:
+                path, field = nf.split(".", 1)
+                should_queries.append({
+                    "nested": {
+                        "path": path,
+                        "query": {
+                            "query_string": {
+                                "query": query,
+                                "fields": [nf],
+                                "default_operator": "AND",
+                                "analyze_wildcard": True
+                            }
                         }
                     }
-                }
-            }
-            must_queries.append(nested_query)
+                })
+        else:
+            if top_fields:
+                should_queries.append({
+                    "multi_match": {
+                        "query": query,
+                        "fields": stemmed_fields,
+                        "type": "best_fields",
+                        "minimum_should_match": "80%",
+                        "boost": 3
+                    }
+                })
+                should_queries.append({
+                    "multi_match": {
+                        "query": query,
+                        "fields": ngram_fields,
+                        "type": "best_fields",
+                        "minimum_should_match": "70%",
+                        "boost": 2
+                    }
+                })
+                if keyword_fields:
+                    should_queries.append({
+                        "multi_match": {
+                            "query": query,
+                            "fields": keyword_fields,
+                            "type": "best_fields",
+                            "boost": 5
+                        }
+                    })
+            for nf in nested_fields:
+                path, field = nf.split(".", 1)
+                should_queries.append({
+                    "nested": {
+                        "path": path,
+                        "query": {
+                            "multi_match": {
+                                "query": query,
+                                "fields": [nf],
+                                "type": "best_fields",
+                                "minimum_should_match": "70%"
+                            }
+                        }
+                    }
+                })
 
         search_body = {
             "query": {
                 "bool": {
-                    "should": must_queries,
+                    "should": should_queries,
                     "minimum_should_match": 1,
                     "filter": [
                         {"term": {"dasi_published": True}}
