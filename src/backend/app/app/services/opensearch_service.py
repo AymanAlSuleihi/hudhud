@@ -45,10 +45,23 @@ class OpenSearchService:
                         "custom_text_analyzer": {
                             "type": "custom",
                             "tokenizer": "standard",
-                            "filter": ["lowercase", "stop", "snowball"]
+                            "filter": ["lowercase", "stop", "kstem"]
+                        },
+                        "edge_ngram_analyzer": {
+                            "type": "custom",
+                            "tokenizer": "edge_ngram_tokenizer",
+                            "filter": ["lowercase"]
+                        }
+                    },
+                    "tokenizer": {
+                        "edge_ngram_tokenizer": {
+                            "type": "edge_ngram",
+                            "min_gram": 2,
+                            "max_gram": 10,
+                            "token_chars": ["letter", "digit"]
                         }
                     }
-                }
+                },
             },
             "mappings": {
                 "properties": {
@@ -58,7 +71,8 @@ class OpenSearchService:
                     "dasi_id": {"type": "integer"},
                     "title": {
                         "type": "text",
-                        "analyzer": "custom_text_analyzer",
+                        "analyzer": "edge_ngram_analyzer",
+                        "search_analyzer": "custom_text_analyzer",
                         "fields": {
                             "keyword": {"type": "keyword"}
                         }
@@ -66,7 +80,8 @@ class OpenSearchService:
                     "uri": {"type": "keyword"},
                     "epigraph_text": {
                         "type": "text",
-                        "analyzer": "custom_text_analyzer"
+                        "analyzer": "edge_ngram_analyzer",
+                        "search_analyzer": "custom_text_analyzer"
                     },
                     "translations": {
                         "type": "nested",
