@@ -42,6 +42,7 @@ const Epigraphs: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "")
   const [searchFields, setSearchFields] = useState({
+    epigraphText: searchParams.get("search_epigraph_text") !== "false",
     translationText: searchParams.get("search_translations") !== "false",
     notes: searchParams.get("search_notes") !== "false", 
     bibliography: searchParams.get("search_bibliography") !== "false",
@@ -92,6 +93,7 @@ const Epigraphs: React.FC = () => {
 
       if (searchQuery) {
         urlParams.q = searchQuery
+        urlParams.search_epigraph_text = searchFields.epigraphText.toString()
         urlParams.search_translations = searchFields.translationText.toString()
         urlParams.search_notes = searchFields.notes.toString()
         urlParams.search_bibliography = searchFields.bibliography.toString()
@@ -115,6 +117,7 @@ const Epigraphs: React.FC = () => {
 
       if (searchQuery) {
         const field_map = {
+          epigraphText: searchFields.epigraphText ? ["epigraph_text"] : [],
           translationText: searchFields.translationText ? ["translations"] : [],
           notes: searchFields.notes ? ["general_notes", "aparatus_notes", "cultural_notes"] : [],
           bibliography: searchFields.bibliography ? ["bibliography"] : [],
@@ -412,26 +415,26 @@ const Epigraphs: React.FC = () => {
           <div className="flex flex-col flex-1 min-w-[200px]">
             <div className="flex items-center gap-2">
               <SearchField className="flex-1">
-            <Label className="block text-sm font-medium mb-1">Search</Label>
-            <div className="relative">
-              <input 
-                ref={searchInputRef}
-                defaultValue={searchParams.get("q") || ""}
-                onChange={(e) => handleSearchInputChange(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    if (debounceRef.current) {
-                      clearTimeout(debounceRef.current)
-                    }
-                    handleSearch(e.currentTarget.value)
-                  }
-                }}
-                className="w-full border border-gray-400 p-2 pl-9 rounded h-8"
-                placeholder="Search epigraphs..."
-              />
-              <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-            </div>
-          </SearchField>
+                <Label className="block text-sm font-medium mb-1">Search</Label>
+                <div className="relative">
+                  <input 
+                    ref={searchInputRef}
+                    defaultValue={searchParams.get("q") || ""}
+                    onChange={(e) => handleSearchInputChange(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        if (debounceRef.current) {
+                          clearTimeout(debounceRef.current)
+                        }
+                        handleSearch(e.currentTarget.value)
+                      }
+                    }}
+                    className="w-full border border-gray-400 p-2 pl-9 rounded h-8"
+                    placeholder="Search epigraphs..."
+                  />
+                  <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                </div>
+              </SearchField>
               <button
                 type="button"
                 className="flex self-end items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
@@ -476,6 +479,25 @@ const Epigraphs: React.FC = () => {
 
         <div className="flex gap-x-2 gap-y-2 items-center flex-wrap">
           <Label className="text-sm font-medium whitespace-nowrap">Search within:</Label>
+          <ToggleButton
+            isSelected={searchFields.epigraphText}
+            onChange={selected => setSearchFields(prev => ({...prev, epigraphText: selected}))}
+            className={({isSelected}) => `
+              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              ${isSelected 
+                ? "bg-zinc-600 text-white shadow-sm"
+                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+              }
+            `}
+          >
+            <span className="flex items-center gap-1">
+              {searchFields.epigraphText && (
+                <Check size={14} className="text-white" />
+              )}
+              <span className="hidden sm:inline">Epigraph Text</span>
+              <span className="sm:hidden">Text</span>
+            </span>
+          </ToggleButton>
           <ToggleButton
             isSelected={searchFields.translationText}
             onChange={selected => setSearchFields(prev => ({...prev, translationText: selected}))}
