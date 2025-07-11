@@ -11,6 +11,7 @@ import { EpigraphsService, EpigraphsOut } from "../client"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MySelect, MyItem } from "../components/Select"
+import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
 
 interface Filters {
   period?: string
@@ -50,6 +51,7 @@ const Epigraphs: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const [pageInputValue, setPageInputValue] = useState(currentPage.toString())
+  const [showKeyboard, setShowKeyboard] = useState(false)
 
   useEffect(() => {
     setPageInputValue(currentPage.toString())
@@ -389,12 +391,27 @@ const Epigraphs: React.FC = () => {
     )
   }
 
+  const handleInsertChar = (char: string) => {
+    const input = searchInputRef.current
+    if (!input) return
+    const start = input.selectionStart || 0
+    const end = input.selectionEnd || 0
+    const value = input.value
+    input.value = value.slice(0, start) + char + value.slice(end)
+    input.focus()
+    const cursorPos = start + char.length
+    input.setSelectionRange(cursorPos, cursorPos)
+    handleSearchInputChange(input.value)
+  }
+
   return (
     <div className="2xl:max-w-10/12 p-4 mx-auto">
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
       <div className="mb-1 space-y-4">
-        <div className="flex flex-wrap gap-x-2 gap-y-4">
-          <SearchField className="flex-1 min-w-[200px] ">
+        <div className="flex flex-wrap gap-x-2 gap-y-4 items-start">
+          <div className="flex flex-col flex-1 min-w-[200px]">
+            <div className="flex items-center gap-2">
+              <SearchField className="flex-1">
             <Label className="block text-sm font-medium mb-1">Search</Label>
             <div className="relative">
               <input 
@@ -415,8 +432,16 @@ const Epigraphs: React.FC = () => {
               <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
             </div>
           </SearchField>
-
-          <div className="flex gap-2 items-end flex-wrap">
+              <button
+                type="button"
+                className="flex self-end items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
+                onClick={() => setShowKeyboard((v) => !v)}
+              >
+                {showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2 items-end flex-wrap self-end">
             <Button
               onPress={() => {
                 if (debounceRef.current) {
@@ -445,6 +470,9 @@ const Epigraphs: React.FC = () => {
             )}
           </div>
         </div>
+        {showKeyboard && (
+          <div className="mt-2"><OnScreenKeyboard onInsert={handleInsertChar} /></div>
+        )}
 
         <div className="flex gap-x-2 gap-y-2 items-center flex-wrap">
           <Label className="text-sm font-medium whitespace-nowrap">Search within:</Label>
