@@ -392,8 +392,7 @@ const Epigraphs: React.FC = () => {
   return (
     <div className="2xl:max-w-10/12 p-4 mx-auto">
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
-
-      <div className="mb-2 space-y-4">
+      <div className="mb-1 space-y-4">
         <div className="flex flex-wrap gap-x-2 gap-y-4">
           <SearchField className="flex-1 min-w-[200px] ">
             <Label className="block text-sm font-medium mb-1">Search</Label>
@@ -523,6 +522,11 @@ const Epigraphs: React.FC = () => {
               Title
             </span>
           </ToggleButton>
+        </div>
+        <div className="text-sm text-gray-500">
+          Use <span className="font-mono">*</span> and <span className="font-mono">?</span> for wildcard searches:{" "}
+          <span className="font-mono">*</span> matches zero or more characters, <span className="font-mono">?</span> matches any single character.<br />
+          Example: hud* will match "hud", "hudhud", "hudson", etc. hudh?d will match "hudhud", "hudhed", etc.
         </div>
       </div>
 
