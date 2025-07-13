@@ -96,7 +96,7 @@ const Ask: React.FC = () => {
         setIsLoading(false)
       }
     }
-    
+
     submitQuery()
   }
 
@@ -104,14 +104,14 @@ const Ask: React.FC = () => {
     "What trade goods made Ancient South Arabia wealthy?",
     "Compare Sabaean and Himyarite kingdoms and their political systems",
     "How did inscriptions record water management in Ancient Yemen?",
-    "What does archaeological evidence reveal about women's roles in Hadramawt?",
+    "What do we know about medicine and healing practices in Ancient South Arabia?",
     "Explain the relationship between incense trade and temple architecture",
     "What was the significance of the Marib Dam in Sabaean society?",
   ]
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="mb-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="mb-4">
         <SearchField
           onSubmit={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
         >
@@ -125,16 +125,16 @@ const Ask: React.FC = () => {
                 if (e.key === "Enter") {
                   handleSubmit({ preventDefault: () => {} } as React.FormEvent)
                 }
-              }}
-              placeholder="e.g., What was the religion of Ancient Yemen? or How did the Sabaean kingdom fall?"
-              className="w-full p-4 pr-20 border border-gray-300 rounded-lg"
-              disabled={isLoading}
-            />
+                }}
+                placeholder="e.g., What was the culture of Ancient South Arabia like? or How did the Sabaean kingdom fall?"
+                className="w-full p-4 pr-20 border border-gray-300 rounded h-12"
+                disabled={isLoading}
+              />
             <button
               type="submit"
               disabled={isLoading}
               onClick={handleSubmit}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-zinc-600 hover:bg-zinc-500 text-white p-2.5 rounded-lg"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-zinc-600 hover:bg-zinc-500 text-white p-2 rounded"
             >
               {isLoading ? (
                 <Spinner colour="#fff" size="w-6 h-6" />
@@ -155,7 +155,7 @@ const Ask: React.FC = () => {
 
       {!answer && !isLoading && !error && (
         <div className="mb-10">
-          <div className="mb-8 p-6 bg-zinc-50 border border-zinc-200 rounded-lg">
+          <div className="mb-8 p-6 bg-zinc-50 border border-zinc-200 rounded">
             <h2 className="text-lg font-semibold mb-3 text-gray-900">How Hudhud Works</h2>
             <div className="text-gray-800 space-y-2">
               <p className="text-sm">
@@ -188,7 +188,7 @@ const Ask: React.FC = () => {
               <button
                 key={index}
                 onClick={() => handleSuggestedQueryClick(q)}
-                className="text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="text-left p-3 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
               >
                 <span className="flex items-center">
                   {q}
@@ -205,7 +205,7 @@ const Ask: React.FC = () => {
                   <button
                     key={index}
                     onClick={() => handleSuggestedQueryClick(q)}
-                    className="text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full transition-colors"
+                    className="text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded transition-colors"
                   >
                     {q}
                   </button>
@@ -217,7 +217,7 @@ const Ask: React.FC = () => {
       )}
 
       {error && (
-        <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start">
+        <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded text-red-700 flex items-start">
           <Warning size={24} className="mr-3 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">Error</p>
@@ -227,7 +227,7 @@ const Ask: React.FC = () => {
       )}
 
       {answer && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded overflow-hidden">
           <div className="p-6">
             <div className="prose max-w-none">
               {answer.split('\n').map((paragraph, index) => {
@@ -295,6 +295,10 @@ const Ask: React.FC = () => {
                   }} />
                 }
               })}
+            </div>
+
+            <div className="bg-yellow-50 border-yellow-200 p-4 text-yellow-900 text-sm">
+              <strong>AI Disclaimer:</strong> Hudhud might make mistakes. Please verify information independently and consult scholarly literature for critical research or academic use.
             </div>
           </div>
 
