@@ -33,7 +33,7 @@ const Epigraphs: React.FC = () => {
   const [epigraphs, setEpigraphs] = useState<EpigraphsOut | null>(null)
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
   const [pageSize, setPageSize] = useState(Number(searchParams.get("pageSize") || 25))
-  const [sortField, setSortField] = useState(searchParams.get("sort") || "period")
+  const [sortField, setSortField] = useState(searchParams.get("sort") || "dasi_id")
   const [sortOrder, setSortOrder] = useState(searchParams.get("order") || "asc")
   const [isLoading, setIsLoading] = useState(false)
   const [filters, setFilters] = useState<Filters>({})
@@ -162,7 +162,7 @@ const Epigraphs: React.FC = () => {
   useEffect(() => {
     const page = Number(searchParams.get("page")) || 1
     const size = Number(searchParams.get("pageSize")) || 25
-    const sort = searchParams.get("sort") || "period"
+    const sort = searchParams.get("sort") || "dasi_id"
     const order = searchParams.get("order") || "asc"
     const query = searchParams.get("q") || ""
 
@@ -704,8 +704,8 @@ const Epigraphs: React.FC = () => {
             }}
             buttonClassName="h-8 max-h-8 min-w-0"
           >
-            <MyItem key="period" id="period">Period</MyItem>
             <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
+            <MyItem key="period" id="period">Period</MyItem>
             <MyItem key="title" id="title">Title</MyItem>
             <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
           </MySelect>
