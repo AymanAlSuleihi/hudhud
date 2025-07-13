@@ -100,7 +100,7 @@ interface TextRendererProps {
   onLineHover?: (lineNum: number | null) => void
 }
 
-const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialShowMarkers = false, highlightedLines = [], onLineHover }) => {
+const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialShowMarkers = true, highlightedLines = [], onLineHover }) => {
   const [showMarkers, setShowMarkers] = useState(initialShowMarkers)
   const parser = new DOMParser()
   const doc = parser.parseFromString(text, "text/xml")
