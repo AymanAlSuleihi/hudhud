@@ -1,9 +1,12 @@
+from urllib.parse import urlparse
 import requests
 import time
 import re
 import logging
 import os
 import shutil
+import asyncio
+from typing import Dict, Any
 from bs4 import BeautifulSoup
 
 from sqlalchemy.orm import Session
@@ -52,13 +55,13 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
 
         return db_item
 
-    def import_single(
+    async def import_single(
         self,
         item_id: int,
         dasi_published: bool = None,
         rate_limit_delay: float = 10,
     ):
-        time.sleep(rate_limit_delay)
+        await asyncio.sleep(rate_limit_delay)
         detail_response = requests.get(
             f"{self.base_url}/{item_id}",
             timeout=30
@@ -76,6 +79,9 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
                 **parsed_data,
             ),
         )
+
+        if db_item.uri:
+            db_item = await self.scrape_single(db_item.dasi_id, rate_limit_delay)
 
         db_item = self._link_to_related_entities(db_item, detail_data)
         return db_item
@@ -114,7 +120,170 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
 
         return processed_image_data
 
-    def scrape_single(
+    async def import_range(
+        self,
+        task_id: str,
+        start_id: int, 
+        end_id: int,
+        dasi_published: bool = None,
+        rate_limit_delay: float = 10,
+    ) -> Dict[str, Any]:
+        task = self.task_progress_service.get_task(task_id)
+        total_imported = task.processed_items
+
+        try:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_imported,
+                total=(end_id - start_id + 1),
+                status="running",
+            )
+
+            for item_id in range(start_id, end_id + 1):
+                db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
+                if db_item:
+                    self.task_progress_service.update_progress(
+                        uuid=task_id,
+                        processed=total_imported + (item_id - start_id + 1),
+                        total=(end_id - start_id + 1),
+                        status="running",
+                    )
+                    continue
+
+                try:
+                    await self.import_single(
+                        item_id,
+                        dasi_published=dasi_published,
+                        rate_limit_delay=rate_limit_delay,
+                    )
+                    total_imported += 1
+
+                    self.task_progress_service.update_progress(
+                        uuid=task_id,
+                        processed=total_imported + (item_id - start_id + 1),
+                        total=(end_id - start_id + 1),
+                        status="running",
+                    )
+                except Exception as e:
+                    if isinstance(e, requests.exceptions.HTTPError):
+                        if e.response.status_code == 404:
+                            continue
+                        if e.response.status_code == 500:
+                            await asyncio.sleep(rate_limit_delay * 2)
+                            try:
+                                await self.import_single(
+                                    item_id,
+                                    dasi_published=dasi_published,
+                                    rate_limit_delay=rate_limit_delay,
+                                )
+                                total_imported += 1
+                                self.task_progress_service.update_progress(
+                                    uuid=task_id,
+                                    processed=total_imported + (item_id - start_id + 1),
+                                    total=(end_id - start_id + 1),
+                                    status="running",
+                                )
+                            except requests.exceptions.HTTPError as e:
+                                if e.response.status_code == 404:
+                                    continue
+                                elif e.response.status_code == 500:
+                                    logging.error(f"Error importing item {item_id}: {e}")
+                                    continue
+                    raise
+
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_imported,
+                total=(end_id - start_id + 1),
+                status="completed",
+            )
+
+            return {
+                "status": "success", 
+                "total_imported": total_imported,
+                "range": f"{start_id}-{end_id}"
+            }
+
+        except Exception as e:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_imported,
+                total=(end_id - start_id + 1),
+                status="failed",
+                error=str(e),
+            )
+            return {"status": "error", "error": str(e)}
+
+    async def import_all(
+        self,
+        task_id: str,
+        rate_limit_delay: float = 10,
+    ) -> Dict[str, Any]:
+        task = self.task_progress_service.get_task(task_id)
+        items_per_page = 30
+        total_imported = task.processed_items
+        current_page = (total_imported // items_per_page) + 1
+
+        try:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=0,
+                total=None,
+                status="running",
+            )
+
+            while True:
+                await asyncio.sleep(rate_limit_delay)
+                response = requests.get(
+                    self.base_url,
+                    params={"page": current_page},
+                    timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                for item in data.get("member", []):
+                    item_url = item.get("@id", "")
+                    item_id = int(urlparse(item_url).path.split("/")[-1])
+
+                    db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
+                    if db_item:
+                        continue
+
+                    await self.import_single(item_id)
+                    total_imported += 1
+
+                    self.task_progress_service.update_progress(
+                        uuid=task_id,
+                        processed=total_imported,
+                        total=data.get("totalItems", None),
+                        status="running",
+                    )
+
+                if "next" not in data.get("view", {}):
+                    break
+
+                current_page += 1
+
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_imported,
+                total=None,
+                status="completed",
+            )
+
+            return {"status": "success", "total_imported": total_imported}
+
+        except Exception as e:
+            self.task_progress_service.update_progress(
+                uuid=task_id,
+                processed=total_imported,
+                status="failed",
+                error=str(e),
+            )
+            return {"status": "error", "error": str(e)}
+
+    async def scrape_single(
         self,
         dasi_id: int,
         rate_limit_delay: float = 10,
@@ -126,7 +295,7 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
 
         for attempt in range(max_retries + 1):
             try:
-                time.sleep(rate_limit_delay)
+                await asyncio.sleep(rate_limit_delay)
                 response = requests.get(
                     f"{settings.DASI_ADDRESS}/project/1/epigraphs/{dasi_id}",
                     timeout=30,
@@ -208,6 +377,23 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
                             "caption": caption_text,
                             "is_main": False
                         })
+
+        for image in image_data:
+            image_id = image.get("image_id")
+            if image_id:
+                try:
+                    image_path = await self.import_image(
+                        rec_id=int(image_id),
+                        size="high",
+                        save_directory="private",
+                        rate_limit_delay=1.0,
+                    )
+                    if image_path:
+                        logging.info(f"Downloaded image {image_id} to private storage: {image_path}")
+                    else:
+                        logging.warning(f"Failed to download image {image_id}")
+                except Exception as e:
+                    logging.error(f"Error downloading image {image_id}: {str(e)}")
 
         processed_image_data = self._process_copyright_free_images(image_data)
         updated_epigraph = self.crud.update(
