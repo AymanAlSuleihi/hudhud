@@ -179,7 +179,7 @@ class SearchService:
     def _validate_query_fields(self, query_params: Dict[str, Any], filter_options: Dict[str, List[str]]):
         """Helper method to validate query fields and filters."""
         if "fields" in query_params:
-            valid_fields = ["translations", "general_notes", "aparatus_notes", "cultural_notes", "bibliography", "title"]
+            valid_fields = ["translations", "general_notes", "apparatus_notes", "cultural_notes", "bibliography", "title"]
             fields_list = query_params["fields"].split(",") if query_params["fields"] else []
             valid_fields_list = [field for field in fields_list if field.strip() in valid_fields]
             query_params["fields"] = ",".join(valid_fields_list) if valid_fields_list else None

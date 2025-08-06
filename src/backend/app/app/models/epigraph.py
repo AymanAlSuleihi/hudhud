@@ -33,7 +33,7 @@ class EpigraphBase(SQLModel):
     writing_techniques: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     royal_inscription: bool
     cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    apparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     general_notes: Optional[str] = None
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
@@ -73,7 +73,7 @@ class EpigraphUpdate(SQLModel):
     writing_techniques: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     royal_inscription: Optional[bool] = None
     cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    apparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     general_notes: Optional[str] = None
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
@@ -122,7 +122,7 @@ class EpigraphOut(SQLModel):
     writing_techniques: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     royal_inscription: bool
     cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    apparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     general_notes: Optional[str] = None
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
@@ -150,7 +150,7 @@ class EpigraphOutBasic(SQLModel):
     epigraph_text: str
     translations: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    apparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     general_notes: Optional[str] = None
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
 
@@ -178,7 +178,7 @@ class EpigraphOutOpenAI(SQLModel):
     writing_techniques: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])
     royal_inscription: bool
     cultural_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
-    aparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
+    apparatus_notes: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     general_notes: Optional[str] = None
     bibliography: Optional[list[dict]] = Field(sa_column=Column(JSONB), default=[])
     concordances: Optional[list[str]] = Field(sa_column=Column(JSONB), default=[])

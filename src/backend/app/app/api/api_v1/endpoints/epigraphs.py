@@ -699,7 +699,7 @@ def generate_embeddings_all(
             "epigraph_text",
             "translations",
             "general_notes",
-            "aparatus_notes",
+            "apparatus_notes",
             "cultural_notes",
             "bibliography",
         ]
@@ -775,7 +775,7 @@ def generate_embeddings(
         "epigraph_text",
         "translations",
         "general_notes",
-        "aparatus_notes",
+        "apparatus_notes",
         "cultural_notes",
         "bibliography",
     ]

@@ -171,7 +171,7 @@ class OpenSearchService:
                             "topic": {"type": "keyword"}
                         }
                     },
-                    "aparatus_notes": {
+                    "apparatus_notes": {
                         "type": "nested",
                         "properties": {
                             "line": {"type": "keyword"},
@@ -356,7 +356,7 @@ class OpenSearchService:
                 "editors.name"
             ],
             "cultural_notes": ["note"],
-            "aparatus_notes": ["note"],
+            "apparatus_notes": ["note"],
             "bibliography": ["text", "reference", "title", "reference_short"],
             "sites": ["name"],
             "editors": ["name"],
@@ -492,7 +492,7 @@ class OpenSearchService:
                     "translations.bibliography.reference": {},
                     "translations.bibliography.reference_short": {},
                     "cultural_notes.note": {},
-                    "aparatus_notes.note": {},
+                    "apparatus_notes.note": {},
                     "bibliography.text": {},
                     "bibliography.reference": {},
                     "bibliography.title": {},
@@ -657,8 +657,8 @@ class OpenSearchService:
         if epigraph.cultural_notes:
             doc["cultural_notes"] = epigraph.cultural_notes
 
-        if epigraph.aparatus_notes:
-            doc["aparatus_notes"] = epigraph.aparatus_notes
+        if epigraph.apparatus_notes:
+            doc["apparatus_notes"] = epigraph.apparatus_notes
 
         if epigraph.bibliography:
             doc["bibliography"] = epigraph.bibliography

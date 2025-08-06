@@ -89,7 +89,7 @@ const Search: React.FC = () => {
       const field_map = {
         translationText: searchFields.translationText ? ["translations"] : [],
         // text: searchFields.text ? ["text"] : [],
-        notes: searchFields.notes ? ["general_notes", "aparatus_notes", "cultural_notes"] : [],
+        notes: searchFields.notes ? ["general_notes", "apparatus_notes", "cultural_notes"] : [],
         bibliography: searchFields.bibliography ? ["bibliography"] : [],
       }
       const fields = Object.values(field_map)
