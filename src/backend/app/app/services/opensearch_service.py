@@ -432,7 +432,7 @@ class OpenSearchService:
                         "query": query,
                         "fields": stemmed_fields,
                         "type": "best_fields",
-                        "minimum_should_match": "80%",
+                        "minimum_should_match": "50%",
                         "boost": 3
                     }
                 })
@@ -441,7 +441,7 @@ class OpenSearchService:
                         "query": query,
                         "fields": ngram_fields,
                         "type": "best_fields",
-                        "minimum_should_match": "70%",
+                        "minimum_should_match": "50%",
                         "boost": 2
                     }
                 })
@@ -464,7 +464,7 @@ class OpenSearchService:
                                 "query": query,
                                 "fields": [nf],
                                 "type": "best_fields",
-                                "minimum_should_match": "70%"
+                                "minimum_should_match": "50%"
                             }
                         }
                     }
