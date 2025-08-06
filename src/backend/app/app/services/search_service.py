@@ -512,7 +512,7 @@ class SearchService:
         """
         if not self.opensearch:
             logging.info("OpenSearch not available, using PostgreSQL full text search")
-            return self.full_text_search(
+            result = self.full_text_search(
                 search_text=search_text,
                 fields=fields,
                 sort_field=sort_field,
@@ -523,6 +523,10 @@ class SearchService:
                 include_objects=include_objects,
                 object_fields=object_fields
             )
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            else:
+                return [], 0
 
         try:
             logging.info(
@@ -574,7 +578,7 @@ class SearchService:
 
         except Exception as e:
             logging.error(f"OpenSearch error, falling back to PostgreSQL: {e}")
-            return self.full_text_search(
+            result = self.full_text_search(
                 search_text=search_text,
                 fields=fields,
                 sort_field=sort_field,
@@ -585,6 +589,10 @@ class SearchService:
                 include_objects=include_objects,
                 object_fields=object_fields,
             )
+            if isinstance(result, tuple) and len(result) == 2:
+                return result
+            else:
+                return [], 0
 
     def index_epigraph_to_opensearch(self, epigraph: Epigraph):
         """Index a single epigraph to OpenSearch."""
