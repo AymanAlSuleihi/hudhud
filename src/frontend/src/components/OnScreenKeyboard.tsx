@@ -29,7 +29,7 @@ export const OnScreenKeyboard: React.FC<OnScreenKeyboardProps> = ({ onInsert }) 
         <button
           key={char}
           type="button"
-          className="px-3 py-2 rounded bg-zinc-600 text-white hover:bg-zinc-700 text-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all min-w-[2.5rem] min-h-[2.5rem]"
+          className="px-1 py-1 rounded bg-zinc-600 text-white hover:bg-zinc-700 text-lg font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 transition-all w-10 h-10"
           onClick={() => onInsert(char)}
         >
           {char}

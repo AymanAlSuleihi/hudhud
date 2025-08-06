@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
-import { X, MagnifyingGlass, Check, Funnel, MapTrifold } from "@phosphor-icons/react"
+import { X, MagnifyingGlass, Check, Funnel, MapTrifold, Keyboard } from "@phosphor-icons/react"
 import { 
   SearchField, 
   Button,
@@ -535,7 +535,7 @@ const Epigraphs: React.FC = () => {
             <div className="flex items-center gap-2">
               <SearchField className="flex-1">
                 <Label className="block text-sm font-medium mb-1">Search</Label>
-                <div className="relative">
+                <div className="relative flex items-center w-full">
                   <input 
                     ref={searchInputRef}
                     defaultValue={searchParams.get("q") || ""}
@@ -548,56 +548,45 @@ const Epigraphs: React.FC = () => {
                         handleSearch(e.currentTarget.value)
                       }
                     }}
-                    className="w-full border border-gray-400 p-2 pl-9 rounded h-8"
+                    className="w-full border border-gray-400 p-2 pl-9 pr-32 rounded h-12"
                     placeholder="Search epigraphs..."
                   />
-                  <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <button
+                      type="button"
+                      className="flex items-center justify-center px-2 py-1 bg-zinc-600 hover:bg-zinc-700 text-white rounded h-9 w-9"
+                      onClick={() => setShowKeyboard((v) => !v)}
+                      title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+                    >
+                      <Keyboard size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center px-2 py-1 bg-zinc-600 hover:bg-zinc-700 text-white rounded h-9 w-9"
+                      onClick={() => {
+                        if (debounceRef.current) {
+                          clearTimeout(debounceRef.current)
+                        }
+                        const inputValue = searchInputRef.current?.value || ""
+                        handleSearch(inputValue)
+                      }}
+                      title="Search"
+                    >
+                      <MagnifyingGlass size={16} />
+                    </button>
+                  </div>
                 </div>
               </SearchField>
-              <button
-                type="button"
-                className="flex self-end items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
-                onClick={() => setShowKeyboard((v) => !v)}
-              >
-                {showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
-              </button>
             </div>
-          </div>
-          <div className="flex gap-2 items-end flex-wrap self-end">
-            <Button
-              onPress={() => {
-                if (debounceRef.current) {
-                  clearTimeout(debounceRef.current)
-                }
-                const inputValue = searchInputRef.current?.value || ""
-                handleSearch(inputValue)
-              }}
-              className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
-            >
-              {isLoading ? (
-                <Spinner colour="#fff" size="w-4 h-4" />
-              ) : (
-                "Search"
-              )}
-            </Button>
-
-            {searchTerm && (
-              <Button
-                onPress={clearSearch}
-                className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
-              >
-                <span className="hidden sm:inline">Clear Search</span>
-                <span className="sm:hidden">Clear</span>
-              </Button>
-            )}
           </div>
         </div>
         {showKeyboard && (
           <div className="mt-2"><OnScreenKeyboard onInsert={handleInsertChar} /></div>
         )}
 
-        <div className="flex gap-x-2 gap-y-2 items-center flex-wrap">
-          <Label className="text-sm font-medium whitespace-nowrap">Search within:</Label>
+        <div className="flex gap-x-1 gap-y-1 items-center flex-wrap">
+          <Label className="text-sm font-medium whitespace-nowrap w-full">Search within:</Label>
           <ToggleButton
             isSelected={searchFields.epigraphText}
             onChange={selected => setSearchFields(prev => ({...prev, epigraphText: selected}))}
