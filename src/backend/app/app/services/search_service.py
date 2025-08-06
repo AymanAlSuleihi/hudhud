@@ -83,54 +83,34 @@ class SearchService:
 
         filter_options = self.get_filter_options()
 
-        formatted_options = json.dumps(filter_options, indent=2)
-
         system_prompt = f"""
         You are a helpful assistant that transforms natural language queries about Ancient South Arabia 
-        into structured search parameters. Extract key search terms, filters, and sorting preferences.
+        into structured search parameters. Extract only the key search terms or keywords from the user's query.
+        Do not include any fields, filters, or sorting options.
 
-        Here are the available filter options for various fields:
-        {formatted_options}
+        The results will be used to search epigraphs in the Hudhud database.
+        Containing 8917 epigraphs from 800 BCE-600 CE from Ancient South Arabia.
+        
+        Don't include common terms like "epigraph", "inscription", "ancient", "south arabia", "history", etc.
 
-        For filters, ONLY use values that exactly match those in the available options.
-        Filters are optional - only include filters if they are clearly specified in the query.
-        Leave the filters object empty or omit it entirely if no filters are explicitly mentioned.
-
-        Available epigraph fields for searching:
-        translations, general_notes, aparatus_notes, cultural_notes, bibliography, title
-
-        Available object fields for searching:
-        support_notes, deposit_notes, cultural_notes, bibliography, deposits, title
+        Don't include too many words in one query as the search engine uses AND logic for matching.
+        Limit the number of words per query to around 5 key terms.
 
         Return a JSON object with these parameters:
         {{
             "primary_query": {{
-                "search_text": "main search terms or keywords",
-                "fields": "comma-separated epigraph fields to search",
-                "object_fields": "comma-separated object fields to search",
-                "include_objects": true/false,
-                "filters": {{"field_name": "value"}}, // Optional
-                "sort_field": "field_name", // Optional
-                "sort_order": "asc/desc" // Optional
+                "search_text": "main search terms or keywords"
             }},
             "alternative_queries": [
                 {{
-                    "search_text": "alternative search terms or keywords",
-                    "fields": "comma-separated epigraph fields to search",
-                    "object_fields": "comma-separated object fields to search",
-                    "include_objects": true/false,
-                    "filters": {{"field_name": "value"}}, // Optional
-                    "sort_field": "field_name", // Optional
-                    "sort_order": "asc/desc" // Optional
+                    "search_text": "alternative search terms or keywords"
                 }}
             ]
         }}
 
         For the alternative queries:
         1. Use different terms or phrases that represent key concepts from the query
-        2. Try different field combinations
-        3. Consider different filters that might be relevant
-        4. Include broader or more specific terms
+        2. Include broader or more specific terms
         """
 
         try:
