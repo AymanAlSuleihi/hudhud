@@ -75,7 +75,7 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
             obj_in=self.create_schema(
                 dasi_id=item_id,
                 dasi_object=detail_data,
-                dasi_published=dasi_published, # TODO: Scrape check
+                dasi_published=dasi_published,
                 **parsed_data,
             ),
         )
@@ -302,6 +302,17 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
                 )
                 response.raise_for_status()
                 soup = BeautifulSoup(response.content, "html.parser")
+
+                alert_box = soup.find("div", {"id": "alert_box"})
+                if alert_box:
+                    alert_content = alert_box.get_text().strip()
+                    if "not found or not yet published" in alert_content.lower():
+                        updated_epigraph = self.crud.update(
+                            db=self.session,
+                            db_obj=epigraph,
+                            obj_in={"dasi_published": False, "images": []}
+                        )
+                        return updated_epigraph
                 break
 
             except requests.exceptions.HTTPError as e:
@@ -399,7 +410,7 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
         updated_epigraph = self.crud.update(
             db=self.session,
             db_obj=epigraph,
-            obj_in={"images": processed_image_data}
+            obj_in={"dasi_published": True, "images": processed_image_data}
         )
         return updated_epigraph
 
