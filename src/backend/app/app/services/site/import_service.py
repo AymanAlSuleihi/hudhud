@@ -349,14 +349,27 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
         detail_data = detail_response.json()
         parsed_data = self._parse_fields(detail_data)
 
-        db_item = self.crud.create(
-            db=self.session,
-            obj_in=self.create_schema(
-                dasi_id=item_id,
-                dasi_object=detail_data,
-                **parsed_data,
-            ),
-        )
+        db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
+        if db_item:
+            db_item = self.crud.update(
+                db=self.session,
+                db_obj=db_item,
+                obj_in=self.update_schema(
+                    dasi_id=item_id,
+                    dasi_object=detail_data,
+                    dasi_published=dasi_published,
+                    **parsed_data,
+                ),
+            )
+        else:
+            db_item = self.crud.create(
+                db=self.session,
+                obj_in=self.create_schema(
+                    dasi_id=item_id,
+                    dasi_object=detail_data,
+                    **parsed_data,
+                ),
+            )
 
         if db_item.uri:
             db_item = self.scrape_single(db_item.id, rate_limit_delay)
