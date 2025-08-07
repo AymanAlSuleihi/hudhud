@@ -220,6 +220,7 @@ def import_sites_range(
     session: SessionDep,
     start_id: int,
     end_id: int,
+    update_existing: bool = False,
 ):
     """
     Import sites from external api in a range.
@@ -239,7 +240,7 @@ def import_sites_range(
         start_id=start_id,
         end_id=end_id,
         rate_limit_delay=10,
-        update_existing=False,
+        update_existing=update_existing,
     )
     return {"task_id": task.uuid}
 

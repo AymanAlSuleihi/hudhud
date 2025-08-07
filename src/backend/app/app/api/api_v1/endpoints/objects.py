@@ -182,6 +182,7 @@ def import_objects_range(
     start_id: int,
     end_id: int,
     dasi_published: Optional[bool] = None,
+    update_existing: bool = False,
 ) -> dict:
     """
     Import objects from external api in a range.
@@ -197,7 +198,7 @@ def import_objects_range(
         end_id=end_id,
         dasi_published=dasi_published,
         rate_limit_delay=10,
-        update_existing=False,
+        update_existing=update_existing,
     )
 
     return {"task_id": task.uuid}
