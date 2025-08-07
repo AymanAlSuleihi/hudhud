@@ -8,6 +8,7 @@ class TaskProgressBase(SQLModel):
     task_type: str
     total_items: Optional[int] = None
     processed_items: int = 0
+    skipped_items: Optional[int] = 0
     status: str = "pending"
     error: Optional[str] = None
 
@@ -20,6 +21,7 @@ class TaskProgressUpdate(SQLModel):
     task_type: Optional[str] = None
     total_items: Optional[int] = None
     processed_items: Optional[int] = None
+    skipped_items: Optional[int] = None
     status: Optional[str] = None
     error: Optional[str] = None
 

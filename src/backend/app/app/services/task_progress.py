@@ -33,6 +33,7 @@ class TaskProgressService:
         uuid: str,
         processed: int,
         total: Optional[int] = None,
+        skipped: Optional[int] = None,
         status: Optional[str] = None,
         error: Optional[str] = None,
     ):
@@ -45,6 +46,7 @@ class TaskProgressService:
             obj_in=TaskProgressUpdate(
                 total_items=total or task.total_items,
                 processed_items=processed,
+                skipped_items=skipped or task.skipped_items,
                 status=status or task.status,
                 error=error or task.error,
             ),
