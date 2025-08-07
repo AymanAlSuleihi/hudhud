@@ -359,7 +359,7 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
         )
 
         if db_item.uri:
-            self.scrape_single(db_item.id, rate_limit_delay)
+            db_item = self.scrape_single(db_item.id, rate_limit_delay)
 
         scraped_data = db_item.dasi_object.get("scraped_data", {})
         if scraped_data:

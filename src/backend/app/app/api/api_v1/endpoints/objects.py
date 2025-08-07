@@ -192,11 +192,12 @@ def import_objects_range(
     object_import_service = ObjectImportService(session, task_service)
     background_tasks.add_task(
         object_import_service.import_range,
-        task.uuid,
-        start_id,
-        end_id,
-        dasi_published,
-        10
+        task_id=task.uuid,
+        start_id=start_id,
+        end_id=end_id,
+        dasi_published=dasi_published,
+        rate_limit_delay=10,
+        update_existing=False,
     )
 
     return {"task_id": task.uuid}

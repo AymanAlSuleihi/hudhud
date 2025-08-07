@@ -234,6 +234,7 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         task = self.task_progress_service.get_task(task_id)
         items_per_page = 30
         total_imported = task.processed_items
+        total_skipped = 0
         current_page = (total_imported // items_per_page) + 1
 
         try:
@@ -260,6 +261,14 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
                     db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
                     if db_item:
+                        total_skipped += 1
+                        self.task_progress_service.update_progress(
+                            uuid=task_id,
+                            processed=total_imported + 1,
+                            total=data.get("totalItems", None),
+                            skipped=total_skipped,
+                            status="running",
+                        )
                         continue
 
                     self.import_single(item_id)
@@ -312,13 +321,15 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         end_id: int,
         dasi_published: bool = None,
         rate_limit_delay: float = 10,
+        update_existing: bool = False,
     ) -> Dict[str, Any]:
         """
         Import a range of entities by their DASI IDs.
         """
         task = self.task_progress_service.get_task(task_id)
         total_imported = task.processed_items
-        
+        total_skipped = 0
+
         try:
             self.task_progress_service.update_progress(
                 uuid=task_id,
@@ -326,18 +337,23 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 total=(end_id - start_id + 1),
                 status="running",
             )
-            
+
             for item_id in range(start_id, end_id + 1):
                 db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
                 if db_item:
-                    self.task_progress_service.update_progress(
-                        uuid=task_id,
-                        processed=total_imported + (item_id - start_id + 1),
-                        total=(end_id - start_id + 1),
-                        status="running",
-                    )
-                    continue
-                
+                    if update_existing:
+                        pass
+                    else:
+                        total_skipped += 1
+                        self.task_progress_service.update_progress(
+                            uuid=task_id,
+                            processed=total_imported + (item_id - start_id + 1),
+                            total=(end_id - start_id + 1),
+                            skipped=total_skipped,
+                            status="running",
+                        )
+                        continue
+
                 try:
                     self.import_single(
                         item_id,
@@ -377,20 +393,20 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                                 # TODO: logging.error(f"Error importing item {item_id}: {e}")
                                 continue
                     raise
-            
+
             self.task_progress_service.update_progress(
                 uuid=task_id,
                 processed=total_imported,
                 total=(end_id - start_id + 1),
                 status="completed",
             )
-            
+
             return {
                 "status": "success", 
                 "total_imported": total_imported,
                 "range": f"{start_id}-{end_id}"
             }
-        
+
         except Exception as e:
             self.task_progress_service.update_progress(
                 uuid=task_id,

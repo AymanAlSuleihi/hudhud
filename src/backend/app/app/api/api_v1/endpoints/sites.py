@@ -234,7 +234,12 @@ def import_sites_range(
             detail="Task is already running",
         )
     background_tasks.add_task(
-        site_import_service.import_range, task.uuid, start_id, end_id, 10
+        site_import_service.import_range,
+        task_id=task.uuid,
+        start_id=start_id,
+        end_id=end_id,
+        rate_limit_delay=10,
+        update_existing=False,
     )
     return {"task_id": task.uuid}
 

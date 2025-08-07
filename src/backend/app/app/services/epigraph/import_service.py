@@ -70,15 +70,28 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
         detail_data = detail_response.json()
         parsed_data = self._parse_fields(detail_data)
 
-        db_item = self.crud.create(
-            db=self.session,
-            obj_in=self.create_schema(
-                dasi_id=item_id,
-                dasi_object=detail_data,
-                dasi_published=dasi_published,
-                **parsed_data,
-            ),
-        )
+        db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
+        if db_item:
+            db_item = self.crud.update(
+                db=self.session,
+                db_obj=db_item,
+                obj_in=self.update_schema(
+                    dasi_id=item_id,
+                    dasi_object=detail_data,
+                    dasi_published=dasi_published,
+                    **parsed_data,
+                ),
+            )
+        else:
+            db_item = self.crud.create(
+                db=self.session,
+                obj_in=self.create_schema(
+                    dasi_id=item_id,
+                    dasi_object=detail_data,
+                    dasi_published=dasi_published,
+                    **parsed_data,
+                ),
+            )
 
         if db_item.uri:
             db_item = await self.scrape_single(db_item.dasi_id, rate_limit_delay)
@@ -127,9 +140,11 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
         end_id: int,
         dasi_published: bool = None,
         rate_limit_delay: float = 10,
+        update_existing: bool = False,
     ) -> Dict[str, Any]:
         task = self.task_progress_service.get_task(task_id)
         total_imported = task.processed_items
+        total_skipped = 0
 
         try:
             self.task_progress_service.update_progress(
@@ -142,13 +157,18 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
             for item_id in range(start_id, end_id + 1):
                 db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
                 if db_item:
-                    self.task_progress_service.update_progress(
-                        uuid=task_id,
-                        processed=total_imported + (item_id - start_id + 1),
-                        total=(end_id - start_id + 1),
-                        status="running",
-                    )
-                    continue
+                    if update_existing:
+                        pass
+                    else:
+                        total_skipped += 1
+                        self.task_progress_service.update_progress(
+                            uuid=task_id,
+                            processed=total_imported + (item_id - start_id + 1),
+                            total=(end_id - start_id + 1),
+                            skipped=total_skipped,
+                            status="running",
+                        )
+                        continue
 
                 try:
                     await self.import_single(
@@ -222,6 +242,7 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
         task = self.task_progress_service.get_task(task_id)
         items_per_page = 30
         total_imported = task.processed_items
+        total_skipped = 0
         current_page = (total_imported // items_per_page) + 1
 
         try:
@@ -248,7 +269,20 @@ class EpigraphImportService(ImportService[Epigraph, EpigraphCreate, EpigraphUpda
 
                     db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
                     if db_item:
-                        continue
+                        if not db_item.dasi_published:
+                            logging.info(f"Item {item_id} exists and is not published. Importing...")
+                            pass
+                        else:
+                            total_skipped += 1
+                            self.task_progress_service.update_progress(
+                                uuid=task_id,
+                                processed=total_imported + 1,
+                                total=data.get("totalItems", None),
+                                skipped=total_skipped,
+                                status="running",
+                            )
+                            logging.info(f"Item {item_id} already exists and is published. Skipping.")
+                            continue
 
                     await self.import_single(item_id)
                     total_imported += 1
