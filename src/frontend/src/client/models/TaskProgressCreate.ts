@@ -6,6 +6,7 @@ export type TaskProgressCreate = {
     task_type: string;
     total_items?: (number | null);
     processed_items?: number;
+    skipped_items?: (number | null);
     status?: string;
     error?: (string | null);
 };

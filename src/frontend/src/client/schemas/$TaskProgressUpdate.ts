@@ -28,6 +28,14 @@ export const $TaskProgressUpdate = {
                 type: 'null',
             }],
         },
+        skipped_items: {
+            type: 'any-of',
+            contains: [{
+                type: 'number',
+            }, {
+                type: 'null',
+            }],
+        },
         status: {
             type: 'any-of',
             contains: [{

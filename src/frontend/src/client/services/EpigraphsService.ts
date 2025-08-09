@@ -98,8 +98,7 @@ export class EpigraphsService {
     }
     /**
      * Full Text Search Epigraphs
-     * Full text search epigraphs by searching within specified fields.
-     * If include_objects is True, will also search in related objects using object_fields.
+     * Full text search epigraphs using OpenSearch when available, falling back to PostgreSQL.
      * @returns EpigraphsOut Successful Response
      * @throws ApiError
      */
@@ -334,10 +333,12 @@ export class EpigraphsService {
         startId,
         endId,
         dasiPublished,
+        updateExisting = false,
     }: {
         startId: number,
         endId: number,
         dasiPublished?: boolean,
+        updateExisting?: boolean,
     }): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'POST',
@@ -346,6 +347,7 @@ export class EpigraphsService {
                 'start_id': startId,
                 'end_id': endId,
                 'dasi_published': dasiPublished,
+                'update_existing': updateExisting,
             },
             errors: {
                 422: `Validation Error`,
@@ -563,7 +565,7 @@ export class EpigraphsService {
     /**
      * Get Similar Epigraphs
      * Get epigraphs similar to the given epigraph based on embeddings.
-     * @returns any Successful Response
+     * @returns EpigraphsOut Successful Response
      * @throws ApiError
      */
     public static epigraphsGetSimilarEpigraphs({
@@ -576,7 +578,7 @@ export class EpigraphsService {
         distanceThreshold?: (number | null),
         limit?: number,
         filters?: (string | null),
-    }): CancelablePromise<any> {
+    }): CancelablePromise<EpigraphsOut> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/epigraphs/{epigraph_id}/similar',
@@ -596,7 +598,6 @@ export class EpigraphsService {
     /**
      * Import All Images
      * Import all images from DASI starting from start_rec_id until no more images are found.
-     * Stops after max_consecutive_failures consecutive 404s or non-image responses.
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -659,7 +660,6 @@ export class EpigraphsService {
     /**
      * Scrape Epigraphs Images Range
      * Scrape image details for epigraphs in a DASI ID range.
-     * Includes retry logic for 500 server errors.
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -690,14 +690,7 @@ export class EpigraphsService {
     }
     /**
      * Scrape All Epigraphs Images
-     * Scrape image details for epigraphs that haven't been scraped yet (images is null).
-     * If update_existing is True, will also re-scrape epigraphs that already have been processed.
-     * Includes retry logic for 500 server errors.
-     *
-     * Note: After scraping, the images field is always updated:
-     * - null: Not scraped yet
-     * - []: Scraped but no images found
-     * - [...]: Scraped and images found
+     * Scrape image details for all epigraphs.
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -726,7 +719,6 @@ export class EpigraphsService {
     /**
      * Scrape Epigraph Images Single
      * Scrape image details for a single epigraph by DASI ID.
-     * Includes retry logic for 500 server errors.
      * @returns EpigraphOut Successful Response
      * @throws ApiError
      */
@@ -755,44 +747,8 @@ export class EpigraphsService {
         });
     }
     /**
-     * Scrape Images Metrics
-     * Get scrape images task metrics and progress.
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static epigraphsScrapeImagesMetrics({
-        taskId,
-    }: {
-        taskId: string,
-    }): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/epigraphs/scrape_images/metrics/{task_id}',
-            path: {
-                'task_id': taskId,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Get Scrape Images Status
-     * Get statistics about image scraping status for all epigraphs.
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static epigraphsGetScrapeImagesStatus(): CancelablePromise<Record<string, any>> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/epigraphs/scrape_images/status',
-        });
-    }
-    /**
      * Move Images Free From Copyright
-     * Move images that are free from copyright from private to public storage and update epigraph records.
-     * This function is for retroactively processing already scraped epigraphs.
-     * New scraping automatically handles copyright-free images.
+     * Move copyright free images from private to public storage and update epigraph records.
      * @returns any Successful Response
      * @throws ApiError
      */

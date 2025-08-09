@@ -86,6 +86,7 @@ export { AskService } from './services/AskService';
 export { EpigraphsService } from './services/EpigraphsService';
 export { LoginService } from './services/LoginService';
 export { ObjectsService } from './services/ObjectsService';
+export { OpensearchService } from './services/OpensearchService';
 export { ReadRootService } from './services/ReadRootService';
 export { SitesService } from './services/SitesService';
 export { TaskProgressService } from './services/TaskProgressService';

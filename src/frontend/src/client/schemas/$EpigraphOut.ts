@@ -148,7 +148,7 @@ export const $EpigraphOut = {
                 type: 'null',
             }],
         },
-        aparatus_notes: {
+        apparatus_notes: {
             type: 'any-of',
             contains: [{
                 type: 'null',

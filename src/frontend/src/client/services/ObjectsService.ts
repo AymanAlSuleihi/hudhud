@@ -179,10 +179,12 @@ export class ObjectsService {
         startId,
         endId,
         dasiPublished,
+        updateExisting = false,
     }: {
         startId: number,
         endId: number,
         dasiPublished?: (boolean | null),
+        updateExisting?: boolean,
     }): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'POST',
@@ -191,6 +193,7 @@ export class ObjectsService {
                 'start_id': startId,
                 'end_id': endId,
                 'dasi_published': dasiPublished,
+                'update_existing': updateExisting,
             },
             errors: {
                 422: `Validation Error`,

@@ -188,9 +188,11 @@ export class SitesService {
     public static sitesImportSitesRange({
         startId,
         endId,
+        updateExisting = false,
     }: {
         startId: number,
         endId: number,
+        updateExisting?: boolean,
     }): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
@@ -198,6 +200,7 @@ export class SitesService {
             query: {
                 'start_id': startId,
                 'end_id': endId,
+                'update_existing': updateExisting,
             },
             errors: {
                 422: `Validation Error`,

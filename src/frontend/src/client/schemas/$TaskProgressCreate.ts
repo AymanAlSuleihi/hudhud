@@ -19,6 +19,14 @@ export const $TaskProgressCreate = {
         processed_items: {
             type: 'number',
         },
+        skipped_items: {
+            type: 'any-of',
+            contains: [{
+                type: 'number',
+            }, {
+                type: 'null',
+            }],
+        },
         status: {
             type: 'string',
         },

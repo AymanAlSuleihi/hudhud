@@ -25,7 +25,7 @@ export type EpigraphCreate = {
     writing_techniques?: (Array<string> | null);
     royal_inscription: boolean;
     cultural_notes?: null;
-    aparatus_notes?: null;
+    apparatus_notes?: null;
     general_notes?: (string | null);
     bibliography?: null;
     concordances?: (Array<string> | null);
