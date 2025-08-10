@@ -12,6 +12,51 @@ from app.models.epigraph import Epigraph
 logger = logging.getLogger(__name__)
 
 
+class QueryParser:
+    """Parse search queries with boolean operators."""
+
+    def __init__(self):
+        self.must_terms = []
+        self.should_terms = []
+        self.must_not_terms = []
+
+    def parse_query(self, query: str) -> Dict[str, List[str]]:
+        self.must_terms = []
+        self.should_terms = []
+        self.must_not_terms = []
+
+        quoted_pattern = r'"([^"]*)"'
+        quoted_matches = re.findall(quoted_pattern, query)
+        for match in quoted_matches:
+            if match.strip():
+                self.must_terms.append(f'"{match}"')
+
+        query_without_quotes = re.sub(quoted_pattern, "", query)
+
+        tokens = query_without_quotes.split()
+
+        for token in tokens:
+            if not token.strip():
+                continue
+
+            if token.startswith("+"):
+                term = token[1:].strip()
+                if term:
+                    self.must_terms.append(term)
+            elif token.startswith("-"):
+                term = token[1:].strip()
+                if term:
+                    self.must_not_terms.append(term)
+            else:
+                self.should_terms.append(token.strip())
+
+        return {
+            "must": self.must_terms,
+            "should": self.should_terms,
+            "must_not": self.must_not_terms
+        }
+
+
 class OpenSearchService:
     def __init__(self):
         """Initialize OpenSearch client."""
@@ -81,7 +126,14 @@ class OpenSearchService:
                     "epigraph_text": {
                         "type": "text",
                         "analyzer": "edge_ngram_analyzer",
-                        "search_analyzer": "custom_text_analyzer"
+                        "search_analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"},
+                            "raw": {
+                                "type": "text",
+                                "analyzer": "standard"
+                            }
+                        }
                     },
                     "translations": {
                         "type": "nested",
@@ -387,98 +439,417 @@ class OpenSearchService:
         stemmed_fields = [f for f in top_fields]
         keyword_fields = [f + ".keyword" for f in top_fields]
 
-        has_wildcard = "*" in query or "?" in query
+        parser = QueryParser()
+        parsed_query = parser.parse_query(query)
+
+        must_queries = []
         should_queries = []
-        if has_wildcard:
-            if top_fields:
-                should_queries.append({
-                    "query_string": {
-                        "query": query,
-                        "fields": top_fields,
-                        "default_operator": "AND",
-                        "analyze_wildcard": True,
-                        "boost": 3
-                    }
-                })
-                if keyword_fields:
+        must_not_queries = []
+
+        for term in parsed_query["must"]:
+            has_wildcard = "*" in term or "?" in term
+            if has_wildcard:
+                wildcard_queries = []
+                if top_fields:
+                    wildcard_queries.append({
+                        "query_string": {
+                            "query": term.strip('"'),
+                            "fields": top_fields,
+                            "default_operator": "OR",
+                            "analyze_wildcard": True,
+                            "boost": 3
+                        }
+                    })
+                    if keyword_fields:
+                        wildcard_queries.append({
+                            "query_string": {
+                                "query": term.strip('"'),
+                                "fields": keyword_fields,
+                                "default_operator": "OR",
+                                "analyze_wildcard": True,
+                                "boost": 5
+                            }
+                        })
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    wildcard_queries.append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "query_string": {
+                                    "query": term.strip('"'),
+                                    "fields": [nf],
+                                    "default_operator": "OR",
+                                    "analyze_wildcard": True
+                                }
+                            }
+                        }
+                    })
+                if len(wildcard_queries) == 1:
+                    must_queries.append(wildcard_queries[0])
+                else:
+                    must_queries.append({
+                        "bool": {
+                            "should": wildcard_queries,
+                            "minimum_should_match": 1
+                        }
+                    })
+            else:
+                is_phrase = term.startswith('"') and term.endswith('"')
+                clean_term = term.strip('"')
+
+                term_should_queries = []
+                if top_fields:
+                    if is_phrase:
+                        term_should_queries.append({
+                            "match_phrase": {
+                                "epigraph_text.raw": {
+                                    "query": clean_term,
+                                    "boost": 15
+                                }
+                            }
+                        })
+
+                        term_should_queries.append({
+                            "match_phrase": {
+                                "epigraph_text": {
+                                    "query": clean_term,
+                                    "boost": 10
+                                }
+                            }
+                        })
+
+                        for field in stemmed_fields:
+                            if field != "epigraph_text":
+                                term_should_queries.append({
+                                    "match_phrase": {
+                                        f"{field}.raw": {
+                                            "query": clean_term,
+                                            "boost": 12
+                                        }
+                                    }
+                                })
+                                term_should_queries.append({
+                                    "match_phrase": {
+                                        field: {
+                                            "query": clean_term,
+                                            "boost": 8
+                                        }
+                                    }
+                                })
+
+                        term_should_queries.append({
+                            "multi_match": {
+                                "query": clean_term,
+                                "fields": [f + ".raw" for f in stemmed_fields if f + ".raw"],
+                                "type": "phrase",
+                                "boost": 6
+                            }
+                        })
+
+                        term_should_queries.append({
+                            "query_string": {
+                                "query": f'"{clean_term}"',
+                                "fields": [f + ".raw" for f in top_fields],
+                                "default_operator": "AND",
+                                "boost": 5
+                            }
+                        })
+
+                        term_should_queries.append({
+                            "multi_match": {
+                                "query": clean_term,
+                                "fields": [f + ".raw" for f in stemmed_fields],
+                                "type": "phrase_prefix",
+                                "boost": 4
+                            }
+                        })
+                    else:
+                        term_should_queries.append({
+                            "multi_match": {
+                                "query": clean_term,
+                                "fields": stemmed_fields,
+                                "type": "best_fields",
+                                "boost": 3
+                            }
+                        })
+                        term_should_queries.append({
+                            "multi_match": {
+                                "query": clean_term,
+                                "fields": ngram_fields,
+                                "type": "best_fields",
+                                "boost": 2
+                            }
+                        })
+
+                    if keyword_fields:
+                        if is_phrase:
+                            term_should_queries.append({
+                                "query_string": {
+                                    "query": f'"{clean_term}"',
+                                    "fields": keyword_fields,
+                                    "default_operator": "AND",
+                                    "boost": 6
+                                }
+                            })
+                        else:
+                            term_should_queries.append({
+                                "multi_match": {
+                                    "query": clean_term,
+                                    "fields": keyword_fields,
+                                    "type": "best_fields",
+                                    "boost": 5
+                                }
+                            })
+
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    if is_phrase:
+                        term_should_queries.append({
+                            "nested": {
+                                "path": path,
+                                "query": {
+                                    "match_phrase": {
+                                        nf: {
+                                            "query": clean_term,
+                                            "boost": 5
+                                        }
+                                    }
+                                }
+                            }
+                        })
+                        term_should_queries.append({
+                            "nested": {
+                                "path": path,
+                                "query": {
+                                    "multi_match": {
+                                        "query": clean_term,
+                                        "fields": [nf],
+                                        "type": "phrase",
+                                        "boost": 4
+                                    }
+                                }
+                            }
+                        })
+                        term_should_queries.append({
+                            "nested": {
+                                "path": path,
+                                "query": {
+                                    "query_string": {
+                                        "query": f'"{clean_term}"',
+                                        "fields": [nf],
+                                        "default_operator": "AND",
+                                        "boost": 3
+                                    }
+                                }
+                            }
+                        })
+                    else:
+                        term_should_queries.append({
+                            "nested": {
+                                "path": path,
+                                "query": {
+                                    "multi_match": {
+                                        "query": clean_term,
+                                        "fields": [nf],
+                                        "type": "best_fields"
+                                    }
+                                }
+                            }
+                        })
+
+                if len(term_should_queries) == 1:
+                    must_queries.append(term_should_queries[0])
+                else:
+                    must_queries.append({
+                        "bool": {
+                            "should": term_should_queries,
+                            "minimum_should_match": 1
+                        }
+                    })
+
+        if parsed_query["should"]:
+            should_term_query = " ".join(parsed_query["should"])
+            has_wildcard = "*" in should_term_query or "?" in should_term_query
+            
+            if has_wildcard:
+                if top_fields:
                     should_queries.append({
                         "query_string": {
-                            "query": query,
-                            "fields": keyword_fields,
-                            "default_operator": "AND",
+                            "query": should_term_query,
+                            "fields": top_fields,
+                            "default_operator": "OR",
                             "analyze_wildcard": True,
-                            "boost": 5
+                            "boost": 3
                         }
                     })
-            for nf in nested_fields:
-                path, field = nf.split(".", 1)
-                should_queries.append({
-                    "nested": {
-                        "path": path,
-                        "query": {
+                    if keyword_fields:
+                        should_queries.append({
                             "query_string": {
-                                "query": query,
-                                "fields": [nf],
-                                "default_operator": "AND",
-                                "analyze_wildcard": True
+                                "query": should_term_query,
+                                "fields": keyword_fields,
+                                "default_operator": "OR",
+                                "analyze_wildcard": True,
+                                "boost": 5
+                            }
+                        })
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    should_queries.append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "query_string": {
+                                    "query": should_term_query,
+                                    "fields": [nf],
+                                    "default_operator": "OR",
+                                    "analyze_wildcard": True
+                                }
                             }
                         }
-                    }
-                })
-        else:
-            if top_fields:
-                should_queries.append({
-                    "multi_match": {
-                        "query": query,
-                        "fields": stemmed_fields,
-                        "type": "best_fields",
-                        "minimum_should_match": "50%",
-                        "boost": 3
-                    }
-                })
-                should_queries.append({
-                    "multi_match": {
-                        "query": query,
-                        "fields": ngram_fields,
-                        "type": "best_fields",
-                        "minimum_should_match": "50%",
-                        "boost": 2
-                    }
-                })
-                if keyword_fields:
+                    })
+            else:
+                if top_fields:
                     should_queries.append({
                         "multi_match": {
-                            "query": query,
-                            "fields": keyword_fields,
+                            "query": should_term_query,
+                            "fields": stemmed_fields,
                             "type": "best_fields",
-                            "boost": 5
+                            "minimum_should_match": "50%",
+                            "boost": 3
                         }
                     })
-            for nf in nested_fields:
-                path, field = nf.split(".", 1)
-                should_queries.append({
-                    "nested": {
-                        "path": path,
-                        "query": {
+                    should_queries.append({
+                        "multi_match": {
+                            "query": should_term_query,
+                            "fields": ngram_fields,
+                            "type": "best_fields",
+                            "minimum_should_match": "50%",
+                            "boost": 2
+                        }
+                    })
+                    if keyword_fields:
+                        should_queries.append({
                             "multi_match": {
-                                "query": query,
-                                "fields": [nf],
+                                "query": should_term_query,
+                                "fields": keyword_fields,
                                 "type": "best_fields",
-                                "minimum_should_match": "50%"
+                                "boost": 5
+                            }
+                        })
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    should_queries.append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "multi_match": {
+                                    "query": should_term_query,
+                                    "fields": [nf],
+                                    "type": "best_fields",
+                                    "minimum_should_match": "50%"
+                                }
                             }
                         }
-                    }
-                })
+                    })
+
+        for term in parsed_query["must_not"]:
+            has_wildcard = "*" in term or "?" in term
+            term_must_not_queries = []
+            
+            if has_wildcard:
+                if top_fields:
+                    term_must_not_queries.append({
+                        "query_string": {
+                            "query": term.strip('"'),
+                            "fields": top_fields,
+                            "default_operator": "OR",
+                            "analyze_wildcard": True
+                        }
+                    })
+                    if keyword_fields:
+                        term_must_not_queries.append({
+                            "query_string": {
+                                "query": term.strip('"'),
+                                "fields": keyword_fields,
+                                "default_operator": "OR",
+                                "analyze_wildcard": True
+                            }
+                        })
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    term_must_not_queries.append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "query_string": {
+                                    "query": term.strip('"'),
+                                    "fields": [nf],
+                                    "default_operator": "OR",
+                                    "analyze_wildcard": True
+                                }
+                            }
+                        }
+                    })
+            else:
+                if top_fields:
+                    term_must_not_queries.append({
+                        "multi_match": {
+                            "query": term.strip('"'),
+                            "fields": stemmed_fields + ngram_fields,
+                            "type": "best_fields"
+                        }
+                    })
+                    if keyword_fields:
+                        term_must_not_queries.append({
+                            "multi_match": {
+                                "query": term.strip('"'),
+                                "fields": keyword_fields,
+                                "type": "best_fields"
+                            }
+                        })
+                for nf in nested_fields:
+                    path, field = nf.split(".", 1)
+                    term_must_not_queries.append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "multi_match": {
+                                    "query": term.strip('"'),
+                                    "fields": [nf],
+                                    "type": "best_fields"
+                                }
+                            }
+                        }
+                    })
+            
+            must_not_queries.append({
+                "bool": {
+                    "should": term_must_not_queries,
+                    "minimum_should_match": 1
+                }
+            })
+
+        bool_query = {
+            "filter": [
+                {"term": {"dasi_published": True}}
+            ]
+        }
+
+        if must_queries:
+            bool_query["must"] = must_queries
+            
+        if should_queries:
+            bool_query["should"] = should_queries
+            if not must_queries:
+                bool_query["minimum_should_match"] = 1
+                
+        if must_not_queries:
+            bool_query["must_not"] = must_not_queries
 
         search_body = {
             "query": {
-                "bool": {
-                    "should": should_queries,
-                    "minimum_should_match": 1,
-                    "filter": [
-                        {"term": {"dasi_published": True}}
-                    ]
-                }
+                "bool": bool_query
             },
             "from": skip,
             "size": limit,
