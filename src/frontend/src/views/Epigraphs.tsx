@@ -783,7 +783,7 @@ const Epigraphs: React.FC = () => {
           {epigraphs && (
             <div>
               <p className="text-sm sm:text-base">
-                {Math.min(pageSize, epigraphs.epigraphs.length)} of {epigraphs.count} total epigraphs
+                {((currentPage - 1) * pageSize + 1)}-{((currentPage - 1) * pageSize + epigraphs.epigraphs.length)} of {epigraphs.count} total epigraphs
               </p>
               {Object.keys(filters).length > 0 && (
                 <div className="mt-2 text-sm text-gray-600">
