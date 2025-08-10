@@ -13,6 +13,7 @@ import { Spinner } from "../components/Spinner"
 import { MySelect, MyItem } from "../components/Select"
 import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
 import { MapComponent } from "../components/Map"
+import { MyDisclosure } from "../components/Disclosure"
 
 interface Filters {
   period?: string
@@ -681,11 +682,53 @@ const Epigraphs: React.FC = () => {
             </span>
           </ToggleButton>
         </div>
-        <div className="text-sm text-gray-500">
-          Use <span className="font-mono">*</span> and <span className="font-mono">?</span> for wildcard searches:{" "}
-          <span className="font-mono">*</span> matches zero or more characters, <span className="font-mono">?</span> matches any single character.<br />
-          Example: hud* will match "hud", "hudhud", "hudson", etc. hudh?d will match "hudhud", "hudhed", etc.
-        </div>
+        <MyDisclosure title="Search Tips" className="text-sm">
+          <div className="text-sm text-gray-700 border border-gray-400 rounded-sm p-3 mt-2 mb-4">
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-gray-100 rounded-md bg-white text-left text-sm">
+                <thead>
+                  <tr className=" border-b border-gray-200">
+                    <th className="px-3 py-2 font-semibold text-gray-700">Operator</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Meaning</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Example</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">*</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Matches zero or more characters</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">hud*</span> → "hud", "hudhud", "hudson"</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">?</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Matches any single character</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">hudh?d</span> → "hudhud", "hudhod"</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">+</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Required word or phrase</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">+king</span> → must include "king"</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">-</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Exclude word</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">-war</span> → must not include "war"</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">""</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Exact phrase</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">"south arabia"</span> → must contain the exact phrase</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-semibold text-gray-700">Combined</td>
+                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Mix operators for advanced search</td>
+                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">+?ound* -pillar temple "south arabia"</span> → must include any word matching "?ound*" (e.g., "found", "foundation", "boundary"), must not include "pillar", should include "temple", and must contain the exact phrase "south arabia"</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </MyDisclosure>
       </div>
 
       <div className="">
