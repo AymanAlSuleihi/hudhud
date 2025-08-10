@@ -998,7 +998,7 @@ class OpenSearchService:
             "license": epigraph.license,
             "first_published": epigraph.first_published,
             "last_modified": epigraph.last_modified.isoformat() if epigraph.last_modified else None,
-            "dasi_published": epigraph.dasi_published if epigraph.dasi_published is not None else True,
+            "dasi_published": epigraph.dasi_published,
             "created_at": epigraph.created_at.isoformat() if epigraph.created_at else None,
             "updated_at": epigraph.updated_at.isoformat() if epigraph.updated_at else None
         }
