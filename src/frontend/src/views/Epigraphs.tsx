@@ -49,6 +49,7 @@ const Epigraphs: React.FC = () => {
     notes: searchParams.get("search_notes") !== "false", 
     bibliography: searchParams.get("search_bibliography") !== "false",
     title: searchParams.get("search_title") !== "false",
+    physical: searchParams.get("search_physical") !== "false",
   })
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -110,6 +111,7 @@ const Epigraphs: React.FC = () => {
         urlParams.search_notes = searchFields.notes.toString()
         urlParams.search_bibliography = searchFields.bibliography.toString()
         urlParams.search_title = searchFields.title.toString()
+        urlParams.search_physical = searchFields.physical.toString()
       }
 
       setSearchParams(urlParams)
@@ -134,11 +136,11 @@ const Epigraphs: React.FC = () => {
           notes: searchFields.notes ? ["general_notes", "apparatus_notes", "cultural_notes"] : [],
           bibliography: searchFields.bibliography ? ["bibliography"] : [],
           title: searchFields.title ? ["title"] : [],
+          physical: searchFields.physical ? ["decorations"] : [],
         }
-        const fields = Object.values(field_map)
-          .flat()
-          .filter(Boolean)
-          .join(",")
+        const fields = [
+          ...Object.values(field_map).flat()
+        ].filter(Boolean).join(",")
 
         result = await EpigraphsService.epigraphsFullTextSearchEpigraphs({
           searchText: searchQuery,
@@ -679,6 +681,25 @@ const Epigraphs: React.FC = () => {
                 <Check size={14} className="text-white" />
               )}
               Title
+            </span>
+          </ToggleButton>
+          <ToggleButton
+            isSelected={searchFields.physical}
+            onChange={selected => setSearchFields(prev => ({...prev, physical: selected}))}
+            className={({isSelected}) => `
+              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              ${isSelected 
+                ? "bg-zinc-600 text-white shadow-sm"
+                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+              }
+            `}
+          >
+            <span className="flex items-center gap-1">
+              {searchFields.physical && (
+                <Check size={14} className="text-white" />
+              )}
+              <span className="hidden sm:inline">Physical Attributes</span>
+              <span className="sm:hidden">Phys.</span>
             </span>
           </ToggleButton>
         </div>

@@ -329,6 +329,30 @@ class OpenSearchService:
                                 "analyzer": "custom_text_analyzer"
                             }
                         }
+                    },
+                    "decorations": {
+                        "type": "nested",
+                        "dynamic": "true",
+                        "properties": {
+                            "typeLevel1": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "type": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "typeLevel2": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "subjectLevel1": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "partOfHumanBody": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "subjectLevel2": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "view": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "humanGender": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "humanClothes": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "humanWeapons": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "humanGestures": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "humanJewellery": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "partOfAnimalBody": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "symbolShape": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "symbolReference": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "symbolReferenceText": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "monogramName": {"type": "text", "analyzer": "custom_text_analyzer"},
+                            "animalGestures": {"type": "text", "analyzer": "custom_text_analyzer"}
+                        }
                     }
                 }
             }
@@ -400,6 +424,26 @@ class OpenSearchService:
             "general_notes": None,
             "support_notes": None,
             "deposit_notes": None,
+            "decorations": [
+                "typeLevel1",
+                "type",
+                "typeLevel2",
+                "subjectLevel1",
+                "partOfHumanBody",
+                "subjectLevel2",
+                "view",
+                "humanGender",
+                "humanClothes",
+                "humanWeapons",
+                "humanGestures",
+                "humanJewellery",
+                "partOfAnimalBody",
+                "symbolShape",
+                "symbolReference",
+                "symbolReferenceText",
+                "monogramName",
+                "animalGestures"
+            ],
             "translations": [
                 "text",
                 "notes.note",
@@ -874,7 +918,24 @@ class OpenSearchService:
                     "object_cultural_notes.note": {},
                     "deposits.settlement": {},
                     "deposits.institution": {},
-                    "deposits.repository": {}
+                    "decorations.typeLevel1": {},
+                    "decorations.type": {},
+                    "decorations.typeLevel2": {},
+                    "decorations.subjectLevel1": {},
+                    "decorations.partOfHumanBody": {},
+                    "decorations.subjectLevel2": {},
+                    "decorations.view": {},
+                    "decorations.humanGender": {},
+                    "decorations.humanClothes": {},
+                    "decorations.humanWeapons": {},
+                    "decorations.humanGestures": {},
+                    "decorations.humanJewellery": {},
+                    "decorations.partOfAnimalBody": {},
+                    "decorations.symbolShape": {},
+                    "decorations.symbolReference": {},
+                    "decorations.symbolReferenceText": {},
+                    "decorations.monogramName": {},
+                    "decorations.animalGestures": {}
                 }
             }
         }
@@ -888,10 +949,13 @@ class OpenSearchService:
                 else:
                     search_body["query"]["bool"]["filter"].append({"term": {field: value}})
 
-        if sort_field:
+        if sort_field and sort_field != "_score":
             search_body["sort"] = [{sort_field: {"order": sort_order}}]
         else:
-            search_body["sort"] = ["_score"]
+            if sort_order == "asc":
+                search_body["sort"] = [{"_score": {"order": "asc"}}]
+            else:
+                search_body["sort"] = ["_score"]
 
         try:
             response = self.client.search(index=self.index_name, body=search_body)
@@ -1048,7 +1112,7 @@ class OpenSearchService:
             all_deposit_notes = []
             all_object_cultural_notes = []
             all_deposits = []
-
+            all_decorations = []
             for obj in epigraph.objects:
                 if obj.support_notes:
                     all_support_notes.append(obj.support_notes)
@@ -1058,7 +1122,29 @@ class OpenSearchService:
                     all_object_cultural_notes.extend(obj.cultural_notes)
                 if obj.deposits:
                     all_deposits.extend(obj.deposits)
+                if hasattr(obj, "decorations") and obj.decorations:
+                    # Flatten
+                    for decoration in obj.decorations:
+                        if isinstance(decoration, dict):
+                            flattened_decoration = {}
+                            for key in ["typeLevel1", "type", "typeLevel2"]:
+                                if key in decoration:
+                                    flattened_decoration[key] = decoration[key]
 
+                            if "figurativeSubjects" in decoration:
+                                fig_subjects = decoration["figurativeSubjects"]
+                                if isinstance(fig_subjects, list):
+                                    for fig_subject in fig_subjects:
+                                        if isinstance(fig_subject, dict):
+                                            for key, value in fig_subject.items():
+                                                flattened_decoration[key] = value
+                                elif isinstance(fig_subjects, dict):
+                                    for key, value in fig_subjects.items():
+                                        flattened_decoration[key] = value
+
+                            all_decorations.append(flattened_decoration)
+                        else:
+                            all_decorations.append(decoration)
             if all_support_notes:
                 doc["support_notes"] = " ".join(all_support_notes)
             if all_deposit_notes:
@@ -1067,7 +1153,8 @@ class OpenSearchService:
                 doc["object_cultural_notes"] = all_object_cultural_notes
             if all_deposits:
                 doc["deposits"] = all_deposits
-
+            if all_decorations:
+                doc["decorations"] = all_decorations
         return doc
 
     def get_index_stats(self) -> Dict[str, Any]:
