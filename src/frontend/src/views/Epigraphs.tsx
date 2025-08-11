@@ -133,10 +133,10 @@ const Epigraphs: React.FC = () => {
         const field_map = {
           epigraphText: searchFields.epigraphText ? ["epigraph_text"] : [],
           translationText: searchFields.translationText ? ["translations"] : [],
-          notes: searchFields.notes ? ["general_notes", "apparatus_notes", "cultural_notes"] : [],
+          notes: searchFields.notes ? ["general_notes", "apparatus_notes", "cultural_notes", "support_notes", "deposit_notes", "object_cultural_notes", "images", "sites", "deposits"] : [],
           bibliography: searchFields.bibliography ? ["bibliography"] : [],
           title: searchFields.title ? ["title"] : [],
-          physical: searchFields.physical ? ["decorations"] : [],
+          physical: searchFields.physical ? ["decorations", "materials", "shape"] : [],
         }
         const fields = [
           ...Object.values(field_map).flat()

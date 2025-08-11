@@ -293,11 +293,25 @@ class OpenSearchService:
                     # Object
                     "support_notes": {
                         "type": "text",
-                        "analyzer": "custom_text_analyzer"
+                        "analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"},
+                            "raw": {
+                                "type": "text",
+                                "analyzer": "standard"
+                            }
+                        }
                     },
                     "deposit_notes": {
                         "type": "text",
-                        "analyzer": "custom_text_analyzer"
+                        "analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"},
+                            "raw": {
+                                "type": "text",
+                                "analyzer": "standard"
+                            }
+                        }
                     },
                     "object_cultural_notes": {
                         "type": "nested",
@@ -328,6 +342,20 @@ class OpenSearchService:
                                 "type": "text",
                                 "analyzer": "custom_text_analyzer"
                             }
+                        }
+                    },
+                    "materials": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"}
+                        }
+                    },
+                    "shape": {
+                        "type": "text",
+                        "analyzer": "custom_text_analyzer",
+                        "fields": {
+                            "keyword": {"type": "keyword"}
                         }
                     },
                     "decorations": {
@@ -458,7 +486,9 @@ class OpenSearchService:
             "editors": ["name"],
             "images": ["caption"],
             "object_cultural_notes": ["note"],
-            "deposits": ["settlement", "institution", "repository"]
+            "deposits": ["settlement", "institution", "repository"],
+            "materials": None,
+            "shape": None
         }
 
         if not fields:
@@ -918,6 +948,9 @@ class OpenSearchService:
                     "object_cultural_notes.note": {},
                     "deposits.settlement": {},
                     "deposits.institution": {},
+                    "deposits.repository": {},
+                    "materials": {},
+                    "shape": {},
                     "decorations.typeLevel1": {},
                     "decorations.type": {},
                     "decorations.typeLevel2": {},
@@ -1113,6 +1146,8 @@ class OpenSearchService:
             all_object_cultural_notes = []
             all_deposits = []
             all_decorations = []
+            all_materials = []
+            all_shapes = []
             for obj in epigraph.objects:
                 if obj.support_notes:
                     all_support_notes.append(obj.support_notes)
@@ -1122,6 +1157,10 @@ class OpenSearchService:
                     all_object_cultural_notes.extend(obj.cultural_notes)
                 if obj.deposits:
                     all_deposits.extend(obj.deposits)
+                if obj.materials:
+                    all_materials.extend(obj.materials)
+                if obj.shape:
+                    all_shapes.append(obj.shape)
                 if hasattr(obj, "decorations") and obj.decorations:
                     # Flatten
                     for decoration in obj.decorations:
@@ -1153,6 +1192,10 @@ class OpenSearchService:
                 doc["object_cultural_notes"] = all_object_cultural_notes
             if all_deposits:
                 doc["deposits"] = all_deposits
+            if all_materials:
+                doc["materials"] = " ".join(all_materials)
+            if all_shapes:
+                doc["shape"] = " ".join(all_shapes)
             if all_decorations:
                 doc["decorations"] = all_decorations
         return doc
