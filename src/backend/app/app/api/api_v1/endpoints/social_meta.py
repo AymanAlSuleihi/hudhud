@@ -67,7 +67,7 @@ def load_index_html() -> str:
     </html>
     """
 
-def generate_epigraph_meta_tags(epigraph, request: Request) -> str:
+def generate_epigraph_meta_tags(epigraph) -> str:
     """Generate meta tags for an epigraph"""
     base_url = settings.SERVER_HOST
     title = f"{epigraph.title} - Hudhud" if epigraph.title else f"Epigraph {epigraph.dasi_id} - Hudhud"
@@ -76,10 +76,19 @@ def generate_epigraph_meta_tags(epigraph, request: Request) -> str:
     if epigraph.epigraph_text:
         clean_text = re.sub(r"<[^>]*>", " ", epigraph.epigraph_text)
         clean_text = re.sub(r"\s+", " ", clean_text).strip()
-        description = clean_text[:147] + "..." if len(clean_text) > 150 else clean_text
+        description = clean_text[:147] + "..." if len(clean_text) > 147 else clean_text
+
+    if epigraph.translations:
+        first_translation = epigraph.translations[0].get("text") if epigraph.translations[0].get("text") else ""
+        clean_text = re.sub(r"\s+", " ", first_translation)
+        description = f"{description[:72]}... {clean_text[:72] + '...' if len(clean_text) > 75 else clean_text}"
 
     context_parts = []
-    if epigraph.language_level_1:
+    if epigraph.language_level_3:
+        context_parts.append(epigraph.language_level_3)
+    elif epigraph.language_level_2:
+        context_parts.append(epigraph.language_level_2)
+    elif epigraph.language_level_1:
         context_parts.append(epigraph.language_level_1)
     if epigraph.period:
         context_parts.append(epigraph.period)
@@ -89,19 +98,26 @@ def generate_epigraph_meta_tags(epigraph, request: Request) -> str:
     context = f" ({', '.join(context_parts)})" if context_parts else ""
 
     if not description:
-        description = f"Ancient South Arabian inscription {epigraph.dasi_id}{context}. Explore this epigraph with AI-powered search, interactive maps, and comprehensive analysis."
+        description = f"Inscription {epigraph.dasi_id}{context}. Explore this epigraph with AI-powered search, interactive maps, and comprehensive analysis."
     else:
-        description = f"{description}{context} - Ancient South Arabian inscription from DASI database."
+        description = f"{description}{context}"
 
-    image_url = f"{base_url}/hudhud_logo.png"
+    image_url = f"{base_url}hudhud_logo.png"
+    image_width = "719"
+    image_height = "413"
+    image_type = "image/png"
+
     if hasattr(epigraph, "images") and epigraph.images:
         for img in epigraph.images:
             if img.get("copyright_free"):
-                image_url = f"{base_url}/public/images/rec_{img.get('image_id')}_high.jpg"
+                image_url = f"{base_url}public/images/rec_{img.get('image_id')}_high.jpg"
+                image_width = "1200"
+                image_height = "800"
+                image_type = "image/jpeg"
                 if img.get("is_main"):
                     break
 
-    page_url = f"{base_url}/epigraphs/{epigraph.id}"
+    page_url = f"{base_url}epigraphs/{epigraph.id}"
 
     return f'''
     <title>{title}</title>
@@ -114,7 +130,10 @@ def generate_epigraph_meta_tags(epigraph, request: Request) -> str:
     <meta property="og:title" content="{title}" />
     <meta property="og:description" content="{description}" />
     <meta property="og:image" content="{image_url}" />
-    
+    <meta property="og:image:width" content="{image_width}" />
+    <meta property="og:image:height" content="{image_height}" />
+    <meta property="og:image:type" content="{image_type}" />
+
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="{title}" />
@@ -145,7 +164,7 @@ async def get_epigraph_page(
 
         print(f"Found epigraph: {epigraph.title or epigraph.dasi_id}")
         html = load_index_html()
-        meta_tags = generate_epigraph_meta_tags(epigraph, request)
+        meta_tags = generate_epigraph_meta_tags(epigraph)
 
         html = re.sub(r"<title>.*?</title>", "", html)
         html = html.replace("<head>", f"<head>{meta_tags}")
