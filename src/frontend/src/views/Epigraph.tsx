@@ -11,7 +11,7 @@ import { generateEpigraphMetaTags, generateEpigraphStructuredData, getDefaultMet
 const Epigraph: React.FC = () => {
   const { urlKey } = useParams<{ urlKey: string }>()
   const [epigraph, setEpigraph] = React.useState<EpigraphOut | null>(null)
-  const [isLoading, setIsLoading] = React.useState(false)
+  const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [similarEpigraphs, setSimilarEpigraphs] = React.useState<EpigraphOut[]>([])
   const [isSimilarLoading, setIsSimilarLoading] = React.useState(false)
@@ -103,6 +103,8 @@ const Epigraph: React.FC = () => {
         .finally(() => {
           setIsLoading(false)
         })
+    } else {
+      setIsLoading(false)
     }
   }, [urlKey])
 
@@ -206,7 +208,7 @@ const Epigraph: React.FC = () => {
     )
   }
 
-  if (!epigraph) {
+  if (!epigraph && !isLoading && !error) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
         <MetaTags data={getDefaultMetaTags()} />
@@ -249,6 +251,8 @@ const Epigraph: React.FC = () => {
     window.open(`/epigraphs/${epigraphId}`, '_blank')
   }
 
+  if (!epigraph) return null
+
   return (
     <div className="max-w-7xl p-4 mx-auto">
       <MetaTags 
@@ -256,8 +260,8 @@ const Epigraph: React.FC = () => {
         structuredData={generateEpigraphStructuredData(epigraph)}
       />
       <div 
-        ref={el => epigraphRefs.current[epigraph?.id.toString() || ''] = el}
-        data-epigraph-id={epigraph?.id.toString()}
+        ref={el => epigraphRefs.current[epigraph.id.toString()] = el}
+        data-epigraph-id={epigraph.id.toString()}
       >
         <EpigraphCard
           epigraph={epigraph}
