@@ -5,6 +5,8 @@ import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MapComponent } from "../components/Map"
 import { MapTrifold } from "@phosphor-icons/react"
+import { MetaTags } from "../components/MetaTags"
+import { generateEpigraphMetaTags, generateEpigraphStructuredData, getDefaultMetaTags } from "../utils/metaTags"
 
 const Epigraph: React.FC = () => {
   const { urlKey } = useParams<{ urlKey: string }>()
@@ -184,6 +186,7 @@ const Epigraph: React.FC = () => {
   if (isLoading) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
+        <MetaTags data={getDefaultMetaTags()} />
         <div className="flex justify-center items-center min-h-64">
           <Spinner size="w-10 h-10" colour="#666" />
         </div>
@@ -194,6 +197,7 @@ const Epigraph: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
+        <MetaTags data={getDefaultMetaTags()} />
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Error</h1>
           <p className="text-red-600">{error}</p>
@@ -205,6 +209,7 @@ const Epigraph: React.FC = () => {
   if (!epigraph) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
+        <MetaTags data={getDefaultMetaTags()} />
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Epigraph Not Found</h1>
           <p>The requested epigraph could not be found.</p>
@@ -246,6 +251,10 @@ const Epigraph: React.FC = () => {
 
   return (
     <div className="max-w-7xl p-4 mx-auto">
+      <MetaTags 
+        data={generateEpigraphMetaTags(epigraph)} 
+        structuredData={generateEpigraphStructuredData(epigraph)}
+      />
       <div 
         ref={el => epigraphRefs.current[epigraph?.id.toString() || ''] = el}
         data-epigraph-id={epigraph?.id.toString()}

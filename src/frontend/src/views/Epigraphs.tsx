@@ -14,6 +14,8 @@ import { MySelect, MyItem } from "../components/Select"
 import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
 import { MapComponent } from "../components/Map"
 import { MyDisclosure } from "../components/Disclosure"
+import { MetaTags } from "../components/MetaTags"
+import { generateEpigraphsListMetaTags } from "../utils/metaTags"
 
 interface Filters {
   period?: string
@@ -531,6 +533,7 @@ const Epigraphs: React.FC = () => {
 
   return (
     <div className="2xl:max-w-10/12 p-4 mx-auto">
+      <MetaTags data={generateEpigraphsListMetaTags(searchParams)} />
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
       <div className="mb-1 space-y-4">
         <div className="flex flex-wrap gap-x-2 gap-y-4 items-start">

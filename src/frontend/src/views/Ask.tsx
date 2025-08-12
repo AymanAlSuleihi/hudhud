@@ -4,6 +4,8 @@ import { AskService } from "../client"
 import { SearchField, Label } from "react-aria-components"
 import { Spinner } from "../components/Spinner"
 import { EpigraphCard } from "../components/EpigraphCard"
+import { MetaTags } from "../components/MetaTags"
+import { getDefaultMetaTags } from "../utils/metaTags"
 
 const Ask: React.FC = () => {
   const [query, setQuery] = useState<string>("")
@@ -111,6 +113,7 @@ const Ask: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <MetaTags data={getDefaultMetaTags()} />
       <div className="mb-4">
         <SearchField
           onSubmit={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
