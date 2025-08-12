@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app.api.api_v1.api import api_router
+from app.api.api_v1.endpoints.social_meta import router as social_meta_router
 from app.core.config import settings
 from app.db.engine import engine
 
@@ -37,4 +38,5 @@ def read_root():
     return {"Hello": "World"}
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(social_meta_router, tags=["social-meta"])
 app.mount("/public", StaticFiles(directory="public"), name="public")

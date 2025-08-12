@@ -10,9 +10,15 @@ services:
       - .dev.env
     labels:
       - traefik.enable=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/public`))
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend.tls=true
-      - traefik.http.services.${STACK_NAME?Variable not set}-backend.loadbalancer.server.port=8081
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/public`))
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.tls=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.service=${STACK_NAME?Variable not set}-backend-api
+      - traefik.http.services.${STACK_NAME?Variable not set}-backend-api.loadbalancer.server.port=8081
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/epigraphs/`) || PathPrefix(`/word/`)) && HeadersRegexp(`User-Agent`, `(?i)(facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|slackbot|skypeuripreview|discordbot|applebot|googlebot|bingbot)`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.tls=true
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.priority=100
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.service=${STACK_NAME?Variable not set}-backend-social
+      - traefik.http.services.${STACK_NAME?Variable not set}-backend-social.loadbalancer.server.port=8081
     networks:
       - traefik-public
 
@@ -27,7 +33,8 @@ services:
       - traefik.enable=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.rule=Host(`hudhud-dev.${DOMAIN}`)
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.tls=true
-      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.rule=PathPrefix(`/`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.priority=50
+      - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.service=${STACK_NAME?Variable not set}-frontend
       - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=5002
     networks:
       - traefik-public
