@@ -25,7 +25,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: ./Dockerfile.dev
+      dockerfile: ./Dockerfile
     volumes:
       - ./frontend:/app
       - ./frontend/node_modules:/app/node_modules
@@ -35,7 +35,7 @@ services:
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.tls=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.priority=50
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.service=${STACK_NAME?Variable not set}-frontend
-      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=5002
+      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=80
     networks:
       - traefik-public
 
