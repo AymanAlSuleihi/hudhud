@@ -1,5 +1,5 @@
 import React from "react"
-import { GithubLogo, EnvelopeSimple, Copyright } from "@phosphor-icons/react"
+import { EnvelopeSimple, Copyright } from "@phosphor-icons/react"
 
 export const Footer: React.FC = () => {
   return (
@@ -35,18 +35,7 @@ export const Footer: React.FC = () => {
               <EnvelopeSimple size={16} className="mr-1 translate-y-[1px]" />
               contact@shebascaravan.com
             </a>
-            {/* <span className="mx-2">|</span>
-            <a 
-              href="https://github.com/AymanAlSuleihi/Hudhud" 
-              className="flex items-center hover:text-gray-500 transition-colors font-semibold"
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <GithubLogo size={16} className="mr-1" />
-              GitHub Repository
-            </a> */}
           </div>
-          
           <div className="flex items-center justify-center">
             <Copyright size={14} className="mr-1" />
             <p>{new Date().getFullYear()} Hudhud Project. All rights reserved.</p>

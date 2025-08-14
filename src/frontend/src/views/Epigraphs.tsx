@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom"
 import { X, MagnifyingGlass, Check, Funnel, MapTrifold, Keyboard } from "@phosphor-icons/react"
 import { 
   SearchField, 
-  Button,
   Label,
   ToggleButton,
 } from "react-aria-components"
@@ -259,17 +258,6 @@ const Epigraphs: React.FC = () => {
     setFilters({})
     fetchEpigraphs(1, pageSize, sortField, sortOrder, {}, searchTerm)
     fetchFieldValues({})
-  }
-
-  const clearSearch = () => {
-    setSearchTerm("")
-    if (searchInputRef.current) {
-      searchInputRef.current.value = ""
-    }
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-    fetchEpigraphs(1, pageSize, sortField, sortOrder, filters, "")
   }
 
   const fetchFieldValues = async (currentFilters: Filters = {}) => {
