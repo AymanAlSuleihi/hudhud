@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { ToggleButton } from "react-aria-components"
-import { WarningCircle } from "@phosphor-icons/react"
+import { WarningCircle, ToggleLeft, ToggleRight } from "@phosphor-icons/react"
 
 interface TagProps {
   tagName: string
@@ -120,29 +120,21 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
 
       if (tagName === "supplied") {
         const reason = element.getAttribute("reason")
+        const content = Array.from(element.childNodes).map((child, index) => (
+          <React.Fragment key={index}>
+            {renderNode(child)}
+          </React.Fragment>
+        ))
+        
         if (reason === "lost") {
           return (
-            <span className="">
-              [
-              {Array.from(element.childNodes).map((child, index) => (
-                <React.Fragment key={index}>
-                  {renderNode(child)}
-                </React.Fragment>
-              ))}
-              ]
-            </span>
+            <>
+              [{content}]
+            </>
           )
         }
 
-        return (
-          <React.Fragment>
-            {Array.from(element.childNodes).map((child, index) => (
-              <React.Fragment key={index}>
-                {renderNode(child)}
-              </React.Fragment>
-            ))}
-          </React.Fragment>
-        )
+        return content
       }
 
       if (tagName === "gap") {
@@ -152,10 +144,10 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
 
         if (reason === "lost" && unit === "character" && quantity) {
           const dots = ".".repeat(Math.min(parseInt(quantity), 5))
-          return <span className="">[{dots}]</span>
+          return `[${dots}]`
         }
 
-        return <span className="">[...]</span>
+        return "[...]"
       }
 
       if (tagName === "lb") {
@@ -166,19 +158,21 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         const allLbElements = Array.from(doc.querySelectorAll("lb"))
         const isFirstLbElement = allLbElements[0] === element
         const isHighlighted = numericLineNum && highlightedLines.includes(numericLineNum)
-        const highlightClass = isHighlighted ? "bg-slate-200" : ""
+        const highlightClass = isHighlighted ? "bg-yellow-100/70 shadow-md border-l-4" : ""
         const handleEnter = () => onLineHover && numericLineNum && onLineHover(numericLineNum)
         const handleLeave = () => onLineHover && onLineHover(null)
 
         if (lineNum === "1" && isFirstLbElement) {
-          return <span className={`text-gray-400 text-sm mr-4 inline-block w-8 text-right ${highlightClass}`}
-            onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
+          return (
+            <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 rounded border-yellow-400 ${highlightClass} w-8`}
+              onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
+          )
         } else {
           return (
             <React.Fragment>
               {isLineBreak && <span className="text-gray-500 text-sm">—</span>}
               {!isFirstLbElement && <br />}
-              <span className={`text-gray-400 text-sm mr-4 inline-block w-8 text-right ${highlightClass}`}
+              <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 rounded border-yellow-400 ${highlightClass} w-8`}
                 onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
             </React.Fragment>
           )
@@ -257,8 +251,9 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
           <ToggleButton 
             isSelected={showMarkers}
             onChange={setShowMarkers}
-            className="group flex items-center px-3 py-2 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50 data-[selected]:bg-zinc-600 data-[selected]:text-white transition-colors cursor-pointer w-auto min-w-[140px] max-w-[180px]"
+            className="group flex items-center gap-2 px-3 py-2 h-8 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors cursor-pointer w-auto min-w-[140px] max-w-[180px] font-semibold"
           >
+            {showMarkers ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="font-medium whitespace-nowrap">
               Semantic Markers
             </span>
@@ -270,12 +265,14 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         </div>
       </div>
 
-      <div className="font-sans leading-relaxed">
-        {Array.from(doc.documentElement.childNodes).map((node, index) => (
-          <React.Fragment key={index}>
-            {renderNode(node)}
-          </React.Fragment>
-        ))}
+      <div className="font-sans leading-relaxed relative">
+        <div className="ml-8 pl-4">
+          {Array.from(doc.documentElement.childNodes).map((node, index) => (
+            <React.Fragment key={index}>
+              {renderNode(node)}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </div>
   )
