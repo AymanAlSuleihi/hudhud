@@ -12,24 +12,7 @@
 
 html {
   scrollbar-gutter: stable;
-  height: 100%;
-}
-
-body {
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-#root {
-  min-height: 100%;
-  overflow: visible;
-}
-
-* {
-  -webkit-overflow-scrolling: touch;
+  padding-right: 0 !important;
 }
 
 .select-listbox {
