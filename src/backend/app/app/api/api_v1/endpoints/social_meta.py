@@ -102,7 +102,7 @@ def generate_epigraph_meta_tags(epigraph) -> str:
     else:
         description = f"{description}{context}"
 
-    image_url = f"{base_url}hudhud_logo.png"
+    image_url = f"{base_url}hudhud_logo_white.png"
     image_width = "719"
     image_height = "413"
     image_type = "image/png"

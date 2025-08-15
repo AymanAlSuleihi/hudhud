@@ -10,7 +10,7 @@ export interface MetaTagsData {
 
 export const generateEpigraphMetaTags = (epigraph: EpigraphOut): MetaTagsData => {
   const baseUrl = import.meta.env.VITE_BASE_URL
-  const fallbackImage = `${baseUrl}/hudhud_logo.png`
+  const fallbackImage = `${baseUrl}/hudhud_logo_white.png`
 
   const title = epigraph.title 
     ? `${epigraph.title} - Hudhud` 
@@ -96,7 +96,7 @@ export const generateEpigraphsListMetaTags = (searchParams?: URLSearchParams): M
     title,
     description,
     url: `${baseUrl}/epigraphs${searchParams ? `?${searchParams.toString()}` : ''}`,
-    image: `${baseUrl}/hudhud_logo.png`,
+    image: `${baseUrl}/hudhud_logo_white.png`,
     type: "website"
   }
 }
@@ -150,7 +150,7 @@ export const getDefaultMetaTags = (): MetaTagsData => {
     title: "Hudhud - Explore Ancient South Arabian Inscriptions",
     description: "Search, visualise, and discover Ancient South Arabian texts with AI-powered exploration, interactive maps, timeline views, and advanced search across DASI's comprehensive inscription database.",
     url: `${baseUrl}/`,
-    image: `${baseUrl}/hudhud_logo.png`,
+    image: `${baseUrl}/hudhud_logo_white.png`,
     type: "website"
   }
 }
