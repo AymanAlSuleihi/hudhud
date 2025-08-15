@@ -8,7 +8,7 @@ const About: React.FC = () => {
         title: "About Hudhud - Ancient South Arabian Inscriptions Platform",
         description: "Learn about Hudhud, a modern digital platform for exploring pre-Islamic Arabian inscriptions. Discover the mission behind making ancient epigraphic heritage accessible to researchers worldwide.",
         url: `${import.meta.env.VITE_BASE_URL}/about`,
-        image: `${import.meta.env.VITE_BASE_URL}/hudhud_logo.png`,
+        image: `${import.meta.env.VITE_BASE_URL}/hudhud_logo_white.png`,
         type: "website"
       }} />
       <h1 className="text-3xl font-bold mb-6">About Hudhud</h1>
