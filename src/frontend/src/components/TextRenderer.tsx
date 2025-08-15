@@ -125,7 +125,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
             {renderNode(child)}
           </React.Fragment>
         ))
-        
+
         if (reason === "lost") {
           return (
             <>
@@ -157,22 +157,19 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         const numericLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : undefined
         const allLbElements = Array.from(doc.querySelectorAll("lb"))
         const isFirstLbElement = allLbElements[0] === element
-        const isHighlighted = numericLineNum && highlightedLines.includes(numericLineNum)
-        const highlightClass = isHighlighted ? "bg-yellow-100/70 shadow-md border-l-4" : ""
         const handleEnter = () => onLineHover && numericLineNum && onLineHover(numericLineNum)
         const handleLeave = () => onLineHover && onLineHover(null)
 
         if (lineNum === "1" && isFirstLbElement) {
           return (
-            <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 rounded border-yellow-400 ${highlightClass} w-8`}
+            <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 w-8`}
               onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
           )
         } else {
           return (
             <React.Fragment>
               {isLineBreak && <span className="text-gray-500 text-sm">—</span>}
-              {!isFirstLbElement && <br />}
-              <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 rounded border-yellow-400 ${highlightClass} w-8`}
+              <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 w-8`}
                 onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
             </React.Fragment>
           )
@@ -190,7 +187,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         const children = Array.from(element.childNodes)
         const parts: React.ReactNode[] = []
         let currentPart: React.ReactNode[] = []
-        
+
         children.forEach((child, index) => {
           if (child.nodeType === Node.ELEMENT_NODE && (child as Element).tagName.toLowerCase() === "lb") {
             if (currentPart.length > 0) {
@@ -265,13 +262,79 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         </div>
       </div>
 
-      <div className="font-sans leading-relaxed relative">
-        <div className="ml-8 pl-4">
-          {Array.from(doc.documentElement.childNodes).map((node, index) => (
-            <React.Fragment key={index}>
-              {renderNode(node)}
-            </React.Fragment>
-          ))}
+      <div className="font-sans relative">
+        <div className="ml-8 pl-4 leading-tight">
+          {(() => {
+            const content: React.ReactNode[] = []
+            let currentLineNum: number | null = null
+            let currentLineContent: React.ReactNode[] = []
+            let lineCounter = 0
+
+            const finishLine = () => {
+              if (currentLineContent.length > 0 || currentLineNum !== null) {
+                const isHighlighted = currentLineNum && highlightedLines.includes(currentLineNum)
+                const visualHighlightClass = isHighlighted ? "bg-yellow-100/70 shadow-md border-l-4 scale-105 backdrop-blur-sm" : ""
+                const layoutClass = "-ml-10 pl-10"
+                const lineNumForClosure = currentLineNum
+                const handleLineEnter = () => onLineHover && lineNumForClosure && onLineHover(lineNumForClosure)
+                const handleLineLeave = () => onLineHover && onLineHover(null)
+
+                content.push(
+                  <div 
+                    key={`line-${currentLineNum || lineCounter++}`} 
+                    className={`${visualHighlightClass} ${layoutClass} border-yellow-400 transition-[background-color,border-color,box-shadow,opacity] duration-200 leading-relaxed block w-full min-h-[1.5rem] clear-both cursor-pointer`}
+                    onMouseEnter={handleLineEnter}
+                    onMouseLeave={handleLineLeave}
+                  >
+                    {currentLineContent}
+                  </div>
+                )
+                currentLineContent = []
+              }
+            }
+
+            const walkAndSplit = (node: Node) => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const element = node as Element
+                if (element.tagName.toLowerCase() === 'lb') {
+                  finishLine()
+
+                  const lineNum = element.getAttribute("n")
+                  currentLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : null
+
+                  currentLineContent.push(renderNode(node))
+                  return
+                }
+              }
+
+              currentLineContent.push(renderNode(node))
+            }
+
+            const processChildren = (parentNode: Node) => {
+              Array.from(parentNode.childNodes).forEach(child => {
+                if (child.nodeType === Node.ELEMENT_NODE) {
+                  const element = child as Element
+                  if (element.tagName.toLowerCase() === 'lb') {
+                    walkAndSplit(child)
+                  } else {
+                    const lbElements = element.querySelectorAll('lb')
+                    if (lbElements.length > 0) {
+                      processChildren(child)
+                    } else {
+                      walkAndSplit(child)
+                    }
+                  }
+                } else {
+                  walkAndSplit(child)
+                }
+              })
+            }
+
+            processChildren(doc.documentElement)
+            finishLine()
+
+            return content
+          })()}
         </div>
       </div>
     </div>
