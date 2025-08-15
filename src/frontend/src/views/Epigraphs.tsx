@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
-import { X, MagnifyingGlass, Check, Funnel, MapTrifold, Keyboard } from "@phosphor-icons/react"
+import { X, MagnifyingGlass, Funnel, MapTrifold, Keyboard, ToggleLeft, ToggleRight } from "@phosphor-icons/react"
 import { 
   SearchField, 
   Label,
@@ -382,7 +382,7 @@ const Epigraphs: React.FC = () => {
           <button
             onClick={() => fetchEpigraphs(currentPage - 1, pageSize, sortField, sortOrder, filters, searchTerm)}
             disabled={currentPage <= 1 || isLoading}
-            className="px-3 py-1 rounded bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm"
+            className="px-3 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm cursor-pointer"
           >
             Previous
           </button>
@@ -405,7 +405,7 @@ const Epigraphs: React.FC = () => {
           <button
             onClick={() => fetchEpigraphs(currentPage + 1, pageSize, sortField, sortOrder, filters, searchTerm)}
             disabled={currentPage >= totalPages || isLoading}
-            className="px-3 py-1 rounded bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm"
+            className="px-3 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm cursor-pointer"
           >
             Next
           </button>
@@ -542,14 +542,14 @@ const Epigraphs: React.FC = () => {
                         handleSearch(e.currentTarget.value)
                       }
                     }}
-                    className="w-full border border-gray-400 p-2 pl-9 pr-32 rounded h-12"
+                    className="w-full border border-gray-400 p-2 pl-9 pr-40 rounded h-12"
                     placeholder="Search epigraphs..."
                   />
                   <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                     <button
                       type="button"
-                      className="flex items-center justify-center px-2 py-1 bg-zinc-600 hover:bg-zinc-700 text-white rounded h-9 w-9"
+                      className="flex items-center justify-center px-2 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-9 w-9"
                       onClick={() => setShowKeyboard((v) => !v)}
                       title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
                     >
@@ -557,7 +557,7 @@ const Epigraphs: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      className="flex items-center justify-center px-2 py-1 bg-zinc-600 hover:bg-zinc-700 text-white rounded h-9 w-9"
+                      className="flex items-center justify-center px-2 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-9 w-9"
                       onClick={() => {
                         if (debounceRef.current) {
                           clearTimeout(debounceRef.current)
@@ -585,18 +585,16 @@ const Epigraphs: React.FC = () => {
             isSelected={searchFields.epigraphText}
             onChange={selected => setSearchFields(prev => ({...prev, epigraphText: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.epigraphText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.epigraphText && (
-                <Check size={14} className="text-white" />
-              )}
-              <span className="hidden sm:inline">Epigraph Text</span>
+                            <span className="hidden sm:inline">Epigraph Text</span>
               <span className="sm:hidden">Text</span>
             </span>
           </ToggleButton>
@@ -604,18 +602,16 @@ const Epigraphs: React.FC = () => {
             isSelected={searchFields.translationText}
             onChange={selected => setSearchFields(prev => ({...prev, translationText: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.translationText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.translationText && (
-                <Check size={14} className="text-white" />
-              )}
-              <span className="hidden sm:inline">Translations</span>
+                            <span className="hidden sm:inline">Translations</span>
               <span className="sm:hidden">Trans.</span>
             </span>
           </ToggleButton>
@@ -623,36 +619,32 @@ const Epigraphs: React.FC = () => {
             isSelected={searchFields.notes}
             onChange={selected => setSearchFields(prev => ({...prev, notes: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.notes ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.notes && (
-                <Check size={14} className="text-white" />
-              )}
-              Notes
+                            Notes
             </span>
           </ToggleButton>
           <ToggleButton
             isSelected={searchFields.bibliography}
             onChange={selected => setSearchFields(prev => ({...prev, bibliography: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.bibliography ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.bibliography && (
-                <Check size={14} className="text-white" />
-              )}
-              <span className="hidden sm:inline">Bibliography</span>
+                            <span className="hidden sm:inline">Bibliography</span>
               <span className="sm:hidden">Biblio.</span>
             </span>
           </ToggleButton>
@@ -660,36 +652,32 @@ const Epigraphs: React.FC = () => {
             isSelected={searchFields.title}
             onChange={selected => setSearchFields(prev => ({...prev, title: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.title ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.title && (
-                <Check size={14} className="text-white" />
-              )}
-              Title
+                            Title
             </span>
           </ToggleButton>
           <ToggleButton
             isSelected={searchFields.physical}
             onChange={selected => setSearchFields(prev => ({...prev, physical: selected}))}
             className={({isSelected}) => `
-              flex items-center gap-1 px-2 sm:px-3 py-2 font-medium rounded transition-colors h-8 whitespace-nowrap text-sm
+              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
               ${isSelected 
-                ? "bg-zinc-600 text-white shadow-sm"
-                : "bg-zinc-600 hover:bg-zinc-700 text-white"
+                ? "border-gray-600 text-gray-800"
+                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
               }
             `}
           >
+{searchFields.physical ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-              {searchFields.physical && (
-                <Check size={14} className="text-white" />
-              )}
-              <span className="hidden sm:inline">Physical Attributes</span>
+                            <span className="hidden sm:inline">Physical Attributes</span>
               <span className="sm:hidden">Phys.</span>
             </span>
           </ToggleButton>
@@ -745,11 +733,11 @@ const Epigraphs: React.FC = () => {
 
       <div className="">
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg mb-4">
             {Object.entries(filterLabels).map(([key, label]) => {
               const availableValues = fieldValues[key] || []
               return (
-                <div key={key}>
+                <div key={key} className="w-full">
                   <MySelect
                     label={label}
                     selectedKey={filters[key as keyof Filters] || "all"}
@@ -758,7 +746,7 @@ const Epigraphs: React.FC = () => {
                         handleFilterChange(key as keyof Filters, value)
                       }
                     }}
-                    buttonClassName="h-8 max-h-8 w-full"
+                    buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
                   >
                     <MyItem key="all" id="all">All</MyItem>
                     {availableValues.map((value: any) => {
@@ -790,17 +778,19 @@ const Epigraphs: React.FC = () => {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
-        <div className="flex-shrink-0">
-          {epigraphs && (
-            <div>
+                {epigraphs && (
+            <div className="mb-4">
               <p className="text-sm sm:text-base">
                 {((currentPage - 1) * pageSize + 1)}-{((currentPage - 1) * pageSize + epigraphs.epigraphs.length)} of {epigraphs.count} total epigraphs
               </p>
+</div>
+      )}
+
               {Object.keys(filters).length > 0 && (
-                <div className="mt-2 text-sm text-gray-600">
-                  <span className="font-medium">Active filters:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
+                <div className="mb-4">
+          <div className="text-sm text-gray-800">
+                  <span className="font-semibold mb-2 block">Active filters:</span>
+                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                     {Object.entries(filters).map(([key, value]) => {
                       let displayValue: string
                       if (typeof value === "boolean") {
@@ -811,32 +801,31 @@ const Epigraphs: React.FC = () => {
                         displayValue = String(value)
                       }
                       return (
-                        <span key={key} className="inline-flex items-center gap-1 px-2 py-1 bg-zinc-600 text-white rounded text-sm font-medium">
-                          <span className="hidden sm:inline">{filterLabels[key as keyof typeof filterLabels]}:</span>
-                          <span className="sm:hidden">{filterLabels[key as keyof typeof filterLabels].split(' ')[0]}:</span>
-                          {displayValue}
-                          <button
+                                                  <button
+key={key} 
                             onClick={() => handleFilterChange(key as keyof Filters, "all")}
-                            className="hover:text-gray-300 flex items-center transition-colors"
+                            className="inline-flex items-center gap-1 px-2 py-1 border border-gray-900 rounded text-xs font-semibold shadow-sm flex-shrink-0 hover:border-gray-700 hover:text-gray-700 transition-colors"
                             title="Remove filter"
                           >
-                            <X size={10} />
+<span className="hidden sm:inline">{filterLabels[key as keyof typeof filterLabels]}:</span>
+                    <span className="sm:hidden">{filterLabels[key as keyof typeof filterLabels].split(' ')[0]}:</span>
+                    <span className="max-w-16 sm:max-w-24 md:max-w-32 truncate">{displayValue}</span>
+                            <X size={10} className="flex-shrink-0" />
                           </button>
-                        </span>
-                      )
+                                              )
                     })}
                   </div>
                 </div>
-              )}
             </div>
           )}
-        </div>
 
-        <div className="flex gap-2 items-end flex-wrap">
+        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-end gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end flex-wrap w-full sm:w-auto sm:justify-end">
+          <div className="flex flex-row gap-2 flex-wrap">
           {Object.keys(filters).length > 0 && (
             <button
               onClick={clearAllFilters}
-              className="flex items-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 whitespace-nowrap text-sm"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
             >
               <span className="hidden sm:inline">Clear All Filters</span>
               <span className="sm:hidden">Clear</span>
@@ -846,17 +835,20 @@ const Epigraphs: React.FC = () => {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center justify-center gap-2 px-2 sm:px-4 py-2 bg-zinc-600 hover:bg-zinc-700 text-white transition-colors font-medium rounded h-8 text-sm sm:whitespace-nowrap w-8 sm:w-auto"
+            className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 text-xs sm:text-sm whitespace-nowrap min-w-fit cursor-pointer"
           >
             <Funnel size={14} />
             <span className="hidden sm:inline">{showFilters ? "Hide Filters" : "Show Filters"}</span>
+<span className="sm:hidden">{showFilters ? "Hide" : "Show"}</span>
             {Object.keys(filters).length > 0 && (
-              <span className="bg-white text-zinc-600 text-sm px-2 py-1 rounded-full font-medium">
+              <span className="bg-white text-zinc-600 text-xs px-1 py-1 rounded-full font-medium min-w-5 h-5 flex items-center justify-center">
                 {Object.keys(filters).length}
               </span>
             )}
           </button>
+</div>
 
+<div className="flex flex-row gap-2 flex-wrap">
           <MySelect
             label="Sort By"
             selectedKey={sortField}
@@ -865,7 +857,7 @@ const Epigraphs: React.FC = () => {
                 handleSortChange(key)
               }
             }}
-            buttonClassName="h-8 max-h-8 min-w-0"
+              buttonClassName="h-8 max-h-8 min-w-24 sm:min-w-32 text-xs sm:text-sm"
           >
             <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
             <MyItem key="period" id="period">Period</MyItem>
@@ -881,11 +873,12 @@ const Epigraphs: React.FC = () => {
                 handleOrderChange(key)
               }
             }}
-            buttonClassName="h-8 max-h-8 min-w-0"
+              buttonClassName="h-8 max-h-8 min-w-20 sm:min-w-28 text-xs sm:text-sm"
           >
             <MyItem key="asc" id="asc">Ascending</MyItem>
             <MyItem key="desc" id="desc">Descending</MyItem>
           </MySelect>
+          </div>
         </div>
       </div>
 
