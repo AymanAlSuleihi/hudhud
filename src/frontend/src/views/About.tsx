@@ -3,7 +3,7 @@ import { MetaTags } from "../components/MetaTags"
 
 const About: React.FC = () => {
   return (
-    <div className="max-w-4xl mx-auto p-6 mt-8">
+    <div className="max-w-4xl mx-auto p-6">
       <MetaTags data={{
         title: "About Hudhud - Ancient South Arabian Inscriptions Platform",
         description: "Learn about Hudhud, a modern digital platform for exploring pre-Islamic Arabian inscriptions. Discover the mission behind making ancient epigraphic heritage accessible to researchers worldwide.",

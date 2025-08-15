@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom"
 import { Navbar } from "./components/Navbar"
 import { Footer } from "./components/Footer"
 import { dataProvider } from "./providers/DataProvider"
+import ScrollToTop from "./components/ScrollToTop"
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         {/* <div className="min-h-screen lg:ml-60"> */}
         <div className="min-h-screen mt-40">
           <main className="p-4">
+            <ScrollToTop />
             <Outlet />
           </main>
           <Footer />
