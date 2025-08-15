@@ -68,7 +68,7 @@ export const Navbar: React.FC = () => {
           <div className="relative z-10 bg-transparent px-2 sm:px-4 md:px-6 flex-shrink-0">
             <Link to="/">
               <img 
-                src="/hudhud_logo_new.png" 
+                src="/hudhud_logo.png" 
                 alt="Hudhud Logo" 
                 className="h-32 w-auto object-contain drop-shadow-sm"
               />
@@ -133,7 +133,7 @@ export const Navbar: React.FC = () => {
           <div className="flex justify-center px-6 mb-8">
             <Link to="/" onClick={closeSidebar}>
               <img 
-                src="/hudhud_logo_new.png" 
+                src="/hudhud_logo.png" 
                 alt="Hudhud Logo" 
                 className="h-64 w-auto object-contain"
               />
