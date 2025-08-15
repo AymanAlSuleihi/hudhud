@@ -1,5 +1,5 @@
 import React from "react"
-import { EnvelopeSimple, Copyright } from "@phosphor-icons/react"
+import { Copyright, EnvelopeSimple, InstagramLogo } from "@phosphor-icons/react"
 
 export const Footer: React.FC = () => {
   return (
@@ -27,6 +27,18 @@ export const Footer: React.FC = () => {
             </a>
           </p>
           {/* Contact */}
+          <div className="flex items-center justify-center mb-3">
+            <a
+              href="https://instagram.com/shebascaravan"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex justify-center items-center hover:text-gray-500 transition-colors font-semibold mr-4"
+              aria-label="Instagram"
+            >
+              <InstagramLogo size={16} className="mr-1" />
+              shebascaravan
+            </a>
+          </div>
           <div className="flex items-center justify-center mb-3">
             <a 
               href="mailto:contact@shebascaravan.com" 

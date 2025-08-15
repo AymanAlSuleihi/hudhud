@@ -75,7 +75,7 @@ export const Navbar: React.FC = () => {
             </Link>
           </div>
 
-          <div className="absolute right-4 sm:right-8 md:right-20 lg:right-32 xl:right-40 2xl:right-52 top-6 3xs:top-1/3 transform -translate-y-1/2">
+          <div className="absolute right-4 sm:right-8 md:right-20 lg:right-32 xl:right-40 2xl:right-52 top-6 3xs:top-1/3 transform -translate-y-1/2 translate-x-[9px]">
             <span className="text-lg font-medium text-gray-900 tracking-[10px]">𐩠𐩵𐩠𐩵</span>
           </div>
 
