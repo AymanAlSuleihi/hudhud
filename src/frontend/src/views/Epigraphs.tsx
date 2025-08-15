@@ -887,15 +887,15 @@ key={key}
           <div className="space-y-4">
             {epigraphs.epigraphs.map((epigraph) => (
               <div
-                key={epigraph.id}
-                ref={el => epigraphRefs.current[epigraph.id.toString()] = el}
-                data-epigraph-id={epigraph.id.toString()}
+                key={epigraph.dasi_id}
+                ref={el => epigraphRefs.current[epigraph.dasi_id.toString()] = el}
+                data-epigraph-id={epigraph.dasi_id.toString()}
               >
                 <EpigraphCard
                   epigraph={epigraph}
                   notes={true}
                   bibliography={true}
-                  // highlighted={visibleEpigraphId === epigraph.id.toString()}
+                  // highlighted={visibleEpigraphId === epigraph.dasi_id.toString()}
                 />
               </div>
             ))}

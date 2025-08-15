@@ -76,7 +76,7 @@ def generate_epigraph_meta_tags(epigraph) -> str:
     if epigraph.epigraph_text:
         clean_text = re.sub(r"<[^>]*>", " ", epigraph.epigraph_text)
         clean_text = re.sub(r"\s+", " ", clean_text).strip()
-        description = clean_text[:147] + "..." if len(clean_text) > 147 else clean_text
+        description = clean_text[:147] + "..." if len(clean_text) > 150 else clean_text
 
     if epigraph.translations:
         first_translation = epigraph.translations[0].get("text") if epigraph.translations[0].get("text") else ""
@@ -117,7 +117,7 @@ def generate_epigraph_meta_tags(epigraph) -> str:
                 if img.get("is_main"):
                     break
 
-    page_url = f"{base_url}epigraphs/{epigraph.id}"
+    page_url = f"{base_url}epigraphs/{epigraph.dasi_id}"
 
     return f'''
     <title>{title}</title>
@@ -141,25 +141,25 @@ def generate_epigraph_meta_tags(epigraph) -> str:
     <meta name="twitter:image" content="{image_url}" />
     '''
 
-@router.get("/epigraphs/{epigraph_id}", response_class=HTMLResponse)
+@router.get("/epigraphs/{dasi_id}", response_class=HTMLResponse)
 async def get_epigraph_page(
-    epigraph_id: int,
+    dasi_id: int,
     request: Request,
     session: SessionDep
 ):
     """Serve epigraph page with proper meta tags for social media crawlers"""
 
     user_agent = request.headers.get("user-agent", "")
-    print(f"Request for epigraph {epigraph_id} from user-agent: {user_agent}")
+    print(f"Request for epigraph {dasi_id} from user-agent: {user_agent}")
 
     if not is_social_media_bot(user_agent):
         html = load_index_html()
         return HTMLResponse(content=html)
 
     try:
-        epigraph = epigraph_crud.get(db=session, id=epigraph_id)
+        epigraph = epigraph_crud.get_by_dasi_id(db=session, dasi_id=dasi_id)
         if not epigraph:
-            print(f"Epigraph {epigraph_id} not found")
+            print(f"Epigraph {dasi_id} not found")
             raise HTTPException(status_code=404, detail="Epigraph not found")
 
         print(f"Found epigraph: {epigraph.title or epigraph.dasi_id}")

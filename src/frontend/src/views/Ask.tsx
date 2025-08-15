@@ -50,7 +50,7 @@ const Ask: React.FC = () => {
         setEpigraphs(response.epigraphs)
 
         const sourcesFromEpigraphs = response.epigraphs.map(epigraph => 
-          `Epigraph ${epigraph.id}${epigraph.title ? `: ${epigraph.title}` : ""}`
+          `Epigraph ${epigraph.dasi_id}${epigraph.title ? `: ${epigraph.title}` : ""}`
         )
         setSources(sourcesFromEpigraphs)
       } else {
@@ -84,7 +84,7 @@ const Ask: React.FC = () => {
           setEpigraphs(response.epigraphs)
 
           const sourcesFromEpigraphs = response.epigraphs.map(epigraph => 
-            `Epigraph ${epigraph.id}${epigraph.title ? `: ${epigraph.title}` : ""}`
+            `Epigraph ${epigraph.dasi_id}${epigraph.title ? `: ${epigraph.title}` : ""}`
           )
           setSources(sourcesFromEpigraphs)
         } else {

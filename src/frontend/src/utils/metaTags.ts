@@ -62,7 +62,7 @@ export const generateEpigraphMetaTags = (epigraph: EpigraphOut): MetaTagsData =>
   return {
     title,
     description,
-    url: `${baseUrl}/epigraphs/${epigraph.id}`,
+    url: `${baseUrl}/epigraphs/${epigraph.dasi_id}`,
     image,
     type: "article"
   }
@@ -111,7 +111,7 @@ export const generateEpigraphStructuredData = (epigraph: EpigraphOut) => {
     "description": epigraph.epigraph_text 
       ? epigraph.epigraph_text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
       : `Ancient South Arabian inscription ${epigraph.dasi_id}`,
-    "url": `${baseUrl}/epigraphs/${epigraph.id}`,
+    "url": `${baseUrl}/epigraphs/${epigraph.dasi_id}`,
     "identifier": epigraph.dasi_id,
     "creator": {
       "@type": "Organization", 
@@ -135,7 +135,7 @@ export const generateEpigraphStructuredData = (epigraph: EpigraphOut) => {
       : undefined,
     "mainEntityOfPage": {
       "@type": "WebPage",
-      "@id": `${baseUrl}/epigraphs/${epigraph.id}`
+      "@id": `${baseUrl}/epigraphs/${epigraph.dasi_id}`
     },
     "isPartOf": {
       "@type": "Collection",

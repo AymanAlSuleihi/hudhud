@@ -90,7 +90,7 @@ const Epigraph: React.FC = () => {
       setIsLoading(true)
       setError(null)
 
-      EpigraphsService.epigraphsReadEpigraphById({ epigraphId: parseInt(urlKey) })
+      EpigraphsService.epigraphsReadEpigraphByDasiId({ dasiId: parseInt(urlKey) })
         .then((response) => {
           setEpigraph(response)
           updateMapMarkers(response, [])
@@ -260,8 +260,8 @@ const Epigraph: React.FC = () => {
         structuredData={generateEpigraphStructuredData(epigraph)}
       />
       <div 
-        ref={el => epigraphRefs.current[epigraph.id.toString()] = el}
-        data-epigraph-id={epigraph.id.toString()}
+        ref={el => epigraphRefs.current[epigraph.dasi_id.toString()] = el}
+        data-epigraph-id={epigraph.dasi_id.toString()}
       >
         <EpigraphCard
           epigraph={epigraph}
