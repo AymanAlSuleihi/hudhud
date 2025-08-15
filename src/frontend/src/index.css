@@ -5,4 +5,45 @@
 
 @theme {
   --font-sans: "Montserrat", "sans-serif", "Noto Sans Old South Arabian";
+  --breakpoint-3xs: 475px;
+  --breakpoint-2xs: 540px;
+  --breakpoint-xs: 590px;
+}
+
+html {
+  scrollbar-gutter: stable;
+  height: 100%;
+}
+
+body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100%;
+  overflow: visible;
+}
+
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+.select-listbox {
+  animation: enable-interactions 150ms ease-out forwards;
+}
+
+@keyframes enable-interactions {
+  0% {
+    pointer-events: none;
+  }
+  99% {
+    pointer-events: none;
+  }
+  100% {
+    pointer-events: auto;
+  }
 }

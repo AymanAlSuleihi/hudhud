@@ -8,9 +8,10 @@ function App() {
   return (
     <>
       <Refine dataProvider={dataProvider}>
-        <div className="flex flex-col min-h-screen">
-          <Navbar />
-          <main className="flex-grow">
+        <Navbar />
+        {/* <div className="min-h-screen lg:ml-60"> */}
+        <div className="min-h-screen mt-28">
+          <main className="p-4">
             <Outlet />
           </main>
           <Footer />
