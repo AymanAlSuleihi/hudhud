@@ -671,73 +671,85 @@ def link_to_objects(
 )
 def generate_embeddings_all(
     session: SessionDep,
+    background_tasks: BackgroundTasks,
+    skip_existing: bool = True
 ) -> dict:
     """
     Generate embeddings for all epigraphs.
     """
-    epigraphs = session.exec(select(Epigraph)).all()
-    embeddings_service = EmbeddingsService(session)
+    def generate_all_embeddings_task(session, skip_existing):
+        query = select(Epigraph)
+        if skip_existing:
+            query = query.where(Epigraph.embedding.is_(None))
+        epigraphs = session.exec(query).all()
+        embeddings_service = EmbeddingsService(session)
 
-    for epigraph in epigraphs:
-        if epigraph.embedding is not None:
-            continue
+        for epigraph in epigraphs:
+            text_parts = []
 
-        text_parts = []
+            def field_to_string(field_value):
+                if field_value is None:
+                    return ""
+                elif isinstance(field_value, str):
+                    return field_value
+                elif isinstance(field_value, (list, dict)):
+                    json_str = json.dumps(field_value, ensure_ascii=False)
+                    clean_str = re.sub(r'[{}\[\]",:]', "", json_str)
+                    clean_str = re.sub(r"\s+", " ", clean_str)
+                    return clean_str
+                else:
+                    return str(field_value)
 
-        def field_to_string(field_value):
-            if field_value is None:
-                return ""
-            elif isinstance(field_value, str):
-                return field_value
-            elif isinstance(field_value, (list, dict)):
-                json_str = json.dumps(field_value, ensure_ascii=False)
-                clean_str = re.sub(r'[{}\[\]",:]', "", json_str)
-                clean_str = re.sub(r"\s+", " ", clean_str)
-                return clean_str
-            else:
-                return str(field_value)
+            embedding_fields = [
+                "epigraph.epigraph_text",
+                "epigraph.translations",
+                "epigraph.general_notes",
+                "epigraph.apparatus_notes",
+                "epigraph.cultural_notes",
+                "object.support_notes",
+                "object.cultural_notes",
+                "object.deposit_notes",
+                "object.concordances",
+                "epigraph.bibliography",
+            ]
 
-        embedding_fields = [
-            "epigraph_text",
-            "translations",
-            "general_notes",
-            "apparatus_notes",
-            "cultural_notes",
-            "bibliography",
-        ]
+            epigraph_data = epigraph.dict()
+            object_data = epigraph.objects[0].dict() if epigraph.objects and len(epigraph.objects) > 0 else {}
+            for field_name in embedding_fields:
+                source, field = field_name.split(".")
+                data = epigraph_data if source == "epigraph" else object_data
+                if field in data and data[field]:
+                    field_value = data[field]
+                    text = ""
+                    if field == "epigraph_text":
+                        epigraph_text = epigraph.epigraph_text
+                        epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph_text)
+                        epigraph_text = re.sub(r"<[^>]*>", "", epigraph_text)
+                        field_value = epigraph_text
 
-        epigraph_data = epigraph.dict()
-        for field_name in embedding_fields:
-            if field_name in epigraph_data and epigraph_data[field_name]:
-                field_value = epigraph_data[field_name]
-                text = ""
-                if field_name == "epigraph_text":
-                    epigraph_text = epigraph.epigraph_text
-                    epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph_text)
-                    epigraph_text = re.sub(r"<[^>]*>", "", epigraph_text)
-                    field_value = epigraph_text
+                    text = field_to_string(field_value)
+                    if text.strip():
+                        text_parts.append(text)
 
-                text = field_to_string(field_value)
-                if text.strip():
-                    text_parts.append(text)
+            combined_text = " ".join(text_parts)
 
-        combined_text = " ".join(text_parts)
+            if not combined_text.strip():
+                logging.warning(f"Epigraph ID {epigraph.id} has no valid text for embedding")
+                continue
 
-        if not combined_text.strip():
-            continue
+            embedding = embeddings_service.generate_embedding(combined_text)
 
-        embedding = embeddings_service.generate_embedding(combined_text)
+            if embedding is None:
+                continue
 
-        if embedding is None:
-            continue
+            crud_epigraph.update(
+                session,
+                db_obj=epigraph,
+                obj_in=EpigraphUpdate(embedding=embedding)
+            )
 
-        crud_epigraph.update(
-            session,
-            db_obj=epigraph,
-            obj_in=EpigraphUpdate(embedding=embedding)
-        )
-
-    return {"status": "success", "message": "Embeddings generated for all epigraphs"}
+    background_tasks.add_task(generate_all_embeddings_task, session, skip_existing)
+    return {"status": "started", "message": "Embeddings generation started in background"}
 
 
 @router.put(
@@ -774,24 +786,32 @@ def generate_embeddings(
             return str(field_value)
 
     embedding_fields = [
-        "epigraph_text",
-        "translations",
-        "general_notes",
-        "apparatus_notes",
-        "cultural_notes",
-        "bibliography",
+        "epigraph.epigraph_text",
+        "epigraph.translations",
+        "epigraph.general_notes",
+        "epigraph.apparatus_notes",
+        "epigraph.cultural_notes",
+        "object.support_notes",
+        "object.cultural_notes",
+        "object.deposit_notes",
+        "object.concordances",
+        "epigraph.bibliography",
     ]
 
     epigraph_data = epigraph.dict()
+    object_data = epigraph.objects[0].dict() if epigraph.objects and len(epigraph.objects) > 0 else {}
     for field_name in embedding_fields:
-        if field_name in epigraph_data and epigraph_data[field_name]:
-            field_value = epigraph_data[field_name]
+        source, field = field_name.split(".")
+        data = epigraph_data if source == "epigraph" else object_data
+        if field in data and data[field]:
+            field_value = data[field]
             text = ""
-            if field_name == "epigraph_text":
+            if field == "epigraph_text":
                 epigraph_text = epigraph.epigraph_text
                 epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph_text)
                 epigraph_text = re.sub(r"<[^>]*>", "", epigraph_text)
                 field_value = epigraph_text
+
             text = field_to_string(field_value)
             if text.strip():
                 text_parts.append(text)
