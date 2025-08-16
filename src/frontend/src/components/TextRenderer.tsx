@@ -242,7 +242,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
   }
 
   return (
-    <div>
+    <div className="w-full">
       <div className="flex flex-col lg:flex-row lg:items-center text-sm mb-2 ml-5 gap-2">
         <div className="flex-shrink-0 w-auto">
           <ToggleButton 
@@ -262,8 +262,8 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         </div>
       </div>
 
-      <div className="font-sans relative">
-        <div className="ml-8 pl-4 leading-tight">
+      <div className="font-sans relative w-full">
+        <div className="ml-8 pl-4 leading-tight w-full">
           {(() => {
             const content: React.ReactNode[] = []
             let currentLineNum: number | null = null
