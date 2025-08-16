@@ -1,10 +1,10 @@
 import React, { useEffect } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, Link } from "react-router-dom"
 import { EpigraphsService, EpigraphOut } from "../client"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MapComponent } from "../components/Map"
-import { MapTrifold } from "@phosphor-icons/react"
+import { MapTrifold, ArrowLeft } from "@phosphor-icons/react"
 import { MetaTags } from "../components/MetaTags"
 import { generateEpigraphMetaTags, generateEpigraphStructuredData, getDefaultMetaTags } from "../utils/metaTags"
 
@@ -259,6 +259,17 @@ const Epigraph: React.FC = () => {
         data={generateEpigraphMetaTags(epigraph)} 
         structuredData={generateEpigraphStructuredData(epigraph)}
       />
+
+      <div className="mb-6">
+        <Link 
+          to="/epigraphs" 
+          className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap"
+        >
+          <ArrowLeft size={16} />
+          <span>Back to Epigraphs</span>
+        </Link>
+      </div>
+
       <div 
         ref={el => epigraphRefs.current[epigraph.dasi_id.toString()] = el}
         data-epigraph-id={epigraph.dasi_id.toString()}
