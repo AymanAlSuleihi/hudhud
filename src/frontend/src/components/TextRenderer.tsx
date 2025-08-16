@@ -98,12 +98,21 @@ interface TextRendererProps {
   showMarkers?: boolean
   highlightedLines?: number[]
   onLineHover?: (lineNum: number | null) => void
+  onLineHoverToggle?: (enabled: boolean) => void
 }
 
-const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialShowMarkers = true, highlightedLines = [], onLineHover }) => {
+const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialShowMarkers = true, highlightedLines = [], onLineHover, onLineHoverToggle }) => {
   const [showMarkers, setShowMarkers] = useState(initialShowMarkers)
+  const [enableLineHover, setEnableLineHover] = useState(true)
   const parser = new DOMParser()
   const doc = parser.parseFromString(text, "text/xml")
+
+  const handleLineHoverToggle = (enabled: boolean) => {
+    setEnableLineHover(enabled)
+    if (onLineHoverToggle) {
+      onLineHoverToggle(enabled)
+    }
+  }
 
   const renderNode = (node: Node): React.ReactNode => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -157,8 +166,8 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         const numericLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : undefined
         const allLbElements = Array.from(doc.querySelectorAll("lb"))
         const isFirstLbElement = allLbElements[0] === element
-        const handleEnter = () => onLineHover && numericLineNum && onLineHover(numericLineNum)
-        const handleLeave = () => onLineHover && onLineHover(null)
+        const handleEnter = () => enableLineHover && onLineHover && numericLineNum && onLineHover(numericLineNum)
+        const handleLeave = () => enableLineHover && onLineHover && onLineHover(null)
 
         if (lineNum === "1" && isFirstLbElement) {
           return (
@@ -256,6 +265,18 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
             </span>
           </ToggleButton>
         </div>
+        <div className="flex-shrink-0 w-auto">
+          <ToggleButton 
+            isSelected={enableLineHover}
+            onChange={handleLineHoverToggle}
+            className="group flex items-center gap-2 px-3 py-2 h-8 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors cursor-pointer w-auto min-w-[130px] max-w-[160px] font-semibold"
+          >
+            {enableLineHover ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            <span className="font-medium whitespace-nowrap">
+              Line Hover
+            </span>
+          </ToggleButton>
+        </div>
         <div className="flex items-center gap-1 p-2 lg:ml-3 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
           <WarningCircle size={16} className="min-w-[16px] min-h-[16px]" />
           Development in progress - Text rendering may be inaccurate, incomplete, or misaligned.
@@ -276,13 +297,13 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
                 const visualHighlightClass = isHighlighted ? "bg-yellow-100/70 shadow-md border-l-4 scale-105 backdrop-blur-sm" : ""
                 const layoutClass = "-ml-10 pl-10"
                 const lineNumForClosure = currentLineNum
-                const handleLineEnter = () => onLineHover && lineNumForClosure && onLineHover(lineNumForClosure)
-                const handleLineLeave = () => onLineHover && onLineHover(null)
+                const handleLineEnter = () => enableLineHover && onLineHover && lineNumForClosure && onLineHover(lineNumForClosure)
+                const handleLineLeave = () => enableLineHover && onLineHover && onLineHover(null)
 
                 content.push(
                   <div 
                     key={`line-${currentLineNum || lineCounter++}`} 
-                    className={`${visualHighlightClass} ${layoutClass} border-yellow-400 transition-[background-color,border-color,box-shadow,opacity] duration-200 leading-relaxed block w-full min-h-[1.5rem] clear-both cursor-pointer`}
+                    className={`${visualHighlightClass} ${layoutClass} border-yellow-400 transition-[background-color,border-color,box-shadow,opacity] duration-200 leading-relaxed block w-full min-h-[1.5rem] clear-both`}
                     onMouseEnter={handleLineEnter}
                     onMouseLeave={handleLineLeave}
                   >

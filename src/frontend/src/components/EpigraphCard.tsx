@@ -28,6 +28,8 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
     lines: [],
   })
 
+  const [enableLineHover, setEnableLineHover] = React.useState(true)
+
   const [enlargedImage, setEnlargedImage] = React.useState<{
     images: Array<{
       id: string
@@ -243,6 +245,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                   text={epigraph.epigraph_text} 
                   highlightedLines={highlightedLines.lines}
                   onLineHover={(lineNum: number | null) => {
+                    if (!enableLineHover) return
                     if (lineNum == null) {
                       setHighlightedLines({ transIdx: -1, lines: [] })
                       return
@@ -264,6 +267,12 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                     }
                     setHighlightedLines({ transIdx: foundTransIdx, lines: [lineNum] })
                   }}
+                  onLineHoverToggle={(enabled) => {
+                    setEnableLineHover(enabled)
+                    if (!enabled) {
+                      setHighlightedLines({ transIdx: -1, lines: [] })
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -284,19 +293,27 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                             return (
                               <span 
                                 key={i} 
-                                className={`flex py-[2px] cursor-pointer transition-all duration-200 border-yellow-400
+                                className={`flex py-[2px] transition-all duration-200 border-yellow-400
                                   ${highlightedLines.transIdx === idx && highlightedLines.lines.includes(displayLineNum) ? "bg-yellow-100/70 backdrop-blur-sm shadow-md border-l-4 scale-[103%]" : ""}`}
                                 onMouseEnter={() => {
-                                  setHighlightedLines({ transIdx: idx, lines: [displayLineNum] })
+                                  if (enableLineHover) {
+                                    setHighlightedLines({ transIdx: idx, lines: [displayLineNum] })
+                                  }
                                 }}
                                 onMouseLeave={() => {
-                                  setHighlightedLines({ transIdx: -1, lines: [] })
+                                  if (enableLineHover) {
+                                    setHighlightedLines({ transIdx: -1, lines: [] })
+                                  }
                                 }}
                                 onFocus={() => {
-                                  setHighlightedLines({ transIdx: idx, lines: [displayLineNum] })
+                                  if (enableLineHover) {
+                                    setHighlightedLines({ transIdx: idx, lines: [displayLineNum] })
+                                  }
                                 }}
                                 onBlur={() => {
-                                  setHighlightedLines({ transIdx: -1, lines: [] })
+                                  if (enableLineHover) {
+                                    setHighlightedLines({ transIdx: -1, lines: [] })
+                                  }
                                 }}
                                 data-line={i + 1}
                               >
@@ -319,16 +336,16 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                           {trans.notes.map((note: any, noteIdx: number) => (
                             <div 
                               key={noteIdx} 
-                              className={`flex py-[2px] rounded text-xs cursor-pointer transition-all duration-200 border-blue-300
+                              className={`flex py-[2px] rounded text-xs transition-all duration-200 border-blue-300
                                 ${note.line &&
                                   highlightedLines.transIdx === idx && 
                                   parseLineRange(note.line).some(l => 
                                     highlightedLines.lines.includes(l)) ? "!bg-blue-100/70 backdrop-blur-sm shadow-md border-l-4 scale-105" : ""}`}
-                            onMouseEnter={() => note.line && setHighlightedLines({
+                            onMouseEnter={() => note.line && enableLineHover && setHighlightedLines({
                               transIdx: idx,
                               lines: parseLineRange(note.line)
                             })}
-                            onMouseLeave={() => setHighlightedLines({
+                            onMouseLeave={() => enableLineHover && setHighlightedLines({
                               transIdx: -1,
                               lines: []
                             })}
