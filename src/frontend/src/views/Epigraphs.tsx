@@ -322,14 +322,14 @@ const Epigraphs: React.FC = () => {
           return Array.isArray(coords) && coords.length === 2 && coords.every(n => typeof n === "number")
         })
         .map(e => {
-          const isCurrent = visibleEpigraphId === e.id.toString()
+          const isCurrent = visibleEpigraphId === e.dasi_id.toString()
           let color = "#2563EB"
           if (!isCurrent) {
             const accuracy = e.sites_objs?.[0]?.coordinates_accuracy
             color = accuracy === "approximate" ? "#F59E0B" : "#10B981" 
           }
           return {
-            id: e.id.toString(),
+            id: e.dasi_id.toString(),
             coordinates: e.sites_objs?.[0]?.coordinates as [number, number],
             color,
             label: `${e.title} - ${(e.sites_objs?.[0]?.modern_name) || "Unknown"}`,
@@ -456,7 +456,7 @@ const Epigraphs: React.FC = () => {
 
     const checkVisibleEpigraph = () => {
       const epigraphElements = epigraphs.epigraphs
-        .map(e => ({ id: e.id.toString(), element: epigraphRefs.current[e.id.toString()] }))
+        .map(e => ({ id: e.dasi_id.toString(), element: epigraphRefs.current[e.dasi_id.toString()] }))
         .filter(({ element }) => element !== null)
 
       if (epigraphElements.length === 0) return
