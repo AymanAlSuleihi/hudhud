@@ -188,9 +188,12 @@ const Epigraphs: React.FC = () => {
       if (searchInputRef.current) {
         searchInputRef.current.value = query
       }
+      const searchSort = searchParams.get("sort") ? sort : "_score"
+      const searchOrder = searchParams.get("sort") ? order : "desc"
+      fetchEpigraphs(page, size, searchSort, searchOrder, {}, query)
+    } else {
+      fetchEpigraphs(page, size, sort, order, {}, query)
     }
-
-    fetchEpigraphs(page, size, sort, order, {}, query)
   }, [])
 
   const handleSearch = (term: string) => {
@@ -236,7 +239,11 @@ const Epigraphs: React.FC = () => {
   }
 
   const handleSortChange = (newSort: string) => {
-    fetchEpigraphs(1, pageSize, newSort, sortOrder, filters, searchTerm)
+    let newOrder = sortOrder
+    if (newSort === "_score" && sortOrder === "asc") {
+      newOrder = "desc"
+    }
+    fetchEpigraphs(1, pageSize, newSort, newOrder, filters, searchTerm)
   }
 
   const handleOrderChange = (newOrder: string) => {
@@ -602,9 +609,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.epigraphText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.epigraphText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            <span className="hidden sm:inline">Epigraph Text</span>
+              <span className="hidden sm:inline">Epigraph Text</span>
               <span className="sm:hidden">Text</span>
             </span>
           </ToggleButton>
@@ -619,9 +626,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.translationText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.translationText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            <span className="hidden sm:inline">Translations</span>
+              <span className="hidden sm:inline">Translations</span>
               <span className="sm:hidden">Trans.</span>
             </span>
           </ToggleButton>
@@ -636,9 +643,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.notes ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.notes ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            Notes
+              Notes
             </span>
           </ToggleButton>
           <ToggleButton
@@ -652,9 +659,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.bibliography ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.bibliography ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            <span className="hidden sm:inline">Bibliography</span>
+              <span className="hidden sm:inline">Bibliography</span>
               <span className="sm:hidden">Biblio.</span>
             </span>
           </ToggleButton>
@@ -669,9 +676,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.title ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.title ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            Title
+              Title
             </span>
           </ToggleButton>
           <ToggleButton
@@ -685,9 +692,9 @@ const Epigraphs: React.FC = () => {
               }
             `}
           >
-{searchFields.physical ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+            {searchFields.physical ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
             <span className="flex items-center gap-1">
-                            <span className="hidden sm:inline">Physical Attributes</span>
+              <span className="hidden sm:inline">Physical Attributes</span>
               <span className="sm:hidden">Phys.</span>
             </span>
           </ToggleButton>
@@ -824,38 +831,38 @@ const Epigraphs: React.FC = () => {
         )}
       </div>
 
-              {Object.keys(filters).length > 0 && (
-                <div className="mb-4">
+      {Object.keys(filters).length > 0 && (
+        <div className="mb-4">
           <div className="text-sm text-gray-800">
-                  <span className="font-semibold mb-2 block">Active filters:</span>
-                  <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                    {Object.entries(filters).map(([key, value]) => {
-                      let displayValue: string
-                      if (typeof value === "boolean") {
-                        displayValue = value ? "Yes" : "No"
-                      } else if (Array.isArray(value)) {
-                        displayValue = value.join(", ")
-                      } else {
-                        displayValue = String(value)
-                      }
-                      return (
-                                                  <button
-key={key} 
-                            onClick={() => handleFilterChange(key as keyof Filters, "all")}
-                            className="inline-flex items-center gap-1 px-2 py-1 border border-gray-900 rounded text-xs font-semibold shadow-sm flex-shrink-0 hover:border-gray-700 hover:text-gray-700 transition-colors"
-                            title="Remove filter"
-                          >
-<span className="hidden sm:inline">{filterLabels[key as keyof typeof filterLabels]}:</span>
+            <span className="font-semibold mb-2 block">Active filters:</span>
+            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+              {Object.entries(filters).map(([key, value]) => {
+                let displayValue: string
+                if (typeof value === "boolean") {
+                  displayValue = value ? "Yes" : "No"
+                } else if (Array.isArray(value)) {
+                  displayValue = value.join(", ")
+                } else {
+                  displayValue = String(value)
+                }
+                return (
+                  <button 
+                    key={key} 
+                    onClick={() => handleFilterChange(key as keyof Filters, "all")}
+                    className="inline-flex items-center gap-1 px-2 py-1 border border-gray-900 rounded text-xs font-semibold shadow-sm flex-shrink-0 hover:border-gray-700 hover:text-gray-700 transition-colors"
+                    title="Remove filter"
+                  >
+                    <span className="hidden sm:inline">{filterLabels[key as keyof typeof filterLabels]}:</span>
                     <span className="sm:hidden">{filterLabels[key as keyof typeof filterLabels].split(' ')[0]}:</span>
                     <span className="max-w-16 sm:max-w-24 md:max-w-32 truncate">{displayValue}</span>
-                            <X size={10} className="flex-shrink-0" />
-                          </button>
-                                              )
-                    })}
-                  </div>
-                </div>
+                    <X size={10} className="flex-shrink-0" />
+                  </button>
+                )
+              })}
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-4 mb-6">
         {epigraphs && (
@@ -868,62 +875,65 @@ key={key}
 
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end flex-wrap w-full sm:w-auto sm:justify-end">
           <div className="flex flex-row gap-2 flex-wrap">
-          {Object.keys(filters).length > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
-            >
-              <span className="hidden sm:inline">Clear All Filters</span>
-              <span className="sm:hidden">Clear</span>
-              <X size={12} />
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 text-xs sm:text-sm whitespace-nowrap min-w-fit cursor-pointer"
-          >
-            <Funnel size={14} />
-            <span className="hidden sm:inline">{showFilters ? "Hide Filters" : "Show Filters"}</span>
-              <span className="sm:hidden">Filters</span>
             {Object.keys(filters).length > 0 && (
-              <span className="bg-white text-zinc-600 text-xs px-1 py-1 rounded-full font-medium min-w-5 h-5 flex items-center justify-center">
-                {Object.keys(filters).length}
-              </span>
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
+              >
+                <span className="hidden sm:inline">Clear All Filters</span>
+                <span className="sm:hidden">Clear</span>
+                <X size={12} />
+              </button>
             )}
-          </button>
-</div>
 
-<div className="flex flex-row gap-2 flex-wrap">
-          <MySelect
-            label="Sort By"
-            selectedKey={sortField}
-            onSelectionChange={(key) => {
-              if (typeof key === "string") {
-                handleSortChange(key)
-              }
-            }}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 text-xs sm:text-sm whitespace-nowrap min-w-fit cursor-pointer"
+            >
+              <Funnel size={14} />
+              <span className="hidden sm:inline">{showFilters ? "Hide Filters" : "Show Filters"}</span>
+              <span className="sm:hidden">Filters</span>
+              {Object.keys(filters).length > 0 && (
+                <span className="bg-white text-zinc-600 text-xs px-1 py-1 rounded-full font-medium min-w-5 h-5 flex items-center justify-center">
+                  {Object.keys(filters).length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex flex-row gap-2 flex-wrap">
+            <MySelect
+              label="Sort By"
+              selectedKey={sortField}
+              onSelectionChange={(key) => {
+                if (typeof key === "string") {
+                  handleSortChange(key)
+                }
+              }}
               buttonClassName="h-8 max-h-8 min-w-24 sm:min-w-32 text-xs sm:text-sm"
-          >
-            <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
-            <MyItem key="period" id="period">Period</MyItem>
-            <MyItem key="title" id="title">Title</MyItem>
-            <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
-          </MySelect>
+            >
+              {searchTerm && (
+                <MyItem key="_score" id="_score">Relevance</MyItem>
+              )}
+              <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
+              <MyItem key="period" id="period">Period</MyItem>
+              <MyItem key="title" id="title">Title</MyItem>
+              <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
+            </MySelect>
 
-          <MySelect
-            label="Sort Order"
-            selectedKey={sortOrder}
-            onSelectionChange={(key) => {
-              if (typeof key === "string") {
-                handleOrderChange(key)
-              }
-            }}
+            <MySelect
+              label="Sort Order"
+              selectedKey={sortOrder}
+              onSelectionChange={(key) => {
+                if (typeof key === "string") {
+                  handleOrderChange(key)
+                }
+              }}
               buttonClassName="h-8 max-h-8 min-w-20 sm:min-w-28 text-xs sm:text-sm"
-          >
-            <MyItem key="asc" id="asc">Ascending</MyItem>
-            <MyItem key="desc" id="desc">Descending</MyItem>
-          </MySelect>
+            >
+              <MyItem key="asc" id="asc">Ascending</MyItem>
+              <MyItem key="desc" id="desc">Descending</MyItem>
+            </MySelect>
           </div>
         </div>
       </div>
