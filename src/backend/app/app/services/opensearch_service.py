@@ -513,8 +513,11 @@ class OpenSearchService:
         stemmed_fields = [f for f in top_fields]
         keyword_fields = [f + ".keyword" for f in top_fields]
 
+        normalised_query = re.sub(r'_', ' ', query)
+        normalised_query = " ".join(normalised_query.split())
+
         parser = QueryParser()
-        parsed_query = parser.parse_query(query)
+        parsed_query = parser.parse_query(normalised_query)
 
         must_queries = []
         should_queries = []
@@ -790,7 +793,7 @@ class OpenSearchService:
                             "fields": stemmed_fields,
                             "type": "best_fields",
                             "minimum_should_match": "50%",
-                            "boost": 3
+                            "boost": 1
                         }
                     })
                     should_queries.append({

@@ -201,9 +201,11 @@ class SearchService:
         Full text search epigraphs by searching within specified fields.
         If include_objects is True, will also search in related objects using object_fields.
         """
-        logging.info(f"Full text searching: {search_text}, fields: {fields}, include_objects: {include_objects}, object_fields: {object_fields}, sort_field: {sort_field}, sort_order: {sort_order}")
+        logging.info(
+            f"Full text searching: {search_text}, fields: {fields}, include_objects: {include_objects}, object_fields: {object_fields}, sort_field: {sort_field}, sort_order: {sort_order}"
+        )
 
-        cleaned_text = re.sub(r'[!@#$%^&*()+=\[\]{};:"\\|,.<>/?]', " ", search_text)
+        cleaned_text = re.sub(r'[!@#$%^&*()+=\[\]{};:"\\|,._<>/?]', " ", search_text)
         processed_search_text = " ".join(cleaned_text.split())
 
         base_query = select(Epigraph)
