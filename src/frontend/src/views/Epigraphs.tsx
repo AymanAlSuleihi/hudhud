@@ -194,10 +194,18 @@ const Epigraphs: React.FC = () => {
   const handleSearch = (term: string) => {
     if (term.trim()) {
       setSearchTerm(term)
-      fetchEpigraphs(1, pageSize, sortField, sortOrder, filters, term)
+      const newSortField = "_score"
+      const newSortOrder = "desc"
+      setSortField(newSortField)
+      setSortOrder(newSortOrder)
+      fetchEpigraphs(1, pageSize, newSortField, newSortOrder, filters, term)
     } else {
       setSearchTerm("")
-      fetchEpigraphs(1, pageSize, sortField, sortOrder, filters, "")
+      const newSortField = sortField === "_score" ? "dasi_id" : sortField
+      if (sortField === "_score") {
+        setSortField("dasi_id")
+      }
+      fetchEpigraphs(1, pageSize, newSortField, sortOrder, filters, "")
     }
   }
 
