@@ -1,10 +1,10 @@
 import React, { useEffect } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { EpigraphsService, EpigraphOut } from "../client"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MapComponent } from "../components/Map"
-import { MapTrifold, ArrowLeft } from "@phosphor-icons/react"
+import { MapTrifold, ArrowLeft, WarningCircle } from "@phosphor-icons/react"
 import { MetaTags } from "../components/MetaTags"
 import { generateEpigraphMetaTags, generateEpigraphStructuredData, getDefaultMetaTags } from "../utils/metaTags"
 
@@ -98,7 +98,14 @@ const Epigraph: React.FC = () => {
         })
         .catch((err) => {
           console.error("Error fetching epigraph:", err)
-          setError("Failed to load epigraph. Please try again.")
+          const status = (err && (err.response?.status || err.status)) || null
+          if (status === 403) {
+            setError("This epigraph is not yet published.")
+          } else if (status === 404) {
+            setError("The requested epigraph does not exist.")
+          } else {
+            setError("Failed to load epigraph. Please try again.")
+          }
         })
         .finally(() => {
           setIsLoading(false)
@@ -198,11 +205,23 @@ const Epigraph: React.FC = () => {
 
   if (error) {
     return (
-      <div className="max-w-7xl p-4 mx-auto">
+      <div className="max-w-4xl p-4 mx-auto">
         <MetaTags data={getDefaultMetaTags()} />
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Error</h1>
-          <p className="text-red-600">{error}</p>
+
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign('/epigraphs')}
+            className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            <span>Back</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-sm">
+          <WarningCircle size={16} className="min-w-[16px] min-h-[16px]" />
+          <div>{error}</div>
         </div>
       </div>
     )
@@ -212,9 +231,20 @@ const Epigraph: React.FC = () => {
     return (
       <div className="max-w-7xl p-4 mx-auto">
         <MetaTags data={getDefaultMetaTags()} />
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Epigraph Not Found</h1>
-          <p>The requested epigraph could not be found.</p>
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign('/epigraphs')}
+            className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            <span>Back</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 p-2 lg:ml-3 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-sm">
+          <WarningCircle size={16} className="min-w-[16px] min-h-[16px]" />
+          <div>The requested epigraph could not be found.</div>
         </div>
       </div>
     )
@@ -261,13 +291,14 @@ const Epigraph: React.FC = () => {
       />
 
       <div className="mb-6">
-        <Link 
-          to="/epigraphs" 
-          className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap"
+        <button
+          type="button"
+          onClick={() => window.history.length > 1 ? window.history.back() : window.location.assign('/epigraphs')}
+          className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap cursor-pointer"
         >
           <ArrowLeft size={16} />
-          <span>Back to Epigraphs</span>
-        </Link>
+          <span>Back</span>
+        </button>
       </div>
 
       <div 

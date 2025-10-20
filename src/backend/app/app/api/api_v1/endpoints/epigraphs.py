@@ -255,6 +255,11 @@ def read_epigraph_by_dasi_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Epigraph not found",
         )
+    if not epigraph.dasi_published:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Epigraph not published",
+        )
     return epigraph
 
 
