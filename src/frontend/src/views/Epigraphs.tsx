@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
-import { X, MagnifyingGlass, Funnel, MapTrifold, Keyboard, ToggleLeft, ToggleRight } from "@phosphor-icons/react"
-import { 
-  SearchField, 
+import { useSearchParams, useNavigate } from "react-router-dom"
+import { X, MagnifyingGlass, Funnel, MapTrifold, Keyboard, ToggleLeft, ToggleRight, Hash, ArrowRight } from "@phosphor-icons/react"
+import {
+  SearchField,
   Label,
   ToggleButton,
 } from "react-aria-components"
@@ -58,6 +58,8 @@ const Epigraphs: React.FC = () => {
   const [pageInputValue, setPageInputValue] = useState(currentPage.toString())
   const [showKeyboard, setShowKeyboard] = useState(false)
   const [mapVisible, setMapVisible] = useState(true)
+  const navigate = useNavigate()
+  const [dasiIdInput, setDasiIdInput] = useState("")
   const [mapMarkers, setMapMarkers] = useState<Array<{
     id: string
     coordinates: [number, number]
@@ -737,6 +739,42 @@ const Epigraphs: React.FC = () => {
             </div>
           </div>
         </MyDisclosure>
+
+      <SearchField className="max-w-xs mt-4 mb-4">
+        <Label className="block text-sm font-medium mb-1">Go to DASI ID</Label>
+        <div className="relative">
+          <input
+            type="number"
+            placeholder="e.g. 1234"
+            value={dasiIdInput}
+            onChange={(e) => setDasiIdInput(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const val = dasiIdInput.trim()
+                if (val) navigate(`/epigraphs/${parseInt(val, 10)}`)
+              }
+            }}
+            className="w-full border border-gray-400 p-2 pl-9 pr-12 rounded h-8"
+          />
+          <Hash className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            <button
+              type="button"
+              onClick={() => {
+                const val = dasiIdInput.trim()
+                if (!val) return
+                const id = parseInt(val, 10)
+                if (isNaN(id)) return
+                navigate(`/epigraphs/${id}`)
+              }}
+              className="flex items-center justify-center rounded hover:text-gray-700 transition-colors font-semibold h-6 w-6"
+              title="Go to epigraph"
+            >
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      </SearchField>
       </div>
 
       <div className="">
