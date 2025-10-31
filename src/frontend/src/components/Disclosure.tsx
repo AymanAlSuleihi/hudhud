@@ -16,7 +16,7 @@ export const MyDisclosure: React.FC<MyDisclosureProps> = ({title, children, ...p
           <Heading>
             <Button 
               slot="trigger"
-              className="flex items-center gap-2 font-medium hover:text-gray-600"
+              className="flex items-center gap-2 font-medium hover:text-gray-600 w-full"
             >
               <span className="text-sm">{isExpanded ? <CaretDown /> : <CaretRight />}</span>
               {title}

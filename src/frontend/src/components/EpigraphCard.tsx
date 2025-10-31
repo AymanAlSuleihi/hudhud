@@ -12,6 +12,7 @@ interface EpigraphCardProps {
   notes?: boolean
   bibliography?: boolean
   hideHudhudLink?: boolean
+  compact?: boolean // Force compact/column layout regardless of screen size
 }
 
 export const EpigraphCard: React.FC<EpigraphCardProps> = ({
@@ -19,6 +20,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
   notes = false,
   bibliography = false,
   hideHudhudLink = false,
+  compact = false,
 }) => {
   const [highlightedLines, setHighlightedLines] = React.useState<{
     transIdx: number,
@@ -107,7 +109,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
   }
 
   return (
-    <div className="border border-gray-400 p-4 rounded-sm backdrop-blur-xs drop-shadow-md shadow-sm">
+    <div className="border border-gray-400 p-4 rounded-sm shadow-sm">
       <div className="flex flex-col sm:flex-row sm:flex-wrap justify-between items-start sm:items-center gap-2 border-b border-gray-200 pb-4 mb-4">
         <div className="flex-grow">
           <h2 className="font-bold text-lg">
@@ -153,8 +155,8 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
         </div>
       </div>
 
-      <div className="flex flex-col-reverse md:flex-row gap-0 mt-2">
-        <div className="flex-1 min-w-0 md:pr-6">
+      <div className={compact ? "flex flex-col-reverse gap-0 mt-2" : "flex flex-col-reverse md:flex-row gap-0 mt-2"}>
+        <div className={compact ? "flex-1 min-w-0" : "flex-1 min-w-0 md:pr-6"}>
           {Array.isArray((epigraph as any).images) && (epigraph as any).images.length > 0 && (
             <div className="mb-4 border-gray-200 pb-4">
               <div className="flex flex-wrap gap-4">
@@ -480,279 +482,477 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
               </MyDisclosure>
             </div>
           )}
-        </div>
 
-        <div className="w-full md:w-100 flex-shrink-0 md:border-t-0 md:border-l border-gray-200 bg-white/20 backdrop-blur-xs md:bg-transparent md:backdrop-blur-none">
-          <div className="flex flex-col divide-y divide-gray-200 text-sm">
-            {(epigraph.period || epigraph.chronology_conjectural || epigraph.mentioned_date || 
-              (epigraph.objects && epigraph.objects.some(obj => obj.start_date && obj.end_date))) && (
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-700 mb-2">Chronological</h3>
-              <div>
-                <span className="font-medium">Period:</span> {epigraph.period || "Unknown"}
-                {epigraph.period && epigraph.chronology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
-                {epigraph.objects && epigraph.objects.length > 0 && (
-                  <>
-                    {epigraph.objects.map((obj) => (
-                      <div>
-                        {obj.start_date && obj.end_date && (
-                          <>
-                            <span className="font-medium">Range: </span>{obj.start_date} - {obj.end_date}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-                {epigraph.mentioned_date && (
-                  <div className="mt-1">
-                    <span className="font-medium">Mentioned Date:</span> {epigraph.mentioned_date}
-                  </div>
-                )}
-              </div>
-            </div>
-            )}
-
-            {((epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
-              obj.support_type_level_1 || obj.materials || obj.shape || obj.measures || 
-              (Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0)
-            )) || epigraph.letter_measure) && (
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-700 mb-2">Physical</h3>
-              {epigraph.objects && epigraph.objects.length > 0 && (
-                <div>
-                  {epigraph.objects.map((obj, idx) => (
-                    <div key={idx} className="mb-3 last:mb-0">
-                      {obj.support_type_level_1 && (
-                        <div className="text-sm mb-1">
-                          <span className="font-medium">Support: </span> {[
-                            obj.support_type_level_1,
-                            obj.support_type_level_2,
-                            obj.support_type_level_3,
-                            obj.support_type_level_4,
-                          ].filter(Boolean).join(" → ") || "Unknown"}
+          {compact && (
+            <div className="mb-4">
+              <MyDisclosure title="Metadata" defaultExpanded={false}>
+                <div className="flex flex-col divide-y divide-gray-200 text-sm ml-2">
+                  {(epigraph.period || epigraph.chronology_conjectural || epigraph.mentioned_date || 
+                  (epigraph.objects && epigraph.objects.some(obj => obj.start_date && obj.end_date))) && (
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-700 mb-2">Chronological</h3>
+                    <div>
+                      <span className="font-medium">Period:</span> {epigraph.period || "Unknown"}
+                      {epigraph.period && epigraph.chronology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
+                      {epigraph.objects && epigraph.objects.length > 0 && (
+                        <>
+                          {epigraph.objects.map((obj) => (
+                            <div>
+                              {obj.start_date && obj.end_date && (
+                                <>
+                                  <span className="font-medium">Range: </span>{obj.start_date} - {obj.end_date}
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {epigraph.mentioned_date && (
+                        <div className="mt-1">
+                          <span className="font-medium">Mentioned Date:</span> {epigraph.mentioned_date}
                         </div>
                       )}
+                    </div>
+                    </div>
+                  )}
 
-                      {obj.materials && Array.isArray(obj.materials) && obj.materials.length > 0 && (
-                        <div className="mt-1">
-                          <span className="font-medium">Materials:</span> {obj.materials.join(", ")}
-                        </div>
-                      )}
+                  {((epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
+                    obj.support_type_level_1 || obj.materials || obj.shape || obj.measures || 
+                    (Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0)
+                  )) || epigraph.letter_measure) && (
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-700 mb-2">Physical</h3>
+                      {epigraph.objects && epigraph.objects.length > 0 && (
+                        <div>
+                          {epigraph.objects.map((obj, idx) => (
+                            <div key={idx} className="mb-3 last:mb-0">
+                              {obj.support_type_level_1 && (
+                                <div className="text-sm mb-1">
+                                  <span className="font-medium">Support: </span> {[
+                                    obj.support_type_level_1,
+                                    obj.support_type_level_2,
+                                    obj.support_type_level_3,
+                                    obj.support_type_level_4,
+                                  ].filter(Boolean).join(" → ") || "Unknown"}
+                                </div>
+                              )}
 
-                      {obj.shape && (
-                        <div className="mt-1">
-                          <span className="font-medium">Shape:</span> {obj.shape}
-                        </div>
-                      )}
+                              {obj.materials && Array.isArray(obj.materials) && obj.materials.length > 0 && (
+                                <div className="mt-1">
+                                  <span className="font-medium">Materials:</span> {obj.materials.join(", ")}
+                                </div>
+                              )}
 
-                      {obj.measures && (
-                        <div className="mt-1">
-                          <span className="font-medium">Measures:</span> {obj.measures}
-                        </div>
-                      )}
+                              {obj.shape && (
+                                <div className="mt-1">
+                                  <span className="font-medium">Shape:</span> {obj.shape}
+                                </div>
+                              )}
 
-                      {Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0 && (
-                        <div className="mt-1">
-                          <span className="font-medium">Decorations:</span>
-                          <div className="text-sm mt-1 space-y-2">
-                            {((obj as any).decorations as any[]).map((decoration: any, decIdx: number) => {
-                              const renderValue = (value: any, depth: number = 0): JSX.Element => {
-                                if (value === null || value === undefined) return <span className="text-gray-400">N/A</span>
-                                
-                                if (Array.isArray(value)) {
-                                  if (value.length === 0) return <span className="text-gray-400">None</span>
-                                  return (
-                                    <div className="space-y-2">
-                                      {value.map((item, idx) => (
-                                        <div key={idx} className={`${depth > 0 ? 'ml-3' : ''} ${idx > 0 ? 'border-t border-gray-200 pt-1' : ''}`}>
-                                          {renderValue(item, depth + 1)}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )
-                                }
-                                
-                                if (typeof value === 'object') {
-                                  return (
-                                    <div className="space-y-1">
-                                      {Object.entries(value)
-                                        .filter(([_, v]) => v !== null && v !== undefined && v !== '')
-                                        .map(([k, v]) => (
-                                          <div key={k} className={`${depth > 0 ? 'ml-3' : ''}`}>
-                                            <span className="font-medium capitalize">
-                                              {k.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-                                            </span>{' '}
-                                            <span className="">
-                                              {typeof v === 'object' || Array.isArray(v) ? '' : String(v)}
-                                            </span>
-                                            {(typeof v === 'object' || Array.isArray(v)) && (
-                                              <div className="mt-1">
-                                                {renderValue(v, depth + 1)}
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                    </div>
-                                  )
-                                }
-                                
-                                return <span className="text-gray-800">{String(value)}</span>
-                              }
+                              {obj.measures && (
+                                <div className="mt-1">
+                                  <span className="font-medium">Measures:</span> {obj.measures}
+                                </div>
+                              )}
 
-                              return (
-                                <div key={decIdx} className={`px-2 py-1 rounded-sm text-sm ${decIdx > 0 ? 'mt-2 pt-2' : ''}`}>
-                                  {typeof decoration === 'string' ? (
-                                    <span>{decoration}</span>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      {Object.entries(decoration).filter(([_, value]) => 
-                                        value !== null && value !== undefined && value !== ''
-                                      ).map(([key, value]) => (
-                                        <div key={key}>
-                                          <span className="font-medium capitalize">
-                                            {key.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
-                                          </span>{' '}
-                                          <span className="">
-                                            {typeof value === 'object' || Array.isArray(value) ? '' : String(value)}
-                                          </span>
-                                          {(typeof value === 'object' || Array.isArray(value)) && (
-                                            <div className="mt-1">
-                                              {renderValue(value, 1)}
+                              {Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0 && (
+                                <div className="mt-1">
+                                  <span className="font-medium">Decorations:</span>
+                                  <div className="text-sm mt-1 space-y-2">
+                                    {((obj as any).decorations as any[]).map((decoration: any, decIdx: number) => {
+                                      const renderValue = (value: any, depth: number = 0): JSX.Element => {
+                                        if (value === null || value === undefined) return <span className="text-gray-400">N/A</span>
+                                        
+                                        if (Array.isArray(value)) {
+                                          if (value.length === 0) return <span className="text-gray-400">None</span>
+                                          return (
+                                            <div className="space-y-2">
+                                              {value.map((item, idx) => (
+                                                <div key={idx} className={`${depth > 0 ? 'ml-3' : ''} ${idx > 0 ? 'border-t border-gray-200 pt-1' : ''}`}>
+                                                  {renderValue(item, depth + 1)}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )
+                                        }
+                                        
+                                        if (typeof value === 'object') {
+                                          return (
+                                            <div className="space-y-1">
+                                              {Object.entries(value)
+                                                .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+                                                .map(([k, v]) => (
+                                                  <div key={k} className={`${depth > 0 ? 'ml-3' : ''}`}>
+                                                    <span className="font-medium capitalize">
+                                                      {k.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                                                    </span>{' '}
+                                                    <span className="">
+                                                      {typeof v === 'object' || Array.isArray(v) ? '' : String(v)}
+                                                    </span>
+                                                    {(typeof v === 'object' || Array.isArray(v)) && (
+                                                      <div className="mt-1">
+                                                        {renderValue(v, depth + 1)}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                            </div>
+                                          )
+                                        }
+                                        
+                                        return <span className="text-gray-800">{String(value)}</span>
+                                      }
+
+                                      return (
+                                        <div key={decIdx} className={`px-2 py-1 rounded-sm text-sm ${decIdx > 0 ? 'mt-2 pt-2' : ''}`}>
+                                          {typeof decoration === 'string' ? (
+                                            <span>{decoration}</span>
+                                          ) : (
+                                            <div className="space-y-1">
+                                              {Object.entries(decoration).filter(([_, value]) => 
+                                                value !== null && value !== undefined && value !== ''
+                                              ).map(([key, value]) => (
+                                                <div key={key}>
+                                                  <span className="font-medium capitalize">
+                                                    {key.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                                                  </span>{' '}
+                                                  <span className="">
+                                                    {typeof value === 'object' || Array.isArray(value) ? '' : String(value)}
+                                                  </span>
+                                                  {(typeof value === 'object' || Array.isArray(value)) && (
+                                                    <div className="mt-1">
+                                                      {renderValue(value, 1)}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
                                             </div>
                                           )}
                                         </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                      )
+                                    })}
+                                  </div>
                                 </div>
-                              )
-                            })}
-                          </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {epigraph.letter_measure && (
+                        <div className="mt-1">
+                          <span className="font-medium">Letter Measure:</span> {epigraph.letter_measure}
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-              {epigraph.letter_measure && (
-                <div className="mt-1">
-                  <span className="font-medium">Letter Measure:</span> {epigraph.letter_measure}
-                </div>
-              )}
-            </div>
-            )}
+                  )}
 
-            {(epigraph.language_level_1 || epigraph.language_level_2 || epigraph.language_level_3 || 
-              epigraph.alphabet || epigraph.script_typology || epigraph.textual_typology || epigraph.royal_inscription ||
-              (Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0) ||
-              (Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0) ||
-              (Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0)) && (
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-700 mb-2">Linguistic</h3>
-              <div>
-                <span className="font-medium">Language: </span> {[
-                  epigraph.language_level_1,
-                  epigraph.language_level_2,
-                  epigraph.language_level_3,
-                ].filter(Boolean).join(" → ") || "Unknown"}
-                {epigraph.alphabet && (
-                  <div className="mt-1">
-                    <span className="font-medium">Alphabet:</span> {epigraph.alphabet}
+                  {(epigraph.language_level_1 || epigraph.language_level_2 || epigraph.language_level_3 || 
+                    epigraph.alphabet || epigraph.script_typology || epigraph.textual_typology || epigraph.royal_inscription ||
+                    (Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0) ||
+                    (Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0) ||
+                    (Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0)) && (
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-700 mb-2">Linguistic</h3>
+                      <div>
+                        <span className="font-medium">Language: </span> {[
+                          epigraph.language_level_1,
+                          epigraph.language_level_2,
+                          epigraph.language_level_3,
+                        ].filter(Boolean).join(" → ") || "Unknown"}
+                        {epigraph.alphabet && (
+                          <div className="mt-1">
+                            <span className="font-medium">Alphabet:</span> {epigraph.alphabet}
+                          </div>
+                        )}
+                        {epigraph.script_typology && (
+                          <div className="mt-1">
+                            <span className="font-medium">Script Typology:</span> {epigraph.script_typology}
+                          </div>
+                        )}
+                        {Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-medium">Script Cursus:</span> {((epigraph as any).script_cursus as string[]).join(", ")}
+                          </div>
+                        )}
+                        {epigraph.textual_typology && (
+                          <div className="mt-1">
+                            <span className="font-medium">Textual Typology:</span> {epigraph.textual_typology}
+                            {epigraph.textual_typology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
+                          </div>
+                        )}
+                        {Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-medium">Writing Techniques:</span> {((epigraph as any).writing_techniques as string[]).join(", ")}
+                          </div>
+                        )}
+                        {epigraph.royal_inscription && (
+                          <div className="mt-1">
+                            <span className="font-medium">Royal Inscription:</span> {epigraph.royal_inscription ? "Yes" : "No"}
+                          </div>
+                        )}
+                        {Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-medium">Concordances:</span> {((epigraph as any).concordances as string[]).join(", ")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {((epigraph.sites_objs && epigraph.sites_objs.length > 0) || 
+                    (epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
+                      Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0
+                    ))) && (
+                      <div className="p-4">
+                        <h3 className="font-semibold text-gray-700 mb-2">Spatial</h3>
+                        {epigraph.sites_objs && epigraph.sites_objs.length > 0 && (
+                          <div>
+                            {epigraph.sites_objs.map((site, idx) => (
+                              <div key={idx} className="text-sm mb-1">
+                                <span className="font-medium">Site: </span> {[
+                                  site.modern_name,
+                                  site.governorate,
+                                  site.country,
+                                ].filter(item => item && item !== "Unknown").join(", ") || "Unknown"}
+                                {site.ancient_name && (
+                                  <div className="mt-1">
+                                    <span className="font-medium">Ancient Name:</span> {site.ancient_name}
+                                  </div>
+                                )}
+                                {site.type_of_site && (
+                                  <div className="mt-1">
+                                    <span className="font-medium">Type of Site:</span> {site.type_of_site}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {epigraph.objects && epigraph.objects.length > 0 && (
+                          <div>
+                            {epigraph.objects.map((obj) => (
+                              <>
+                                {Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0 && (
+                                  <>
+                                    {(obj as any).deposits.map((deposit: any, depositIdx: number) => (
+                                      <div key={depositIdx} className="mt-1">
+                                        <span className="font-medium">Deposit:</span>
+                                        <div className="ml-2 text-s">
+                                          {Object.entries(deposit).map(([key, value]) => (
+                                            <div key={key}>
+                                              <span className="font-medium capitalize">{key.replace(/([A-Z])/g, " $1")}:</span> {String(value)}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+                              </>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                </div>
+              </MyDisclosure>
+            </div>
+          )}
+        </div>
+
+        {!compact && (
+          <div className="w-full md:w-100 flex-shrink-0 md:border-t-0 md:border-l border-gray-200 bg-white/20 backdrop-blur-xs md:bg-transparent md:backdrop-blur-none">
+            <div className="flex flex-col divide-y divide-gray-200 text-sm">
+              {(epigraph.period || epigraph.chronology_conjectural || epigraph.mentioned_date || 
+                (epigraph.objects && epigraph.objects.some(obj => obj.start_date && obj.end_date))) && (
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-700 mb-2">Chronological</h3>
+                <div>
+                  <span className="font-medium">Period:</span> {epigraph.period || "Unknown"}
+                  {epigraph.period && epigraph.chronology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
+                  {epigraph.objects && epigraph.objects.length > 0 && (
+                    <>
+                      {epigraph.objects.map((obj) => (
+                        <div>
+                          {obj.start_date && obj.end_date && (
+                            <>
+                              <span className="font-medium">Range: </span>{obj.start_date} - {obj.end_date}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {epigraph.mentioned_date && (
+                    <div className="mt-1">
+                      <span className="font-medium">Mentioned Date:</span> {epigraph.mentioned_date}
+                    </div>
+                  )}
+                </div>
+              </div>
+              )}
+
+              {((epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
+                obj.support_type_level_1 || obj.materials || obj.shape || obj.measures || 
+                (Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0)
+              )) || epigraph.letter_measure) && (
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-700 mb-2">Physical</h3>
+                {epigraph.objects && epigraph.objects.length > 0 && (
+                  <div>
+                    {epigraph.objects.map((obj, idx) => (
+                      <div key={idx} className="mb-3 last:mb-0">
+                        {obj.support_type_level_1 && (
+                          <div className="text-sm mb-1">
+                            <span className="font-medium">Support: </span> {[
+                              obj.support_type_level_1,
+                              obj.support_type_level_2,
+                              obj.support_type_level_3,
+                              obj.support_type_level_4,
+                            ].filter(Boolean).join(" → ") || "Unknown"}
+                          </div>
+                        )}
+
+                        {obj.materials && Array.isArray(obj.materials) && obj.materials.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-medium">Materials:</span> {obj.materials.join(", ")}
+                          </div>
+                        )}
+
+                        {obj.shape && (
+                          <div className="mt-1">
+                            <span className="font-medium">Shape:</span> {obj.shape}
+                          </div>
+                        )}
+
+                        {obj.measures && (
+                          <div className="mt-1">
+                            <span className="font-medium">Measures:</span> {obj.measures}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
-                {epigraph.script_typology && (
+                {epigraph.letter_measure && (
                   <div className="mt-1">
-                    <span className="font-medium">Script Typology:</span> {epigraph.script_typology}
-                  </div>
-                )}
-                {Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0 && (
-                  <div className="mt-1">
-                    <span className="font-medium">Script Cursus:</span> {((epigraph as any).script_cursus as string[]).join(", ")}
-                  </div>
-                )}
-                {epigraph.textual_typology && (
-                  <div className="mt-1">
-                    <span className="font-medium">Textual Typology:</span> {epigraph.textual_typology}
-                    {epigraph.textual_typology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
-                  </div>
-                )}
-                {Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0 && (
-                  <div className="mt-1">
-                    <span className="font-medium">Writing Techniques:</span> {((epigraph as any).writing_techniques as string[]).join(", ")}
-                  </div>
-                )}
-                {epigraph.royal_inscription && (
-                  <div className="mt-1">
-                    <span className="font-medium">Royal Inscription:</span> {epigraph.royal_inscription ? "Yes" : "No"}
-                  </div>
-                )}
-                {Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0 && (
-                  <div className="mt-1">
-                    <span className="font-medium">Concordances:</span> {((epigraph as any).concordances as string[]).join(", ")}
+                    <span className="font-medium">Letter Measure:</span> {epigraph.letter_measure}
                   </div>
                 )}
               </div>
-            </div>
-            )}
+              )}
 
-            {((epigraph.sites_objs && epigraph.sites_objs.length > 0) || 
-              (epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
-                Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0
-              ))) && (
-            <div className="p-4">
-              <h3 className="font-semibold text-gray-700 mb-2">Spatial</h3>
-              {epigraph.sites_objs && epigraph.sites_objs.length > 0 && (
+              {(epigraph.language_level_1 || epigraph.language_level_2 || epigraph.language_level_3 || 
+                epigraph.alphabet || epigraph.script_typology || epigraph.textual_typology || epigraph.royal_inscription ||
+                (Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0) ||
+                (Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0) ||
+                (Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0)) && (
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-700 mb-2">Linguistic</h3>
                 <div>
-                  {epigraph.sites_objs.map((site, idx) => (
-                    <div key={idx} className="text-sm mb-1">
-                      <span className="font-medium">Site: </span> {[
-                        site.modern_name,
-                        site.governorate,
-                        site.country,
-                      ].filter(item => item && item !== "Unknown").join(", ") || "Unknown"}
-                      {site.ancient_name && (
-                        <div className="mt-1">
-                          <span className="font-medium">Ancient Name:</span> {site.ancient_name}
-                        </div>
-                      )}
-                      {site.type_of_site && (
-                        <div className="mt-1">
-                          <span className="font-medium">Type of Site:</span> {site.type_of_site}
-                        </div>
-                      )}
+                  <span className="font-medium">Language: </span> {[
+                    epigraph.language_level_1,
+                    epigraph.language_level_2,
+                    epigraph.language_level_3,
+                  ].filter(Boolean).join(" → ") || "Unknown"}
+                  {epigraph.alphabet && (
+                    <div className="mt-1">
+                      <span className="font-medium">Alphabet:</span> {epigraph.alphabet}
                     </div>
-                  ))}
+                  )}
+                  {epigraph.script_typology && (
+                    <div className="mt-1">
+                      <span className="font-medium">Script Typology:</span> {epigraph.script_typology}
+                    </div>
+                  )}
+                  {Array.isArray((epigraph as any).script_cursus) && (epigraph as any).script_cursus.length > 0 && (
+                    <div className="mt-1">
+                      <span className="font-medium">Script Cursus:</span> {((epigraph as any).script_cursus as string[]).join(", ")}
+                    </div>
+                  )}
+                  {epigraph.textual_typology && (
+                    <div className="mt-1">
+                      <span className="font-medium">Textual Typology:</span> {epigraph.textual_typology}
+                      {epigraph.textual_typology_conjectural && <span className="text-gray-500 italic"> (conjectural)</span>}
+                    </div>
+                  )}
+                  {Array.isArray((epigraph as any).writing_techniques) && (epigraph as any).writing_techniques.length > 0 && (
+                    <div className="mt-1">
+                      <span className="font-medium">Writing Techniques:</span> {((epigraph as any).writing_techniques as string[]).join(", ")}
+                    </div>
+                  )}
+                  {epigraph.royal_inscription && (
+                    <div className="mt-1">
+                      <span className="font-medium">Royal Inscription:</span> {epigraph.royal_inscription ? "Yes" : "No"}
+                    </div>
+                  )}
+                  {Array.isArray((epigraph as any).concordances) && (epigraph as any).concordances.length > 0 && (
+                    <div className="mt-1">
+                      <span className="font-medium">Concordances:</span> {((epigraph as any).concordances as string[]).join(", ")}
+                    </div>
+                  )}
                 </div>
+              </div>
               )}
-              {epigraph.objects && epigraph.objects.length > 0 && (
-                <div>
-                  {epigraph.objects.map((obj) => (
-                    <>
-                      {Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0 && (
-                        <>
-                        {(obj as any).deposits.map((deposit: any, depositIdx: number) => (
-                          <div key={depositIdx} className="mt-1">
-                            <span className="font-medium">Deposit:</span>
-                            <div className="ml-2 text-s">
-                              {Object.entries(deposit).map(([key, value]) => (
-                                <div key={key}>
-                                  <span className="font-medium capitalize">{key.replace(/([A-Z])/g, " $1")}:</span> {String(value)}
-                                </div>
-                              ))}
-                            </div>
+
+              {((epigraph.sites_objs && epigraph.sites_objs.length > 0) || 
+                (epigraph.objects && epigraph.objects.length > 0 && epigraph.objects.some(obj => 
+                  Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0
+                ))) && (
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-700 mb-2">Spatial</h3>
+                {epigraph.sites_objs && epigraph.sites_objs.length > 0 && (
+                  <div>
+                    {epigraph.sites_objs.map((site, idx) => (
+                      <div key={idx} className="text-sm mb-1">
+                        <span className="font-medium">Site: </span> {[
+                          site.modern_name,
+                          site.governorate,
+                          site.country,
+                        ].filter(item => item && item !== "Unknown").join(", ") || "Unknown"}
+                        {site.ancient_name && (
+                          <div className="mt-1">
+                            <span className="font-medium">Ancient Name:</span> {site.ancient_name}
                           </div>
-                        ))}
-                        </>
-                      )}
-                    </>
-                  ))}
-                </div>
+                        )}
+                        {site.type_of_site && (
+                          <div className="mt-1">
+                            <span className="font-medium">Type of Site:</span> {site.type_of_site}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {epigraph.objects && epigraph.objects.length > 0 && (
+                  <div>
+                    {epigraph.objects.map((obj) => (
+                      <>
+                        {Array.isArray((obj as any).deposits) && (obj as any).deposits.length > 0 && (
+                          <>
+                          {(obj as any).deposits.map((deposit: any, depositIdx: number) => (
+                            <div key={depositIdx} className="mt-1">
+                              <span className="font-medium">Deposit:</span>
+                              <div className="ml-2 text-s">
+                                {Object.entries(deposit).map(([key, value]) => (
+                                  <div key={key}>
+                                    <span className="font-medium capitalize">{key.replace(/([A-Z])/g, " $1")}:</span> {String(value)}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          </>
+                        )}
+                      </>
+                    ))}
+                  </div>
+                )}
+              </div>
               )}
             </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
       {enlargedImage && (

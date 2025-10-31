@@ -11,7 +11,7 @@ function App() {
       <Refine dataProvider={dataProvider}>
         <Navbar />
         {/* <div className="min-h-screen lg:ml-60"> */}
-        <div className="min-h-screen mt-40">
+        <div className="min-h-screen mt-18">
           <main className="p-4">
             <ScrollToTop />
             <Outlet />
