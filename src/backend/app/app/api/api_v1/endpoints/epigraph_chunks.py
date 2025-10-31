@@ -56,6 +56,78 @@ def read_chunks(
 
 
 @router.get(
+    "/statistics",
+    response_model=ChunkStatisticsResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_chunk_statistics(
+    *,
+    session: SessionDep,
+) -> ChunkStatisticsResponse:
+    """Get comprehensive statistics about epigraph chunks, embeddings, and estimated costs."""
+    total_epigraphs = session.exec(
+        select(func.count(Epigraph.id))
+    ).one()
+
+    epigraphs_chunked = session.exec(
+        select(func.count(func.distinct(EpigraphChunk.epigraph_id)))
+    ).one()
+
+    total_chunks = session.exec(
+        select(func.count(EpigraphChunk.id))
+    ).one()
+
+    chunks_with_embeddings = session.exec(
+        select(func.count(EpigraphChunk.id))
+        .where(EpigraphChunk.embedding.is_not(None))
+    ).one()
+
+    chunks_without_embeddings = total_chunks - chunks_with_embeddings
+
+    avg_chunks = total_chunks / epigraphs_chunked if epigraphs_chunked > 0 else 0
+
+    avg_tokens = session.exec(
+        select(func.avg(EpigraphChunk.token_count))
+    ).one() or 0
+
+    chunk_types_result = session.exec(
+        select(
+            EpigraphChunk.chunk_type,
+            func.count(EpigraphChunk.id)
+        ).group_by(EpigraphChunk.chunk_type)
+    ).all()
+
+    chunk_types = {chunk_type: count for chunk_type, count in chunk_types_result}
+
+    estimated_cost = None
+    if chunks_without_embeddings > 0:
+        estimated_tokens = chunks_without_embeddings * float(avg_tokens)
+        cost_standard = estimated_tokens / 1_000_000 * 0.13
+        cost_batch = estimated_tokens / 1_000_000 * 0.065
+
+        estimated_cost = {
+            "estimated_tokens": int(estimated_tokens),
+            "standard_api_cost": round(cost_standard, 2),
+            "batch_api_cost": round(cost_batch, 2),
+            "savings": round(cost_standard - cost_batch, 2),
+            "savings_percent": 50.0
+        }
+
+    return ChunkStatisticsResponse(
+        total_epigraphs=total_epigraphs,
+        epigraphs_chunked=epigraphs_chunked,
+        epigraphs_not_chunked=total_epigraphs - epigraphs_chunked,
+        total_chunks=total_chunks,
+        chunks_with_embeddings=chunks_with_embeddings,
+        chunks_without_embeddings=chunks_without_embeddings,
+        average_chunks_per_epigraph=round(avg_chunks, 2),
+        average_tokens_per_chunk=round(avg_tokens, 2),
+        chunk_types=chunk_types,
+        estimated_cost=estimated_cost
+    )
+
+
+@router.get(
     "/{chunk_id}",
     response_model=EpigraphChunkOut,
 )
@@ -340,78 +412,6 @@ def chunk_epigraphs(
         failed_ids=failed,
         elapsed_seconds=elapsed,
         message=f"Successfully processed {processed} epigraphs, created {total_chunks} chunks"
-    )
-
-
-@router.get(
-    "/statistics",
-    response_model=ChunkStatisticsResponse,
-    status_code=status.HTTP_200_OK,
-)
-def get_chunk_statistics(
-    *,
-    session: SessionDep,
-) -> ChunkStatisticsResponse:
-    """Get comprehensive statistics about epigraph chunks, embeddings, and estimated costs."""
-    total_epigraphs = session.exec(
-        select(func.count(Epigraph.id))
-    ).one()
-
-    epigraphs_chunked = session.exec(
-        select(func.count(func.distinct(EpigraphChunk.epigraph_id)))
-    ).one()
-
-    total_chunks = session.exec(
-        select(func.count(EpigraphChunk.id))
-    ).one()
-
-    chunks_with_embeddings = session.exec(
-        select(func.count(EpigraphChunk.id))
-        .where(EpigraphChunk.embedding.is_not(None))
-    ).one()
-
-    chunks_without_embeddings = total_chunks - chunks_with_embeddings
-
-    avg_chunks = total_chunks / epigraphs_chunked if epigraphs_chunked > 0 else 0
-
-    avg_tokens = session.exec(
-        select(func.avg(EpigraphChunk.token_count))
-    ).one() or 0
-
-    chunk_types_result = session.exec(
-        select(
-            EpigraphChunk.chunk_type,
-            func.count(EpigraphChunk.id)
-        ).group_by(EpigraphChunk.chunk_type)
-    ).all()
-
-    chunk_types = {chunk_type: count for chunk_type, count in chunk_types_result}
-
-    estimated_cost = None
-    if chunks_without_embeddings > 0:
-        estimated_tokens = chunks_without_embeddings * float(avg_tokens)
-        cost_standard = estimated_tokens / 1_000_000 * 0.13
-        cost_batch = estimated_tokens / 1_000_000 * 0.065
-
-        estimated_cost = {
-            "estimated_tokens": int(estimated_tokens),
-            "standard_api_cost": round(cost_standard, 2),
-            "batch_api_cost": round(cost_batch, 2),
-            "savings": round(cost_standard - cost_batch, 2),
-            "savings_percent": 50.0
-        }
-
-    return ChunkStatisticsResponse(
-        total_epigraphs=total_epigraphs,
-        epigraphs_chunked=epigraphs_chunked,
-        epigraphs_not_chunked=total_epigraphs - epigraphs_chunked,
-        total_chunks=total_chunks,
-        chunks_with_embeddings=chunks_with_embeddings,
-        chunks_without_embeddings=chunks_without_embeddings,
-        average_chunks_per_epigraph=round(avg_chunks, 2),
-        average_tokens_per_chunk=round(avg_tokens, 2),
-        chunk_types=chunk_types,
-        estimated_cost=estimated_cost
     )
 
 
