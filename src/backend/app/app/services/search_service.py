@@ -4,16 +4,26 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from sqlmodel import Session, select, or_, desc, asc, func
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import cast, String, text
 import openai
 
-from app.models.epigraph import Epigraph, EpigraphsOut, EpigraphOutOpenAI
+from app.models.epigraph import Epigraph, EpigraphsOut
+from app.models.epigraph_chunk import EpigraphChunk
 from app.models.object import Object
 from app.models.links import EpigraphObjectLink
 from app.core.config import settings
 from app.utils import parse_period
 from app.services.embeddings_service import EmbeddingsService
 from app.services.opensearch_service import OpenSearchService
+from app.services.ai_service import AIService
+
+
+logging.basicConfig(
+    filename="epigraph_search.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(message)s",
+    datefmt="%d-%b-%y %H:%M:%S",
+)
 
 
 class QueryFormat(BaseModel):
@@ -32,6 +42,8 @@ class MainQuery(BaseModel):
 
 
 class SearchService:
+    """Service for handling search operations including semantic search, full-text search, and query transformation."""
+
     def __init__(self, session: Session):
         self.session = session
         if hasattr(settings, "OPENAI_API_KEY"):
@@ -327,115 +339,46 @@ class SearchService:
 
         return epigraphs, epigraph_count
 
-    def generate_answer(self, user_query: str, epigraphs: List[Epigraph], epigraph_limit: int = 10) -> Tuple[str, Optional[List[int]]]:
-        """Generate a comprehensive answer based on the query and search results."""
-        if not self.client:
-            return "AI answer generation is not available. Please configure the OpenAI API key."
-
-        if not epigraphs:
-            return "I couldn't find any information related to your query in our database."
-        
-        formatted_epigraphs = []
-        for epigraph in epigraphs[:epigraph_limit]:
-            formatted_epigraphs.append(EpigraphOutOpenAI.from_orm(epigraph).dict())
-
-        formatted_json = json.dumps(formatted_epigraphs, indent=2, ensure_ascii=False)
-
-        system_prompt = """
-        You are Hudhud, a knowledgeable historian specialising in Ancient South Arabia and epigraphy. 
-        Use the provided epigraph information to answer the user's question accurately and comprehensively.
-
-        When responding:
-        1. Focus on the information directly relevant to the user's query
-        2. Synthesise information from multiple epigraphs when appropriate
-        3. Include specific epigraph IDs and titles when referencing information
-        4. Acknowledge limitations if the available data is insufficient
-        5. Structure your response in a clear, informative manner
-        6. Do not make up or infer information that isn't present in the provided epigraph data
-
-        Respond as an expert in Ancient South Arabian epigraphy, providing scholarly context.
-        """
-
-        try:
-            # response = self.client.chat.completions.create(
-            #     model="gpt-4.1-mini",
-            #     messages=[
-            #         {"role": "system", "content": system_prompt},
-            #         {"role": "user", "content": f"Question: {user_query}\n\nEpigraph information:\n{formatted_text}"}
-            #     ]
-            # )
-            response = self.client.responses.create(
-                model="gpt-4.1-mini",
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Question: {user_query}\n\nEpigraph information:\n{formatted_json}"}
-                ]
-            )
-            logging.info(f"AI response: {response}")
-            logging.info(f"Token usage: {response.usage.input_tokens} input, {response.usage.output_tokens} output")
-
-            answer = response.output_text
-            logging.info(f"AI generated answer: {answer}")
-
-            epigraphs_used = [epigraph.id for epigraph in epigraphs[:epigraph_limit]]
-            logging.info(f"Epigraphs used in AI answer: {epigraphs_used}")
-
-            return answer, epigraphs_used
-        except Exception as e:
-            logging.error(f"Error generating answer with AI: {e}")
-            return f"Found {len(epigraphs)} results for your query, but couldn't generate an AI answer due to an error. Please review the search results directly."
-
     def smart_search(self, user_query: str) -> Dict[str, Any]:
         """Process a natural language query and return comprehensive search results with AI answer."""
-        transformed_params = self.transform_query(user_query)
-        primary_query = transformed_params.get("primary_query", {"search_text": user_query})
-        alternative_queries = transformed_params.get("alternative_queries", [])
+        chunk_results = self.semantic_search_chunks(
+            text=user_query,
+            distance_threshold=1,
+            limit=50
+        )
 
-        primary_epigraphs, primary_count = self._execute_search(primary_query)
+        if not chunk_results:
+            logging.warning(f"No chunks found for query: {user_query}")
+            return {
+                "answer": "I couldn't find any information related to your query in our database. Please try rephrasing your question or using different search terms.",
+                "epigraphs": [],
+            }
 
-        all_epigraphs = {epigraph.id: epigraph for epigraph in primary_epigraphs}
-        alternative_results = []
+        ai_service = AIService(self.session)
+        answer, epigraph_ids = ai_service.generate_answer_with_chunks(
+            user_query, 
+            chunk_results,
+            chunk_limit=15
+        )
 
-        for alt_query in alternative_queries:
-            alt_epigraphs, alt_count = self._execute_search(alt_query)
+        if epigraph_ids:
+            epigraphs_query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+            epigraphs_used = list(self.session.exec(epigraphs_query).all())
+            logging.info(f"Returning {len(epigraphs_used)} epigraphs used in answer generation")
+        else:
+            epigraphs_used = []
 
-            alternative_results.append({
-                "params": alt_query,
-                "count": alt_count
-            })
-
-            for epigraph in alt_epigraphs:
-                all_epigraphs[epigraph.id] = epigraph
-
-        combined_epigraphs = list(all_epigraphs.values())
-
-        # combined_epigraphs = self.semantic_search(user_query, limit=50).epigraphs
-
-        answer, epigraph_ids = self.generate_answer(user_query, combined_epigraphs)
-        epigraphs_used = [epigraph for epigraph in combined_epigraphs if epigraph.id in epigraph_ids]
+        logging.info(f"Smart search completed: found {len(chunk_results)} relevant chunks from {len(epigraphs_used)} epigraphs")
 
         return {
             "answer": answer,
             "epigraphs": epigraphs_used,
         }
 
-        # return {
-        #     "primary_results": {
-        #         "epigraphs": primary_epigraphs,
-        #         "count": primary_count,
-        #         "search_params": primary_query
-        #     },
-        #     "alternative_results": alternative_results,
-        #     "combined_count": len(combined_epigraphs),
-        #     "ai_answer": answer
-        # }
-
     def _execute_search(self, search_params: Dict[str, Any]) -> Tuple[List[Epigraph], int]:
         """Execute a search with the given parameters."""
         search_text = search_params.get("search_text", "")
-        fields = search_params.get("fields")
-        include_objects = search_params.get("include_objects", True)
-        object_fields = search_params.get("object_fields")
+        fields = "epigraph_text,translations,general_notes,apparatus_notes,cultural_notes,support_notes,deposit_notes,object_cultural_notes,images,sites,deposits,bibliography,title,decorations,materials,shape"
         sort_field = search_params.get("sort_field")
         sort_order = search_params.get("sort_order")
         filters = search_params.get("filters")
@@ -443,8 +386,6 @@ class SearchService:
         return self.opensearch_full_text_search(
             search_text=search_text,
             fields=fields,
-            include_objects=include_objects,
-            object_fields=object_fields,
             sort_field=sort_field,
             sort_order=sort_order,
             filters=filters
