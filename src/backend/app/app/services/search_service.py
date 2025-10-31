@@ -477,6 +477,68 @@ class SearchService:
 
         return EpigraphsOut(epigraphs=epigraphs, count=total_count)
 
+    def semantic_search_chunks(
+        self,
+        text: str,
+        distance_threshold: float = 0.5,
+        limit: int = 50,
+        chunk_types: Optional[List[str]] = None,
+        periods: Optional[List[str]] = None,
+        languages: Optional[List[str]] = None
+    ) -> List[Tuple[EpigraphChunk, Epigraph, float]]:
+        """
+        Perform semantic search using chunk embeddings for better RAG results.
+        """
+        embeddings_service = EmbeddingsService(self.session)
+        query_embedding = embeddings_service.generate_embedding(text)
+
+        if query_embedding is None:
+            logging.error("Failed to generate embedding for chunk-based semantic search.")
+            return []
+
+        query = select(
+            EpigraphChunk,
+            EpigraphChunk.embedding.cosine_distance(query_embedding).label('distance')
+        ).join(
+            Epigraph, EpigraphChunk.epigraph_id == Epigraph.id
+        ).where(
+            EpigraphChunk.embedding.is_not(None),
+            Epigraph.dasi_published.is_not(False),
+            Epigraph.dasi_published.is_not(None),
+        )
+
+        if chunk_types:
+            query = query.where(EpigraphChunk.chunk_type.in_(chunk_types))
+
+        if periods or languages:
+            if periods:
+                query = query.where(
+                    cast(EpigraphChunk.chunk_metadata['period'], String).in_(periods)
+                )
+
+            if languages:
+                query = query.where(
+                    cast(EpigraphChunk.chunk_metadata['language'], String).in_(languages)
+                )
+
+        query = query.where(
+            EpigraphChunk.embedding.cosine_distance(query_embedding) < distance_threshold
+        )
+
+        query = query.order_by('distance').limit(limit)
+
+        results = self.session.exec(query).all()
+
+        chunk_results = []
+        for chunk, distance in results:
+            epigraph = self.session.get(Epigraph, chunk.epigraph_id)
+            if epigraph:
+                similarity_score = 1.0 - distance
+                chunk_results.append((chunk, epigraph, similarity_score))
+
+        logging.info(f"Chunk-based semantic search found {len(chunk_results)} relevant chunks from query: '{text}'")
+        return chunk_results
+
     def opensearch_full_text_search(
         self,
         search_text: str,

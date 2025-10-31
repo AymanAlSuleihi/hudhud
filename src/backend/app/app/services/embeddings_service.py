@@ -1,12 +1,17 @@
 import logging
 import time
+import json
+import tempfile
+from pathlib import Path
+from typing import List, Dict, Any, Optional
 
 import openai
 import tiktoken
 from sqlalchemy.orm import Session
-from sqlmodel import select, func, asc, desc, update, text, or_, and_
+from sqlmodel import select, func, and_
 
 from app.models.epigraph import Epigraph
+from app.crud.crud_epigraph_chunk import epigraph_chunk as crud_epigraph_chunk
 from app.core.config import settings
 
 
@@ -18,9 +23,7 @@ logging.basicConfig(
 )
 
 class EmbeddingsService:
-    """
-    Service for handling embeddings-related operations.
-    """
+    """Service for handling embeddings-related operations."""
 
     def __init__(self, session: Session):
         self.session = session
@@ -90,7 +93,7 @@ class EmbeddingsService:
             logging.debug(f"Generated embedding for text: {text[:50]}... | Tokens used: {token_usage}")
 
             if original_length != len(text):
-                logging.info(f"Text was truncated from {original_length} to {len(text)} characters due to token limit")
+                logging.debug(f"Text was truncated from {original_length} to {len(text)} characters due to token limit")
 
             return embedding
         except openai.BadRequestError as e:
@@ -99,7 +102,7 @@ class EmbeddingsService:
                 if self.tokenizer:
                     current_tokens = len(self.tokenizer.encode(text))
                     new_max_tokens = min(8000, current_tokens // 2)
-                    logging.info(f"Retrying with more aggressive truncation: {new_max_tokens} tokens")
+                    logging.debug(f"Retrying with more aggressive truncation: {new_max_tokens} tokens")
                     text = self._truncate_text_by_tokens(text, max_tokens=new_max_tokens)
                     try:
                         response = self.client.embeddings.create(
@@ -111,7 +114,7 @@ class EmbeddingsService:
                             embedding = embedding.tolist()
                         elif not isinstance(embedding, list):
                             embedding = list(embedding)
-                        logging.info(f"Successfully generated embedding after aggressive truncation")
+                        logging.debug(f"Successfully generated embedding after aggressive truncation")
                         return embedding
                     except Exception as retry_e:
                         logging.error(f"Failed even after aggressive truncation: {retry_e}")
@@ -171,3 +174,281 @@ class EmbeddingsService:
         logging.debug(f"Found {len(epigraphs)} similar epigraphs out of {total_count} total.")
 
         return {"epigraphs": epigraphs, "total_count": total_count}
+
+    def generate_embeddings_batch(
+        self,
+        texts: List[str],
+        max_batch_size: int = 2048
+    ) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple texts in batch (up to 2048 per request)."""
+        if not self.client:
+            logging.error("OpenAI client is not initialized. Cannot generate embeddings.")
+            return [None] * len(texts)
+
+        if not texts:
+            return []
+
+        all_embeddings = []
+
+        for i in range(0, len(texts), max_batch_size):
+            batch = texts[i:i + max_batch_size]
+
+            processed_batch = []
+            for text in batch:
+                if self.tokenizer:
+                    token_count = len(self.tokenizer.encode(text))
+                    if token_count > 8192:
+                        text = self._truncate_text_by_tokens(text, max_tokens=8192)
+                processed_batch.append(text)
+
+            try:
+                logging.debug(f"Generating embeddings for batch {i//max_batch_size + 1} ({len(batch)} texts)")
+
+                response = self.client.embeddings.create(
+                    input=processed_batch,
+                    model="text-embedding-3-large",
+                )
+
+                batch_embeddings = []
+                for item in response.data:
+                    embedding = item.embedding
+                    if hasattr(embedding, "tolist"):
+                        embedding = embedding.tolist()
+                    elif not isinstance(embedding, list):
+                        embedding = list(embedding)
+                    batch_embeddings.append(embedding)
+
+                all_embeddings.extend(batch_embeddings)
+
+                logging.debug(f"Generated {len(batch_embeddings)} embeddings. Total tokens: {response.usage.total_tokens}")
+
+                if i + max_batch_size < len(texts):
+                    time.sleep(1)
+
+            except Exception as e:
+                logging.error(f"Error generating batch embeddings: {e}")
+                all_embeddings.extend([None] * len(batch))
+
+        return all_embeddings
+
+    def create_batch_embedding_job(
+        self,
+        texts: List[str],
+        custom_ids: List[str],
+        description: str = "Batch embedding generation"
+    ) -> Optional[str]:
+        """Create a batch embedding job using OpenAI's Batch API (50% cost savings)."""
+        if not self.client:
+            logging.error("OpenAI client is not initialized.")
+            return None
+
+        if len(texts) != len(custom_ids):
+            logging.error("texts and custom_ids must have the same length")
+            return None
+
+        batch_requests = []
+        for custom_id, text in zip(custom_ids, texts):
+            if self.tokenizer:
+                token_count = len(self.tokenizer.encode(text))
+                if token_count > 8192:
+                    text = self._truncate_text_by_tokens(text, max_tokens=8192)
+
+            request = {
+                "custom_id": str(custom_id),
+                "method": "POST",
+                "url": "/v1/embeddings",
+                "body": {
+                    "model": "text-embedding-3-large",
+                    "input": text
+                }
+            }
+            batch_requests.append(request)
+
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+                for request in batch_requests:
+                    f.write(json.dumps(request) + '\n')
+                temp_file_path = f.name
+
+            logging.debug(f"Created batch file with {len(batch_requests)} requests: {temp_file_path}")
+
+            with open(temp_file_path, 'rb') as f:
+                batch_input_file = self.client.files.create(
+                    file=f,
+                    purpose="batch"
+                )
+
+            logging.debug(f"Uploaded batch file: {batch_input_file.id}")
+
+            # Create batch job
+            batch_job = self.client.batches.create(
+                input_file_id=batch_input_file.id,
+                endpoint="/v1/embeddings",
+                completion_window="24h",
+                metadata={
+                    "description": description
+                }
+            )
+
+            logging.debug(f"Created batch job: {batch_job.id} (status: {batch_job.status})")
+
+            Path(temp_file_path).unlink()
+
+            return batch_job.id
+
+        except Exception as e:
+            logging.error(f"Error creating batch embedding job: {e}")
+            return None
+
+    def get_batch_job_status(self, batch_id: str) -> Optional[Dict[str, Any]]:
+        """Check the status of a batch embedding job."""
+        if not self.client:
+            logging.error("OpenAI client is not initialized.")
+            return None
+
+        try:
+            batch_job = self.client.batches.retrieve(batch_id)
+
+            return {
+                "id": batch_job.id,
+                "status": batch_job.status,
+                "created_at": batch_job.created_at,
+                "completed_at": batch_job.completed_at,
+                "failed_at": batch_job.failed_at,
+                "request_counts": {
+                    "total": batch_job.request_counts.total,
+                    "completed": batch_job.request_counts.completed,
+                    "failed": batch_job.request_counts.failed,
+                },
+                "output_file_id": batch_job.output_file_id,
+                "error_file_id": batch_job.error_file_id,
+            }
+        except Exception as e:
+            logging.error(f"Error retrieving batch job status: {e}")
+            return None
+
+    def retrieve_batch_results(self, batch_id: str) -> Optional[Dict[str, List[float]]]:
+        """Retrieve results from a completed batch job."""
+        if not self.client:
+            logging.error("OpenAI client is not initialized.")
+            return None
+
+        try:
+            batch_job = self.client.batches.retrieve(batch_id)
+
+            if batch_job.status != "completed":
+                logging.warning(f"Batch job {batch_id} is not completed yet (status: {batch_job.status})")
+                return None
+
+            if not batch_job.output_file_id:
+                logging.error(f"Batch job {batch_id} has no output file")
+                return None
+
+            file_response = self.client.files.content(batch_job.output_file_id)
+
+            results = {}
+            for line in file_response.text.strip().split('\n'):
+                result = json.loads(line)
+                custom_id = result['custom_id']
+
+                if result['response']['status_code'] == 200:
+                    embedding = result['response']['body']['data'][0]['embedding']
+                    results[custom_id] = embedding
+                else:
+                    logging.error(f"Failed to generate embedding for {custom_id}: {result['response']['body']}")
+                    results[custom_id] = None
+
+            logging.debug(f"Retrieved {len(results)} results from batch {batch_id}")
+            return results
+
+        except Exception as e:
+            logging.error(f"Error retrieving batch results: {e}")
+            return None
+
+    def process_chunks_batch(
+        self,
+        chunk_ids: List[int],
+        use_batch_api: bool = True
+    ) -> Dict[str, Any]:
+        """Generate embeddings for multiple chunks using sync or async batch API."""
+        all_chunks = [crud_epigraph_chunk.get(self.session, id=chunk_id) for chunk_id in chunk_ids]
+        chunks = [chunk for chunk in all_chunks if chunk is not None and chunk.embedding is None]
+
+        if not chunks:
+            logging.debug("No chunks found or all already have embeddings")
+            return {"status": "no_work", "processed": 0}
+
+        logging.debug(f"Processing {len(chunks)} chunks")
+
+        texts = [chunk.chunk_text for chunk in chunks]
+        custom_ids = [str(chunk.id) for chunk in chunks]
+
+        if use_batch_api:
+            batch_id = self.create_batch_embedding_job(
+                texts=texts,
+                custom_ids=custom_ids,
+                description=f"Embedding generation for {len(chunks)} epigraph chunks"
+            )
+
+            if batch_id:
+                return {
+                    "status": "batch_created",
+                    "batch_id": batch_id,
+                    "chunk_count": len(chunks),
+                    "message": "Batch job created. Check status with get_batch_job_status()"
+                }
+            else:
+                return {"status": "error", "message": "Failed to create batch job"}
+
+        else:
+            embeddings = self.generate_embeddings_batch(texts)
+
+            success_count = 0
+            for chunk, embedding in zip(chunks, embeddings):
+                if embedding:
+                    crud_epigraph_chunk.update(
+                        self.session,
+                        db_obj=chunk,
+                        obj_in={"embedding": embedding}
+                    )
+                    success_count += 1
+
+            return {
+                "status": "completed",
+                "processed": success_count,
+                "failed": len(chunks) - success_count,
+                "chunk_count": len(chunks)
+            }
+
+    def apply_batch_results_to_chunks(self, batch_id: str) -> Dict[str, Any]:
+        """Apply embeddings from a completed batch job to chunks."""
+        results = self.retrieve_batch_results(batch_id)
+
+        if not results:
+            return {"status": "error", "message": "Failed to retrieve batch results"}
+
+        success_count = 0
+        failed_count = 0
+
+        for custom_id, embedding in results.items():
+            chunk_id = int(custom_id)
+            chunk = crud_epigraph_chunk.get(self.session, id=chunk_id)
+
+            if chunk and embedding:
+                crud_epigraph_chunk.update(
+                    self.session,
+                    db_obj=chunk,
+                    obj_in={"embedding": embedding}
+                )
+                success_count += 1
+            else:
+                failed_count += 1
+
+        logging.debug(f"Applied {success_count} embeddings from batch {batch_id}")
+
+        return {
+            "status": "completed",
+            "batch_id": batch_id,
+            "updated": success_count,
+            "failed": failed_count
+        }
