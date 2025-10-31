@@ -36,6 +36,7 @@ from app.models.links import (
     EpigraphObjectLink,
     ObjectSiteLink,
 )
+from app.models.epigraph_chunk import EpigraphChunk
 # from sqlmodel import SQLModel
 # from app import models
 # from models import *

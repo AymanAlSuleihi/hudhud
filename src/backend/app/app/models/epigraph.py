@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pydantic import BaseModel
 from sqlmodel import Column, Field, Relationship, SQLModel
 from sqlalchemy.dialects.postgresql import JSONB
@@ -8,6 +8,9 @@ from pgvector.sqlalchemy import Vector
 from app.core.models import TimeStampModel
 from app.models.links import EpigraphSiteLink, EpigraphWordLink, EpigraphObjectLink, ObjectSiteLink, WordLink
 from app.models.minimal import EpigraphMinimal, ObjectMinimal, SiteMinimal
+
+if TYPE_CHECKING:
+    from app.models.epigraph_chunk import EpigraphChunk
 
 
 class EpigraphBase(SQLModel):
@@ -97,6 +100,7 @@ class Epigraph(
     sites_objs: list["Site"] = Relationship(back_populates="epigraphs", link_model=EpigraphSiteLink)
     objects: list["Object"] = Relationship(back_populates="epigraphs", link_model=EpigraphObjectLink)
     words: list["Word"] = Relationship(back_populates="epigraphs", link_model=EpigraphWordLink)
+    chunks: list["EpigraphChunk"] = Relationship(back_populates="epigraph", cascade_delete=True)
 
 
 class EpigraphOut(SQLModel):

@@ -10,15 +10,17 @@ from app.api.api_v1.endpoints import (
     objects,
     ask,
     opensearch,
+    epigraph_chunks,
 )
 
 api_router = APIRouter()
 api_router.include_router(epigraphs.router, prefix="/epigraphs", tags=["epigraphs"])
 api_router.include_router(login.router, tags=["login"])
-api_router.include_router(task_progress.router, prefix="/task_progress", tags=["task_progress"])
+api_router.include_router(task_progress.router, prefix="/task-progress", tags=["task-progress"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(words.router, prefix="/words", tags=["words"])
 api_router.include_router(sites.router, prefix="/sites", tags=["sites"])
 api_router.include_router(objects.router, prefix="/objects", tags=["objects"])
 api_router.include_router(ask.router, prefix="/ask", tags=["ask"])
 api_router.include_router(opensearch.router, prefix="/opensearch", tags=["opensearch"])
+api_router.include_router(epigraph_chunks.router, prefix="/chunks", tags=["chunks"])
