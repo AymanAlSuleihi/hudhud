@@ -9,6 +9,8 @@ import Epigraphs from "../views/Epigraphs.tsx"
 import About from "../views/About.tsx"
 import Map from "../views/Map.tsx"
 import Ask from "../views/Ask.tsx"
+import TermsOfService from "../views/TermsOfService.tsx"
+import PrivacyPolicy from "../views/PrivacyPolicy.tsx"
 
 
 export const Router = createBrowserRouter([
@@ -47,6 +49,14 @@ export const Router = createBrowserRouter([
       {
         path: "/maps",
         element: <Map />,
+      },
+      {
+        path: "/terms-of-service",
+        element: <TermsOfService />,
+      },
+      {
+        path: "/privacy-policy",
+        element: <PrivacyPolicy />,
       },
     ],
   },
