@@ -11,6 +11,7 @@ import Map from "../views/Map.tsx"
 import Ask from "../views/Ask.tsx"
 import TermsOfService from "../views/TermsOfService.tsx"
 import PrivacyPolicy from "../views/PrivacyPolicy.tsx"
+import NotFound from "../views/NotFound.tsx"
 
 
 export const Router = createBrowserRouter([
@@ -57,6 +58,10 @@ export const Router = createBrowserRouter([
       {
         path: "/privacy-policy",
         element: <PrivacyPolicy />,
+      },
+      {
+        path: "*",
+        element: <NotFound />,
       },
     ],
   },
