@@ -355,8 +355,25 @@ const Ask: React.FC = () => {
     setStreamingMessageId(assistantMessageId)
 
     try {
+      // Get the base timestamp from the first welcome message
+      const welcomeBaseTime = messages[0]?.id || ""
+
       const conversationHistory = messages
-        .filter(msg => msg.text && !msg.id.startsWith(Date.now().toString().slice(0, -4))) // Filter out welcome messages
+        .filter(msg => {
+          // Filter out messages without text
+          if (!msg.text) return false
+
+          // Filter out welcome messages (they use consecutive IDs starting from initial baseTime)
+          const msgId = parseInt(msg.id)
+          const baseId = parseInt(welcomeBaseTime)
+
+          // Welcome messages have IDs in range [baseTime, baseTime + 4]
+          if (!isNaN(msgId) && !isNaN(baseId) && msgId >= baseId && msgId <= baseId + 4) {
+            return false
+          }
+
+          return true
+        })
         .map(msg => ({
           role: msg.type === "user" ? "user" : "assistant",
           content: msg.text
