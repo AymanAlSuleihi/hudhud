@@ -2,6 +2,7 @@ import { Refine } from "@refinedev/core"
 import { Outlet } from "react-router-dom"
 import { Navbar } from "./components/Navbar"
 import { Footer } from "./components/Footer"
+import { CookieConsent } from "./components/CookieConsent"
 import { dataProvider } from "./providers/DataProvider"
 import ScrollToTop from "./components/ScrollToTop"
 
@@ -18,6 +19,7 @@ function App() {
           </main>
           <Footer />
         </div>
+        <CookieConsent />
       </Refine>
     </>
   )

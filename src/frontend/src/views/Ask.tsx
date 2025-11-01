@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import { Link } from "react-router-dom"
 import { Warning, PaperPlaneRight, Trash, BookOpen, InstagramLogo, EnvelopeSimple, ArrowLeft, CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { Spinner } from "../components/Spinner"
 import { EpigraphCard } from "../components/EpigraphCard"
@@ -753,7 +754,7 @@ const Ask: React.FC = () => {
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask a question about Ancient South Arabia..."
-                  className="w-full px-4 py-3 pr-14 border border-gray-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
+                  className="text-sm w-full px-3 py-3 pr-14 border border-gray-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
                   rows={1}
                   disabled={isLoading}
                   style={{ maxHeight: "200px" }}
@@ -761,7 +762,7 @@ const Ask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading || !query.trim()}
-                  className="absolute right-1 bottom-[11px] bg-zinc-600 hover:bg-zinc-500 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-2.5 rounded-md transition-colors"
+                  className="absolute right-1 bottom-[10px] bg-zinc-600 hover:bg-zinc-500 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-2.5 rounded-md transition-colors"
                 >
                   <PaperPlaneRight size={20} weight="bold" />
                 </button>
@@ -891,7 +892,7 @@ const Ask: React.FC = () => {
           </div>
 
           {/* Control Panel - Sticky at bottom */}
-          <div className="sticky bottom-[25px] bg-white border-t border-gray-200 px-4 py-4 z-20 h-15">
+          <div className="sticky bottom-[25px] bg-white border-t border-gray-200 px-4 py-4 z-20 h-[58px]">
             {/* Mobile Back Button */}
             <button
               onClick={() => setMobileView('chat')}
@@ -941,43 +942,59 @@ const Ask: React.FC = () => {
 
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 text-xs text-gray-600 py-1 z-30">
-        <div className="flex items-center justify-center lg:gap-6 md:gap-1 sm:gap-1 md:px-4">
+        <div className="flex items-center justify-center xl:gap-5 md:gap-1 sm:gap-1 md:px-4">
           <div className="flex items-center gap-1">
-            <span className="hidden lg:inline">Epigraphic data provided by</span>
-            <span className="lg:hidden">Data from</span>
-            <a 
-              href="https://dasi.cnr.it/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <span className="hidden xl:inline">Epigraphic data provided by</span>
+            <span className="xl:hidden">Data from</span>
+            <Link
+              to="https://dasi.cnr.it/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors"
             >
               DASI
-            </a>
-            <span className="hidden lg:inline">under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors">CC BY 4.0</a></span>
+            </Link>
+            <span className="hidden sm:inline">under <Link to="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors">CC BY 4.0</Link></span>
           </div>
           <span className="mx-2 text-gray-300">|</span>
           <div className="text-gray-500">
-          <span className="text-gray-500">© {new Date().getFullYear()} Hudhud</span>
-          <span className="text-gray-500 hidden xs:inline">&nbsp;Project</span>
+            <span className="text-gray-500">© {new Date().getFullYear()} Hudhud</span>
+            <span className="text-gray-500 hidden xs:inline">&nbsp;Project</span>
           </div>
           <span className="mx-2 text-gray-300">|</span>
-          <a 
-            href="mailto:contact@shebascaravan.com" 
-            className="text-zinc-600 hover:text-zinc-800 font-medium items-center gap-1 transition-colors hidden sm:inline-flex"
+          <Link 
+            to="/terms-of-service" 
+            className="text-zinc-600 hover:text-zinc-800 font-medium transition-colors text-nowrap"
+          >
+            Terms
+            <span className="hidden lg:inline"> of Service</span>
+          </Link>
+          <span className="mx-2 text-gray-300">|</span>
+          <Link 
+            to="/privacy-policy" 
+            className="text-zinc-600 hover:text-zinc-800 font-medium transition-colors text-nowrap"
+          >
+            Privacy
+            <span className="hidden lg:inline"> Policy</span>
+          </Link>
+          <span className="mx-2 text-gray-300">|</span>
+          <Link 
+            to="mailto:contact@shebascaravan.com" 
+            className="text-zinc-600 hover:text-zinc-800 font-medium items-center gap-1 transition-colors hidden lg:inline-flex"
           >
             <EnvelopeSimple size={14} weight="bold" />
             contact@shebascaravan.com
-          </a>
-          <span className="mx-2 text-gray-300 hidden sm:inline">|</span>
-          <a 
-            href="https://instagram.com/shebascaravan"
+          </Link>
+          <span className="mx-2 text-gray-300 hidden lg:inline">|</span>
+          <Link 
+            to="https://instagram.com/shebascaravan"
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-600 hover:text-zinc-800 font-medium inline-flex items-center gap-1 transition-colors"
           >
             <InstagramLogo size={14} weight="bold" />
-            shebascaravan
-          </a>
+            <span className="hidden 3xs:inline">shebascaravan</span>
+          </Link>
         </div>
       </div>
     </>

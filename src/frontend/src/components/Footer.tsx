@@ -1,4 +1,5 @@
 import React from "react"
+import { Link } from "react-router-dom"
 import { Copyright, EnvelopeSimple, InstagramLogo } from "@phosphor-icons/react"
 
 export const Footer: React.FC = () => {
@@ -47,6 +48,21 @@ export const Footer: React.FC = () => {
               <EnvelopeSimple size={16} className="mr-1 translate-y-[1px]" />
               contact@shebascaravan.com
             </a>
+          </div>
+          <div className="flex items-center justify-center gap-4 mb-3">
+            <Link 
+              to="/terms-of-service" 
+              className="hover:text-gray-500 transition-colors font-semibold"
+            >
+              Terms of Service
+            </Link>
+            <span className="text-gray-400">|</span>
+            <Link 
+              to="/privacy-policy" 
+              className="hover:text-gray-500 transition-colors font-semibold"
+            >
+              Privacy Policy
+            </Link>
           </div>
           <div className="flex items-center justify-center">
             <Copyright size={14} className="mr-1" />
