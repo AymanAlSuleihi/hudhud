@@ -419,12 +419,17 @@ class AIService:
 
             epigraph_info = epigraph.model_dump(
                 exclude={
-                    'embedding',
-                    'created_at',
-                    'updated_at',
-                    'last_modified',
-                    'bibliography',
-                    'sites',
+                    "id",
+                    "uri",
+                    "created_at",
+                    "updated_at",
+                    "first_published",
+                    "last_modified",
+                    "bibliography",
+                    "license",
+                    "dasi_object",
+                    "sites",
+                    "embedding",
                 },
             )
 
