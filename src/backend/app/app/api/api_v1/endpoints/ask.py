@@ -1,8 +1,8 @@
 import logging
 import json
-from typing import Dict, Any, AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import select
@@ -11,6 +11,7 @@ from app.api.deps import SessionDep
 from app.models.epigraph import Epigraph, EpigraphOut
 from app.services.search_service import SearchService
 from app.services.ai_service import AIService
+from app.crud.crud_epigraph import epigraph as epigraph_crud
 
 router = APIRouter()
 
@@ -39,21 +40,26 @@ async def query_hudhud(
     """Stream the AI response in real-time using Server-Sent Events."""
 
     async def generate_stream() -> AsyncGenerator[str, None]:
+        MAX_CHUNK_RESULTS = 30
+        MAX_TITLE_MATCHES = 15
+        MAX_TOTAL_EPIGRAPHS = 30
+        SEARCH_DISTANCE_THRESHOLD = 1.0
+
         search_service = SearchService(session)
-        ai_service = AIService(session)
+        ai_service = AIService()
+
         try:
-            logger.info(f"Starting stream generation for query: {request.query}")
-            chunk_limit = 30
-            search_query = ai_service.resolve_query_with_context(
+            search_query, epigraph_titles = ai_service.resolve_query_with_context(
                 request.query,
                 request.conversation_history or []
             )
             logger.info(f"Resolved search query: {search_query}")
+            logger.info(f"Detected epigraph titles: {epigraph_titles}")
 
             chunk_results = search_service.semantic_search_chunks(
                 text=search_query,
-                distance_threshold=1,
-                limit=chunk_limit
+                distance_threshold=SEARCH_DISTANCE_THRESHOLD,
+                limit=MAX_CHUNK_RESULTS
             )
 
             logger.info(f"Found {len(chunk_results)} chunk results")
@@ -66,8 +72,29 @@ async def query_hudhud(
             unique_epigraph_ids = list(set([chunk[1].id for chunk in chunk_results]))
             logger.info(f"Found {len(unique_epigraph_ids)} unique epigraphs from chunks")
 
+            # Retrieve epigraphs by title if any were detected
+            title_matched_epigraph_ids = []
+            if epigraph_titles:
+                logger.info(f"Searching for epigraphs by titles: {epigraph_titles}")
+                title_matched_epigraphs = epigraph_crud.get_by_titles(
+                    db=session, 
+                    titles=epigraph_titles,
+                    limit=MAX_TITLE_MATCHES
+                )
+                logger.info(f"Found {len(title_matched_epigraphs)} epigraphs matching titles")
+
+                title_matched_epigraph_ids = [ep.id for ep in title_matched_epigraphs]
+
+                for ep_id in title_matched_epigraph_ids:
+                    if ep_id not in unique_epigraph_ids:
+                        unique_epigraph_ids.insert(0, ep_id)
+
             epigraphs_query = select(Epigraph).where(Epigraph.id.in_(unique_epigraph_ids))
-            source_epigraphs = list(session.exec(epigraphs_query).all())
+            all_epigraphs = list(session.exec(epigraphs_query).all())
+
+            title_matched_eps = [ep for ep in all_epigraphs if ep.id in title_matched_epigraph_ids]
+            semantic_matched_eps = [ep for ep in all_epigraphs if ep.id not in title_matched_epigraph_ids]
+            source_epigraphs = title_matched_eps + semantic_matched_eps
 
             epigraphs_data = [ep.model_dump(exclude={'embedding', 'created_at', 'updated_at', 'last_modified'}) for ep in source_epigraphs]
 
@@ -76,7 +103,15 @@ async def query_hudhud(
 
             logger.info("Creating answer generator with full epigraphs")
 
-            epigraph_limit = min(10, len(source_epigraphs))
+            num_title_matches = len(title_matched_epigraph_ids)
+
+            if num_title_matches > 0:
+                epigraph_limit = min(MAX_TOTAL_EPIGRAPHS, len(source_epigraphs))
+                logger.info(f"Including {num_title_matches} title matches (capped at {MAX_TITLE_MATCHES}) + up to {epigraph_limit - num_title_matches} semantic matches (total: {epigraph_limit})")
+            else:
+                epigraph_limit = min(MAX_TOTAL_EPIGRAPHS, len(source_epigraphs))
+                logger.info(f"Including up to {epigraph_limit} semantic matches (no title matches)")
+
             limited_epigraphs = source_epigraphs[:epigraph_limit]
 
             answer_generator = ai_service.generate_answer_with_epigraphs_streaming(
@@ -86,14 +121,19 @@ async def query_hudhud(
             )
 
             logger.info("Starting to iterate over answer generator")
+
+            accumulated_response = ""
+            token_count = 0
+
             async for chunk in answer_generator:
                 if chunk["type"] == "token":
+                    accumulated_response += chunk['content']
+                    token_count += 1
                     yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
                 elif chunk["type"] == "error":
                     logger.error(f"Error from generator: {chunk['content']}")
                     yield f"data: {json.dumps({'type': 'error', 'content': chunk['content']})}\n\n"
                     return
-
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

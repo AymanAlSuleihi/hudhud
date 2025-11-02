@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
 from app.crud.base import CRUDBase
@@ -11,6 +11,21 @@ from app.models.links import EpigraphSiteLink, EpigraphObjectLink
 class CRUDEpigraph(CRUDBase[Epigraph, EpigraphCreate, EpigraphUpdate]):
     def get_by_dasi_id(self, db: Session, *, dasi_id: int) -> Optional[Epigraph]:
         return db.query(self.model).filter(self.model.dasi_id == dasi_id).first()
+
+    def get_by_title(self, db: Session, *, title: str) -> Optional[Epigraph]:
+        return db.query(self.model).filter(self.model.title.ilike(title)).first()
+
+    def get_by_titles(self, db: Session, *, titles: List[str], limit: Optional[int] = None) -> List[Epigraph]:
+        if not titles:
+            return []
+
+        title_filters = [self.model.title.ilike(title.strip()) for title in titles]
+        query = db.query(self.model).filter(or_(*title_filters))
+
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
 
     def find_similar(self, db: Session, *, embedding: List[float], limit: int = 5) -> List[Epigraph]:
         query = select(self.model).order_by(self.model.embedding.l2_distance(embedding)).limit(limit)
