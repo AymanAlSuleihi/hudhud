@@ -13,13 +13,13 @@ class CRUDEpigraph(CRUDBase[Epigraph, EpigraphCreate, EpigraphUpdate]):
         return db.query(self.model).filter(self.model.dasi_id == dasi_id).first()
 
     def get_by_title(self, db: Session, *, title: str) -> Optional[Epigraph]:
-        return db.query(self.model).filter(self.model.title.ilike(title)).first()
+        return db.query(self.model).filter(self.model.title.ilike(f"%{title.strip()}%")).first()
 
     def get_by_titles(self, db: Session, *, titles: List[str], limit: Optional[int] = None) -> List[Epigraph]:
         if not titles:
             return []
 
-        title_filters = [self.model.title.ilike(title.strip()) for title in titles]
+        title_filters = [self.model.title.ilike(f"%{title.strip()}%") for title in titles]
         query = db.query(self.model).filter(or_(*title_filters))
 
         if limit:
