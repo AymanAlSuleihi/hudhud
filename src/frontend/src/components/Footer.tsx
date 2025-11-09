@@ -14,6 +14,8 @@ export const Footer: React.FC = () => {
               target="_blank" 
               rel="noopener noreferrer" 
               className="hover:text-gray-500 transition-colors font-semibold"
+              aria-label="Digital Archive for the Study of pre-Islamic Arabian Inscriptions"
+              data-umami-event="Footer DASI Click"
             >
               Digital Archive for the Study of pre-Islamic Arabian Inscriptions (DASI)
             </a>
@@ -23,6 +25,8 @@ export const Footer: React.FC = () => {
               target="_blank" 
               rel="noopener noreferrer" 
               className="hover:text-gray-500 transition-colors font-semibold"
+              aria-label="Creative Commons Attribution 4.0 International License"
+              data-umami-event="Footer CC BY 4.0 Click"
             >
               CC BY 4.0
             </a>
@@ -35,6 +39,7 @@ export const Footer: React.FC = () => {
               rel="noopener noreferrer"
               className="flex justify-center items-center hover:text-gray-500 transition-colors font-semibold mr-4"
               aria-label="Instagram"
+              data-umami-event="Footer Instagram Click"
             >
               <InstagramLogo size={16} className="mr-1" />
               shebascaravan
@@ -44,6 +49,8 @@ export const Footer: React.FC = () => {
             <a 
               href="mailto:contact@shebascaravan.com" 
               className="flex justify-center items-center hover:text-gray-500 transition-colors font-semibold"
+              aria-label="Email"
+              data-umami-event="Footer Contact Email Click"
             >
               <EnvelopeSimple size={16} className="mr-1 translate-y-[1px]" />
               contact@shebascaravan.com

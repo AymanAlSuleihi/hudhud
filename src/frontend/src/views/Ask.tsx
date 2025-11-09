@@ -1056,10 +1056,23 @@ const Ask: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors"
+              aria-label="Digital Archive for the Study of pre-Islamic Arabian Inscriptions"
+              data-umami-event="Footer DASI Click"
             >
               DASI
             </Link>
-            <span className="hidden sm:inline">under <Link to="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors">CC BY 4.0</Link></span>
+            <span className="hidden sm:inline">
+              under {" "}
+              <Link to="https://creativecommons.org/licenses/by/4.0/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors"
+                aria-label="Creative Commons Attribution 4.0 International License"
+                data-umami-event="Footer CC BY 4.0 Click"
+              >
+                CC BY 4.0
+              </Link>
+            </span>
           </div>
           <span className="mx-2 text-gray-300">|</span>
           <div className="text-gray-500">
@@ -1086,6 +1099,8 @@ const Ask: React.FC = () => {
           <Link 
             to="mailto:contact@shebascaravan.com" 
             className="text-zinc-600 hover:text-zinc-800 font-medium items-center gap-1 transition-colors hidden lg:inline-flex"
+            aria-label="Email"
+            data-umami-event="Footer Contact Email Click"
           >
             <EnvelopeSimple size={14} weight="bold" />
             contact@shebascaravan.com
@@ -1096,6 +1111,8 @@ const Ask: React.FC = () => {
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-600 hover:text-zinc-800 font-medium inline-flex items-center gap-1 transition-colors"
+            aria-label="Instagram"
+            data-umami-event="Footer Instagram Click"
           >
             <InstagramLogo size={14} weight="bold" />
             <span className="hidden 3xs:inline">shebascaravan</span>
