@@ -5,6 +5,7 @@ import { Spinner } from "../components/Spinner"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { MetaTags } from "../components/MetaTags"
 import { getDefaultMetaTags } from "../utils/metaTags"
+import { EpigraphsService } from "../client/services/EpigraphsService"
 
 interface Message {
   id: string
@@ -78,20 +79,15 @@ const Ask: React.FC = () => {
 
     if (uncachedIds.length > 0) {
       try {
-        const response = await fetch("/api/v1/epigraphs/by-ids", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(uncachedIds)
+        const data = await EpigraphsService.epigraphsGetEpigraphsByIds({
+          requestBody: uncachedIds
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          const newEpigraphs = data.epigraphs || []
+        const newEpigraphs = data.epigraphs || []
 
-          newEpigraphs.forEach((ep: any) => {
-            epigraphCacheRef.current.set(ep.id, ep)
-          })
-        }
+        newEpigraphs.forEach((ep: any) => {
+          epigraphCacheRef.current.set(ep.id, ep)
+        })
       } catch (error) {
         console.error("Failed to fetch epigraphs:", error)
       }

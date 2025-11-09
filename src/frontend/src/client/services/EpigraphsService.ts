@@ -97,6 +97,27 @@ export class EpigraphsService {
         });
     }
     /**
+     * Get Epigraphs By Ids
+     * Fetch multiple epigraphs by their IDs.
+     * @returns EpigraphsOut Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetEpigraphsByIds({
+        requestBody,
+    }: {
+        requestBody: Array<number>,
+    }): CancelablePromise<EpigraphsOut> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/by-ids',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Full Text Search Epigraphs
      * Full text search epigraphs using OpenSearch when available, falling back to PostgreSQL.
      * @returns EpigraphsOut Successful Response

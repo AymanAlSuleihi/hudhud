@@ -158,6 +158,35 @@ def filter_epigraphs(
     return EpigraphsOut(epigraphs=epigraphs, count=len(epigraphs))
 
 
+@router.post(
+    "/by-ids",
+    response_model=EpigraphsOut,
+)
+def get_epigraphs_by_ids(
+    session: SessionDep,
+    epigraph_ids: List[int],
+):
+    """
+    Fetch multiple epigraphs by their IDs.
+    """
+    if not epigraph_ids:
+        return EpigraphsOut(epigraphs=[], count=0)
+
+    if len(epigraph_ids) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot fetch more than 100 epigraphs at once"
+        )
+
+    query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+    epigraphs = session.exec(query).all()
+
+    epigraph_dict = {ep.id: ep for ep in epigraphs}
+    ordered_epigraphs = [epigraph_dict[id] for id in epigraph_ids if id in epigraph_dict]
+
+    return EpigraphsOut(epigraphs=ordered_epigraphs, count=len(ordered_epigraphs))
+
+
 @router.get(
     "/search",
     response_model=EpigraphsOut,
