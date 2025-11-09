@@ -20,6 +20,10 @@ logging.basicConfig(
 class AIService:
     """Service for handling AI-related operations including answer generation and query resolution."""
 
+    # GPT-5-mini
+    INPUT_COST_PER_1M = 0.250  # $0.250 per 1M input tokens
+    OUTPUT_COST_PER_1M = 2.000  # $2.000 per 1M output tokens
+
     def __init__(self):
         if hasattr(settings, "OPENAI_API_KEY"):
             self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -27,71 +31,134 @@ class AIService:
             self.client = None
             logging.warning("OpenAI API key not configured. AI features will be disabled.")
 
-    def resolve_query_with_context(
+    @staticmethod
+    def calculate_cost(input_tokens: int, output_tokens: int) -> dict:
+        """Calculate the cost of an API call based on token usage."""
+        input_cost = (input_tokens / 1_000_000) * AIService.INPUT_COST_PER_1M
+        output_cost = (output_tokens / 1_000_000) * AIService.OUTPUT_COST_PER_1M
+        total_cost = input_cost + output_cost
+        return {
+            "input_cost": input_cost,
+            "output_cost": output_cost,
+            "total_cost": total_cost
+        }
+
+    def process_query(
         self, 
-        user_query: str, 
-        conversation_history: List
-    ) -> Tuple[str, List[str]]:
+        user_query: str,
+        conversation_history: List = None
+    ) -> Tuple[str, Optional[str], str, List[str]]:
         """
-        Resolve the actual search query by analyzing conversation history.
-        Handles follow-up questions like "tell me more", "search wider", etc.
-        Returns: (resolved_query, list_of_epigraph_titles)
+        Combined query processing: classify intent + resolve search query in one LLM call.
+
+        Returns:
+            Tuple of (intent_type, direct_response, resolved_query, epigraph_titles)
+            - intent_type: "domain" | "greeting" | "thanks" | "meta" | "help" | "unclear"
+            - direct_response: Response if no search needed, None otherwise
+            - resolved_query: Natural language search query for semantic search
+            - epigraph_titles: List of specific epigraph titles mentioned
         """
         if not self.client:
-            return user_query, []
+            return "domain", None, user_query, []
 
-        # If no conversation history, still check for title references
-        if not conversation_history:
-            return self._extract_titles_from_query(user_query)
+        history_text = ""
+        if conversation_history and len(conversation_history) > 0:
+            history_text = "\n".join([
+                f"{(msg.role if hasattr(msg, 'role') else msg['role']).capitalize()}: {(msg.content if hasattr(msg, 'content') else msg['content'])[:300]}" 
+                for msg in conversation_history[-4:]
+            ])
 
-        history_text = "\n".join([
-            f"{(msg.role if hasattr(msg, 'role') else msg['role']).capitalize()}: {(msg.content if hasattr(msg, 'content') else msg['content'])[:300]}" 
-            for msg in conversation_history[-4:]
-        ])
+        system_prompt = """You are Hudhud's query processor. Process each user query by:
+        1. Classifying the intent
+        2. Resolving the search query (for domain queries)
+        3. Extracting epigraph title references
+        4. Providing direct responses (for non-domain queries)
 
-        system_prompt = """You are a query resolution assistant for a semantic search system that uses embeddings.
+        **BACKGROUND INFORMATION ABOUT HUDHUD (for meta queries):**
+        - **Project**: Hudhud is a digital research database dedicated to Ancient South Arabian epigraphy and inscriptions, operated by Sheba's Caravan
+        - **Operator**: Sheba's Caravan - Follow on [Instagram](https://instagram.com/shebascaravan)
+        - **Contact**: For inquiries, email [contact@shebascaravan.com](mailto:contact@shebascaravan.com) or message on [Instagram](https://instagram.com/shebascaravan)
+        - **Coverage**: Thousands of inscriptions from Ancient South Arabian kingdoms (Saba, Qataban, Hadramawt, Maʿīn, Awsān, etc.) dating from the late second millennium BC to the sixth century AD
+        - **Data Source**: Epigraphic data sourced from DASI (Digital Archive for the Study of pre-Islamic Arabian Inscriptions)
+        - **Technology**: Built with semantic search using AI embeddings for natural language queries, streaming responses, and comprehensive historical context
+        - **Purpose**: Provides researchers, students, and enthusiasts with accessible, searchable access to Ancient South Arabian inscriptions with scholarly annotations, translations, and cultural context
+        - **More Info**: Visit the [About page](/about) for details about the project
 
-        Your task: Convert follow-up queries into natural language search queries based on conversation context, and detect specific epigraph title references.
+        **INTENT CATEGORIES:**
+        - "domain": Questions about Ancient South Arabia, inscriptions, epigraphs, rulers, places, dates, archaeology, deities, languages, scripts, etc. (requires database search)
+        - "greeting": Greetings, introductions, casual conversation starters (e.g., "hi", "hello", "good morning")
+        - "thanks": Thank you messages, expressions of gratitude, appreciation
+        - "meta": Questions about the website/system itself - who made it, how it works, data sources, contact info, technology
+        - "help": Questions about how to use the system, what it can do, how to search, what data is available
+        - "unclear": Ambiguous, nonsensical, or completely unrelated queries
 
-        Rules:
-        1. For follow-up queries like "tell me more", "search wider", "what else", etc., identify the main topic from conversation history
-        2. For "search wider" requests, expand the topic naturally (e.g., "Karib il Watar" → "information about Karib il Watar and his reign in Saba")
-        3. For new standalone questions, return them as-is
-        4. Write natural phrases, NOT keyword lists - the system uses semantic search with embeddings
-        5. Keep queries concise but natural (1-2 sentences max)
-        6. For Ancient South Arabian names, you can include both romanized and transliterated forms for better recall (e.g., "Karib il Watar" and "Krbʾl Wtr")
+        **QUERY RESOLUTION RULES (for domain queries):**
+        - For follow-up queries like "tell me more", "search wider", "what else", use conversation history to identify the topic
+        - For "search wider" requests, expand the topic naturally (e.g., "Karib il Watar" → "information about Karib il Watar and his reign in Saba")
+        - For new standalone questions, return them as-is or slightly expanded
+        - Write natural phrases, NOT keyword lists - the system uses semantic search with embeddings
+        - Keep queries concise but natural (1-2 sentences max)
+        - For Ancient South Arabian names, include both romanized and transliterated forms for better recall (e.g., "Karib il Watar" and "Krbʾl Wtr")
+        - When users ask about specific epigraphs by title (e.g., "Ja 1028", "RES 4176"), extract these titles
 
-        **CRITICAL - Detecting Epigraph Title References:**
-        7. When users explicitly ask about specific epigraphs by title (e.g., "Ja 1028", "RES 4176", "MIbb 72"), you MUST extract these titles
-        8. Return your response as JSON with TWO fields:
-        - "query": the natural language search query (same rules as above)
-        - "titles": an array of epigraph titles mentioned (empty array if none)
+        **DIRECT RESPONSE GUIDELINES (for non-domain queries):**
+        - **greeting**: Warm welcome + brief intro to what Hudhud does + invite to ask questions
+        - **thanks**: Polite acknowledgment + offer to help with more questions
+        - **meta**: Use the background information provided. **IMPORTANT**: Format ALL links using markdown syntax [text](url). Keep responses concise but informative.
+        - **help**: Concise explanation of capabilities + 2-3 example questions they can ask
+        - **unclear**: null (will default to domain search to avoid missing edge cases)
+        - **CRITICAL**: Always use markdown format for links: [Link Text](URL). Never use plain URLs.
 
-        Examples:
-        - Input: "tell me about epigraph Ja 1028"
-        Output: {"query": "information about Ja 1028", "titles": ["Ja 1028"]}
+        **RETURN FORMAT:**
+        Return JSON with FOUR fields:
+        - "intent": the category above
+        - "direct_response": a response (ONLY if intent is NOT "domain" or "unclear"), otherwise null
+        - "resolved_query": the natural language search query (ONLY if intent is "domain" or "unclear"), otherwise null
+        - "titles": array of specific epigraph titles mentioned (e.g., ["Ja 1028", "RES 4176"]), empty array if none
 
-        - Input: "what does RES 4176 say about Karib il Watar?"
-        Output: {"query": "Karib il Watar Krbʾl Wtr", "titles": ["RES 4176"]}
+        **EXAMPLES:**
 
-        - Input: "show me Ja 1028 and RES 4176"
-        Output: {"query": "inscriptions Ja 1028 RES 4176", "titles": ["Ja 1028", "RES 4176"]}
+        Input: "hi"
+        Output: {"intent": "greeting", "direct_response": "Hello! I'm Hudhud, your guide to Ancient South Arabian inscriptions and epigraphy. I can help you explore thousands of texts from kingdoms like Saba, Qataban, Hadramawt, and more. What would you like to know?", "resolved_query": null, "titles": []}
 
-        - History: "tell me about Karib il Watar", User: "search wider"
-        Output: {"query": "Karib il Watar Krbʾl Wtr reign campaigns military activities Saba kingdom", "titles": []}
+        Input: "thank you so much!"
+        Output: {"intent": "thanks", "direct_response": "You're very welcome! Feel free to ask if you have more questions about Ancient South Arabian history or inscriptions.", "resolved_query": null, "titles": []}
 
-        - Input: "what about temples?"
-        Output: {"query": "what about temples?", "titles": []}
+        Input: "who created this website?"
+        Output: {"intent": "meta", "direct_response": "Hudhud is operated by Sheba's Caravan, a project dedicated to making Ancient South Arabian history more accessible. Learn more on the [About page](/about) or follow on [Instagram](https://instagram.com/shebascaravan)", "resolved_query": null, "titles": []}
 
-        Return ONLY the JSON object, no other text.
-        """
+        Input: "how do I contact you?"
+        Output: {"intent": "meta", "direct_response": "You can reach us at [contact@shebascaravan.com](mailto:contact@shebascaravan.com), message us on [Instagram](https://instagram.com/shebascaravan), or visit our [About page](/about) for more information.", "resolved_query": null, "titles": []}
 
-        user_prompt = f"""Conversation history:
-        {history_text}
+        Input: "what can you help me with?"
+        Output: {"intent": "help", "direct_response": "I can help you explore Ancient South Arabian inscriptions! Ask me about:\\n- Specific epigraphs (e.g., 'What does RES 4176 say?')\\n- Historical figures (e.g., 'Tell me about Karib'il Watar')\\n- Sites and archaeology (e.g., 'What inscriptions are from Marib?')\\n- Deities and religion (e.g., 'Who was Almaqah?')\\n- Any historical topic from this region!", "resolved_query": null, "titles": []}
 
-        User's new query: "{user_query}"
+        Input: "tell me about Almaqah"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "tell me about Almaqah", "titles": []}
 
-        Return JSON with query and titles:"""
+        Input: "what does RES 4176 say?"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "what does RES 4176 say", "titles": ["RES 4176"]}
+
+        Input: "tell me about epigraph Ja 1028"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "information about Ja 1028", "titles": ["Ja 1028"]}
+
+        Input: "show me Ja 1028 and RES 4176"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "inscriptions Ja 1028 RES 4176", "titles": ["Ja 1028", "RES 4176"]}
+
+        Conversation history: "User: tell me about Karib il Watar\\nAssistant: [previous response]"
+        Input: "search wider"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "Karib il Watar Krbʾl Wtr reign campaigns military activities Saba kingdom", "titles": []}
+
+        Conversation history: "User: what inscriptions mention temples?\\nAssistant: [previous response]"
+        Input: "tell me more"
+        Output: {"intent": "domain", "direct_response": null, "resolved_query": "tell me more about temples and temple inscriptions in Ancient South Arabia", "titles": []}
+
+        Return ONLY the JSON object."""
+
+        user_prompt = f'User query: "{user_query}"'
+        if history_text:
+            user_prompt = f'Conversation history:\n{history_text}\n\n{user_prompt}'
+        user_prompt += '\n\nReturn JSON with intent, direct_response, resolved_query, and titles:'
 
         try:
             response = self.client.responses.create(
@@ -101,104 +168,39 @@ class AIService:
                     {"role": "user", "content": user_prompt}
                 ]
             )
-            logging.info(f"OpenAI response: {response}")
 
-            resolved_response = response.output_text
-            if not resolved_response:
-                logging.warning(f"OpenAI returned empty content for query: '{user_query}'. Using original query.")
-                return user_query, []
+            result = response.output_text
+            if not result:
+                logging.warning(f"Empty response for query: {user_query}")
+                return "domain", None, user_query, []
 
-            resolved_response = resolved_response.strip()
+            if hasattr(response, 'usage'):
+                input_tokens = response.usage.input_tokens
+                output_tokens = response.usage.output_tokens
+                costs = self.calculate_cost(input_tokens, output_tokens)
+                logging.info(f"[process_query] Tokens - Input: {input_tokens}, Output: {output_tokens}")
+                logging.info(f"[process_query] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
 
-            try:
-                parsed = json.loads(resolved_response)
-                resolved_query = parsed.get("query", user_query).strip()
-                titles = parsed.get("titles", [])
+            parsed = json.loads(result.strip())
+            intent = parsed.get("intent", "unclear")
+            direct_response = parsed.get("direct_response")
+            resolved_query = parsed.get("resolved_query", user_query)
+            titles = parsed.get("titles", [])
 
-                logging.info(f"Query resolved from '{user_query}' to '{resolved_query}' with titles: {titles}")
+            if intent == "unclear":
+                intent = "domain"
+                resolved_query = user_query if not resolved_query else resolved_query
 
-                if not resolved_query:
-                    logging.warning(f"Query resolved to empty string. Using original: '{user_query}'")
-                    return user_query, titles
+            if intent == "domain" and not resolved_query:
+                resolved_query = user_query
 
-                return resolved_query, titles
+            logging.info(f"Query processed - Intent: {intent}, Titles: {titles}, Resolved: {resolved_query[:100] if resolved_query else None}")
 
-            except json.JSONDecodeError as je:
-                logging.warning(f"Failed to parse JSON response: {resolved_response}. Error: {je}. Using as plain query.")
-                return resolved_response, []
-
-        except Exception as e:
-            logging.error(f"Error resolving query: {e}")
-            return user_query, []
-
-    def _extract_titles_from_query(self, user_query: str) -> Tuple[str, List[str]]:
-        """
-        Extract epigraph titles from a query without conversation context.
-        Returns: (query, list_of_epigraph_titles)
-        """
-        system_prompt = """You are a query resolution assistant for detecting epigraph title references.
-
-        Your task: Detect if the user is asking about specific epigraph titles (e.g., "Ja 1028", "RES 4176", "MIbb 72").
-
-        Return JSON with TWO fields:
-        - "query": the search query (keep as-is or expand naturally if it's just a title lookup)
-        - "titles": array of epigraph titles mentioned (empty array if none)
-
-        Examples:
-        - Input: "tell me about epigraph Ja 1028"
-        Output: {"query": "information about Ja 1028", "titles": ["Ja 1028"]}
-
-        - Input: "what does RES 4176 say about Karib il Watar?"
-        Output: {"query": "Karib il Watar Krbʾl Wtr", "titles": ["RES 4176"]}
-
-        - Input: "show me Ja 1028 and RES 4176"
-        Output: {"query": "inscriptions Ja 1028 RES 4176", "titles": ["Ja 1028", "RES 4176"]}
-
-        - Input: "what about temples?"
-        Output: {"query": "what about temples?", "titles": []}
-
-        - Input: "Ja 1028"
-        Output: {"query": "Ja 1028 inscription details", "titles": ["Ja 1028"]}
-
-        Return ONLY the JSON object, no other text.
-        """
-
-        try:
-            response = self.client.responses.create(
-                model="gpt-5-mini",
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f'User query: "{user_query}"\n\nReturn JSON with query and titles:'}
-                ]
-            )
-
-            resolved_response = response.output_text
-            if not resolved_response:
-                logging.warning(f"OpenAI returned empty content for query: '{user_query}'. Using original query.")
-                return user_query, []
-
-            resolved_response = resolved_response.strip()
-
-            try:
-                parsed = json.loads(resolved_response)
-                resolved_query = parsed.get("query", user_query).strip()
-                titles = parsed.get("titles", [])
-
-                logging.info(f"Extracted titles from '{user_query}': query='{resolved_query}', titles={titles}")
-
-                if not resolved_query:
-                    logging.warning(f"Query resolved to empty string. Using original: '{user_query}'")
-                    return user_query, titles
-
-                return resolved_query, titles
-
-            except json.JSONDecodeError as je:
-                logging.warning(f"Failed to parse JSON response: {resolved_response}. Error: {je}. Using as plain query.")
-                return resolved_response, []
+            return intent, direct_response, resolved_query or user_query, titles
 
         except Exception as e:
-            logging.error(f"Error extracting titles from query: {e}")
-            return user_query, []
+            logging.error(f"Error processing query: {e}")
+            return "domain", None, user_query, []
 
     def generate_answer_with_chunks(
         self, 
@@ -277,8 +279,13 @@ class AIService:
                     {"role": "user", "content": f"Question: {user_query}\n\nRelevant excerpts from inscriptions:\n{formatted_json}"}
                 ]
             )
-            logging.info(f"AI response with chunks: {response}")
-            logging.info(f"Token usage: {response.usage.input_tokens} input, {response.usage.output_tokens} output")
+
+            if hasattr(response, 'usage'):
+                input_tokens = response.usage.input_tokens
+                output_tokens = response.usage.output_tokens
+                costs = self.calculate_cost(input_tokens, output_tokens)
+                logging.info(f"[generate_answer_with_chunks] Tokens - Input: {input_tokens}, Output: {output_tokens}")
+                logging.info(f"[generate_answer_with_chunks] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
 
             answer = response.output_text
             logging.info(f"AI generated answer using {len(formatted_chunks)} chunks from {len(epigraph_ids_used)} epigraphs")
@@ -373,15 +380,34 @@ class AIService:
                 "content": f"Question: {user_query}\n\nRelevant excerpts from inscriptions:\n{formatted_json}"
             })
 
-            stream = self.client.chat.completions.create(
+            stream = self.client.responses.create(
                 model="gpt-5-mini",
-                messages=messages,
+                input=messages,
                 stream=True
             )
 
-            for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield {"type": "token", "content": chunk.choices[0].delta.content}
+            input_tokens = 0
+            output_tokens = 0
+            accumulated_output = ""
+
+            for event in stream:
+                if event.type == "response.output_text.delta":
+                    content = event.delta
+                    accumulated_output += content
+                    yield {"type": "token", "content": content}
+
+                elif event.type == "response.completed":
+                    if hasattr(event, 'response') and event.response:
+                        if hasattr(event.response, 'usage') and event.response.usage:
+                            input_tokens = event.response.usage.input_tokens
+                            output_tokens = event.response.usage.output_tokens
+
+            if input_tokens > 0 or output_tokens > 0:
+                costs = self.calculate_cost(input_tokens, output_tokens)
+                logging.info(f"[generate_answer_with_chunks_streaming] Tokens - Input: {input_tokens}, Output: {output_tokens}")
+                logging.info(f"[generate_answer_with_chunks_streaming] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
+            else:
+                logging.warning(f"[generate_answer_with_chunks_streaming] No token usage data available")
 
             yield {"type": "epigraph_ids", "ids": list(epigraph_ids_used)}
 
@@ -505,31 +531,36 @@ class AIService:
                 "content": f"Question: {user_query}\n\nComplete epigraphs from the database:\n{formatted_json}"
             })
 
-            stream = self.client.chat.completions.create(
+            stream = self.client.responses.create(
                 model="gpt-5-mini",
-                messages=messages,
-                stream=True,
-                stream_options={"include_usage": True}
+                input=messages,
+                stream=True
             )
 
             full_response = ""
-            usage_data = None
+            input_tokens = 0
+            output_tokens = 0
 
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
+            for event in stream:
+                if event.type == "response.output_text.delta":
+                    content = event.delta
                     full_response += content
                     yield {"type": "token", "content": content}
 
-                if hasattr(chunk, 'usage') and chunk.usage is not None:
-                    usage_data = chunk.usage
+                elif event.type == "response.completed":
+                    if hasattr(event, 'response') and event.response:
+                        if hasattr(event.response, 'usage') and event.response.usage:
+                            input_tokens = event.response.usage.input_tokens
+                            output_tokens = event.response.usage.output_tokens
 
             logging.info(f"Full response: {full_response[:500]}...")
 
-            if usage_data:
-                logging.info(f"Token usage - Input: {usage_data.prompt_tokens}, Output: {usage_data.completion_tokens}, Total: {usage_data.total_tokens}")
+            if input_tokens > 0 or output_tokens > 0:
+                costs = self.calculate_cost(input_tokens, output_tokens)
+                logging.info(f"[generate_answer_with_epigraphs_streaming] Tokens - Input: {input_tokens}, Output: {output_tokens}")
+                logging.info(f"[generate_answer_with_epigraphs_streaming] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
             else:
-                logging.warning("Token usage data not available from OpenAI")
+                logging.warning(f"[generate_answer_with_epigraphs_streaming] No token usage data available")
 
             yield {"type": "epigraph_ids", "ids": list(epigraph_ids_used)}
 

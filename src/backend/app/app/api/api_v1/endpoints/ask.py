@@ -49,12 +49,20 @@ async def query_hudhud(
         ai_service = AIService()
 
         try:
-            search_query, epigraph_titles = ai_service.resolve_query_with_context(
+            intent, direct_response, search_query, epigraph_titles = ai_service.process_query(
                 request.query,
                 request.conversation_history or []
             )
-            logger.info(f"Resolved search query: {search_query}")
-            logger.info(f"Detected epigraph titles: {epigraph_titles}")
+            logger.info(f"Query processed - Intent: {intent}, Titles: {epigraph_titles}")
+
+            if intent in ["greeting", "thanks", "meta", "help"] and direct_response:
+                logger.info("Responding directly without database search")
+                for char in direct_response:
+                    yield f"data: {json.dumps({'type': 'token', 'content': char})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                return
+
+            logger.info(f"Search query: {search_query}")
 
             chunk_results = search_service.semantic_search_chunks(
                 text=search_query,
