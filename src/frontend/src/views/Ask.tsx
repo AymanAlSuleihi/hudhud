@@ -10,7 +10,7 @@ interface Message {
   id: string
   type: "user" | "assistant" | "error"
   text: string
-  epigraphs?: any[]
+  epigraphIds?: number[]
   timestamp: Date
 }
 
@@ -52,33 +52,77 @@ const Ask: React.FC = () => {
     ]
   })
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null) // Track which message is streaming
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [recentQueries, setRecentQueries] = useState<string[]>([])
-  const [currentEpigraphs, setCurrentEpigraphs] = useState<any[]>([])
-  const [messageEpigraphs, setMessageEpigraphs] = useState<Map<string, any[]>>(new Map()) // Store epigraphs by message ID
-  const [epigraphHistory, setEpigraphHistory] = useState<{ epigraphs: any[], messageId: string }[]>([]) // Track epigraph sets history
-  const [currentEpigraphIndex, setCurrentEpigraphIndex] = useState<number>(-1) // Current position in history
-  const [sidebarWidth, setSidebarWidth] = useState<number>(50) // percentage
+
+  const [currentPageMessageId, setCurrentPageMessageId] = useState<string | null>(null)
+  const [currentPageEpigraphs, setCurrentPageEpigraphs] = useState<any[]>([])
+  const [epigraphPages, setEpigraphPages] = useState<Map<string, number[]>>(new Map())
+  const epigraphCacheRef = useRef<Map<number, any>>(new Map())
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false)
+  const [pendingScrollToEpigraphId, setPendingScrollToEpigraphId] = useState<number | null | undefined>(undefined)
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(50)
   const [isResizing, setIsResizing] = useState<boolean>(false)
-  const [dragPosition, setDragPosition] = useState<number | null>(null) // x position in pixels during drag
-  const [mobileView, setMobileView] = useState<"chat" | "info">("chat") // Mobile view toggle
+  const [dragPosition, setDragPosition] = useState<number | null>(null)
+  const [mobileView, setMobileView] = useState<"chat" | "info">("chat")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const epigraphRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const infoPanelRef = useRef<HTMLDivElement>(null)
 
-  const scrollToEpigraph = (epigraphId: string, messageId?: string) => {
-    // If a messageId is provided, switch to that message's epigraphs first
-    if (messageId) {
-      const epigraphs = messageEpigraphs.get(messageId)
-      if (epigraphs) {
-        updateCurrentEpigraphs(epigraphs, messageId)
-        // Wait for the epigraphs to render before scrolling
+  const fetchEpigraphsByIds = async (ids: number[]): Promise<any[]> => {
+    if (ids.length === 0) return []
+
+    const uncachedIds = ids.filter(id => !epigraphCacheRef.current.has(id))
+
+    if (uncachedIds.length > 0) {
+      try {
+        const response = await fetch("/api/v1/epigraphs/by-ids", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(uncachedIds)
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const newEpigraphs = data.epigraphs || []
+
+          newEpigraphs.forEach((ep: any) => {
+            epigraphCacheRef.current.set(ep.id, ep)
+          })
+        }
+      } catch (error) {
+        console.error("Failed to fetch epigraphs:", error)
+      }
+    }
+
+    const result: any[] = []
+    ids.forEach(id => {
+      const epigraph = epigraphCacheRef.current.get(id)
+      if (epigraph) result.push(epigraph)
+    })
+    return result
+  }
+
+  const loadEpigraphPage = async (messageId: string, scrollToEpigraphId?: number) => {
+    const epigraphIds = epigraphPages.get(messageId)
+    if (!epigraphIds || epigraphIds.length === 0) return
+
+    if (currentPageMessageId === messageId && currentPageEpigraphs.length > 0) {
+      if (scrollToEpigraphId) {
         setTimeout(() => {
-          const element = epigraphRefs.current[epigraphId]
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "start" })
-            // Highlight effect
+          const element = epigraphRefs.current[String(scrollToEpigraphId)]
+          if (element && infoPanelRef.current) {
+            const panelRect = infoPanelRef.current.getBoundingClientRect()
+            const elementRect = element.getBoundingClientRect()
+            const relativeTop = elementRect.top - panelRect.top + infoPanelRef.current.scrollTop
+
+            infoPanelRef.current.scrollTo({
+              top: Math.max(0, relativeTop - 20),
+              behavior: "smooth"
+            })
+
             element.style.transition = "background-color 0.3s"
             element.style.backgroundColor = "#fef3c7"
             setTimeout(() => {
@@ -86,63 +130,41 @@ const Ask: React.FC = () => {
             }, 2000)
           }
         }, 100)
-        return
       }
+      return
     }
 
-    // Otherwise just try to scroll to the element if it's already rendered
-    const element = epigraphRefs.current[epigraphId]
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" })
-      element.style.transition = "background-color 0.3s"
-      element.style.backgroundColor = "#fef3c7"
-      setTimeout(() => {
-        element.style.backgroundColor = ""
-      }, 2000)
-    }
+    setCurrentPageMessageId(messageId)
+    setIsLoadingPage(true)
+
+    const epigraphs = await fetchEpigraphsByIds(epigraphIds)
+    setCurrentPageEpigraphs(epigraphs)
+    setIsLoadingPage(false)
+
+    setPendingScrollToEpigraphId(scrollToEpigraphId || null)
   }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const updateCurrentEpigraphs = (epigraphs: any[], messageId: string) => {
-    // Check if this set is already the current one
-    if (currentEpigraphIndex >= 0 && 
-        epigraphHistory[currentEpigraphIndex]?.messageId === messageId &&
-        JSON.stringify(epigraphHistory[currentEpigraphIndex]?.epigraphs) === JSON.stringify(epigraphs)) {
-      return // Already showing this set
-    }
+  const navigateEpigraphs = async (direction: "prev" | "next") => {
+    const pageIds = Array.from(epigraphPages.keys())
+    const currentIndex = pageIds.indexOf(currentPageMessageId || "")
 
-    setCurrentEpigraphs(epigraphs)
+    if (currentIndex === -1) return
 
-    // Add to history if not empty
-    if (epigraphs.length > 0) {
-      const newEntry = { epigraphs, messageId }
-
-      // If we're not at the end of history, remove everything after current index
-      const newHistory = currentEpigraphIndex >= 0 
-        ? [...epigraphHistory.slice(0, currentEpigraphIndex + 1), newEntry]
-        : [...epigraphHistory, newEntry]
-
-      setEpigraphHistory(newHistory)
-      setCurrentEpigraphIndex(newHistory.length - 1)
-    }
-  }
-
-  const navigateEpigraphs = (direction: "prev" | "next") => {
     const newIndex = direction === "prev" 
-      ? Math.max(0, currentEpigraphIndex - 1)
-      : Math.min(epigraphHistory.length - 1, currentEpigraphIndex + 1)
+      ? Math.max(0, currentIndex - 1)
+      : Math.min(pageIds.length - 1, currentIndex + 1)
 
-    if (newIndex !== currentEpigraphIndex && epigraphHistory[newIndex]) {
-      setCurrentEpigraphIndex(newIndex)
-      setCurrentEpigraphs(epigraphHistory[newIndex].epigraphs)
+    if (newIndex !== currentIndex) {
+      const newPageId = pageIds[newIndex]
+      await loadEpigraphPage(newPageId)
 
       // Scroll to the corresponding message in the chat
-      const messageId = epigraphHistory[newIndex].messageId
       setTimeout(() => {
-        const messageElement = document.querySelector(`[data-message-id="${messageId}"] > div`) as HTMLElement
+        const messageElement = document.querySelector(`[data-message-id="${newPageId}"] > div`) as HTMLElement
         const chatContainer = document.querySelector(".flex-1.overflow-y-auto.bg-white.scrollbar-offset-top") as HTMLElement
 
         if (messageElement && chatContainer) {
@@ -237,11 +259,51 @@ const Ask: React.FC = () => {
   }, [messages.length])
 
   useEffect(() => {
-    // Scroll info panel to top when new epigraphs are loaded
-    if (currentEpigraphs.length > 0 && infoPanelRef.current) {
-      infoPanelRef.current.scrollTo({ top: 0, behavior: "smooth" })
+    if (currentPageEpigraphs.length > 0 && infoPanelRef.current) {
+      if (typeof pendingScrollToEpigraphId === 'number') {
+        const attemptScroll = (attempts = 0) => {
+          const element = epigraphRefs.current[String(pendingScrollToEpigraphId)]
+
+          if (element && infoPanelRef.current) {
+            const panelRect = infoPanelRef.current.getBoundingClientRect()
+            const elementRect = element.getBoundingClientRect()
+            const relativeTop = elementRect.top - panelRect.top + infoPanelRef.current.scrollTop
+
+            infoPanelRef.current.scrollTo({
+              top: Math.max(0, relativeTop - 20),
+              behavior: "smooth"
+            })
+
+            element.style.transition = "background-color 0.3s"
+            element.style.backgroundColor = "#fef3c7"
+            setTimeout(() => {
+              element.style.backgroundColor = ""
+            }, 2000)
+
+            setPendingScrollToEpigraphId(undefined)
+          } else if (attempts < 5) {
+            setTimeout(() => attemptScroll(attempts + 1), 50 * Math.pow(2, attempts))
+          } else {
+            setPendingScrollToEpigraphId(undefined)
+          }
+        }
+
+        requestAnimationFrame(() => attemptScroll())
+      } else if (pendingScrollToEpigraphId === null) {
+        infoPanelRef.current.scrollTo({ top: 0, behavior: "smooth" })
+        setPendingScrollToEpigraphId(undefined)
+      }
     }
-  }, [currentEpigraphs])
+  }, [pendingScrollToEpigraphId, currentPageEpigraphs])
+
+  useEffect(() => {
+    const currentEpigraphIds = new Set(currentPageEpigraphs.map((ep: any) => String(ep.id)))
+    Object.keys(epigraphRefs.current).forEach(key => {
+      if (!currentEpigraphIds.has(key)) {
+        delete epigraphRefs.current[key]
+      }
+    })
+  }, [currentPageEpigraphs])
 
   useEffect(() => {
     const handleEpigraphClick = (e: MouseEvent) => {
@@ -250,8 +312,13 @@ const Ask: React.FC = () => {
         e.preventDefault()
         const epigraphKey = target.getAttribute("data-epigraph")
         const messageId = target.getAttribute("data-message-id")
-        if (epigraphKey) {
-          scrollToEpigraph(epigraphKey, messageId || undefined)
+
+        if (epigraphKey && messageId) {
+          const epigraphId = parseInt(epigraphKey)
+          if (!isNaN(epigraphId)) {
+            setMobileView('info')
+            loadEpigraphPage(messageId, epigraphId)
+          }
         }
       }
     }
@@ -260,7 +327,7 @@ const Ask: React.FC = () => {
     return () => {
       document.removeEventListener("click", handleEpigraphClick)
     }
-  }, [messageEpigraphs])
+  }, [epigraphPages, currentPageMessageId, currentPageEpigraphs])
 
   useEffect(() => {
     const savedQueries = localStorage.getItem("hudhudRecentQueries")
@@ -272,7 +339,6 @@ const Ask: React.FC = () => {
       }
     }
 
-    // Load saved conversation
     const savedMessages = localStorage.getItem("hudhudChatHistory")
     if (savedMessages) {
       try {
@@ -283,24 +349,25 @@ const Ask: React.FC = () => {
         }))
         setMessages(parsedMessages)
 
-        // Rebuild messageEpigraphs map from saved messages
-        const epigraphsMap = new Map<string, any[]>()
-        const historyEntries: { epigraphs: any[], messageId: string }[] = []
+        const pages = new Map<string, number[]>()
+        const refs = new Map<number, string>()
 
         parsedMessages.forEach((msg: Message) => {
-          if (msg.epigraphs && msg.epigraphs.length > 0) {
-            epigraphsMap.set(msg.id, msg.epigraphs)
-            historyEntries.push({ epigraphs: msg.epigraphs, messageId: msg.id })
+          if (msg.epigraphIds && msg.epigraphIds.length > 0) {
+            pages.set(msg.id, msg.epigraphIds)
+
+            msg.epigraphIds.forEach(epigraphId => {
+              refs.set(epigraphId, msg.id)
+            })
           }
         })
-        setMessageEpigraphs(epigraphsMap)
 
-        // Set up history with the most recent epigraphs
-        if (historyEntries.length > 0) {
-          setEpigraphHistory(historyEntries)
-          const lastEntry = historyEntries[historyEntries.length - 1]
-          setCurrentEpigraphs(lastEntry.epigraphs)
-          setCurrentEpigraphIndex(historyEntries.length - 1)
+        setEpigraphPages(pages)
+
+        if (pages.size > 0) {
+          const pageIds = Array.from(pages.keys())
+          const lastPageId = pageIds[pageIds.length - 1]
+          loadEpigraphPage(lastPageId)
         }
       } catch (e) {
         console.error("Failed to parse saved messages:", e)
@@ -316,7 +383,8 @@ const Ask: React.FC = () => {
 
   useEffect(() => {
     if (messages.length > 0) {
-      localStorage.setItem("hudhudChatHistory", JSON.stringify(messages))
+      const messagesToStore = messages.slice(-50)
+      localStorage.setItem("hudhudChatHistory", JSON.stringify(messagesToStore))
     }
   }, [messages])
 
@@ -347,7 +415,7 @@ const Ask: React.FC = () => {
       id: assistantMessageId,
       type: "assistant",
       text: "",
-      epigraphs: [],
+      epigraphIds: [],
       timestamp: new Date()
     }
 
@@ -435,24 +503,29 @@ const Ask: React.FC = () => {
                 )
               } else if (data.type === "epigraphs") {
                 receivedEpigraphs = data.content
-                // Update message with epigraphs
+                const epigraphIds = receivedEpigraphs.map((ep: any) => ep.id)
+
                 setMessages(prev => 
                   prev.map(msg => 
                     msg.id === assistantMessageId 
-                      ? { ...msg, epigraphs: receivedEpigraphs }
+                      ? { ...msg, epigraphIds }
                       : msg
                   )
                 )
 
-                // Store epigraphs for this message
-                if (receivedEpigraphs.length > 0) {
-                  setMessageEpigraphs(prev => {
-                    const newMap = new Map(prev)
-                    newMap.set(assistantMessageId, receivedEpigraphs)
-                    return newMap
+                if (epigraphIds.length > 0) {
+                  setEpigraphPages(prev => {
+                    const newPages = new Map(prev)
+                    newPages.set(assistantMessageId, epigraphIds)
+                    return newPages
                   })
-                  // Update the sidebar with the latest epigraphs
-                  updateCurrentEpigraphs(receivedEpigraphs, assistantMessageId)
+
+                  receivedEpigraphs.forEach((ep: any) => {
+                    epigraphCacheRef.current.set(ep.id, ep)
+                  })
+
+                  setCurrentPageMessageId(assistantMessageId)
+                  setCurrentPageEpigraphs(receivedEpigraphs)
                 }
               } else if (data.type === "error") {
                 setMessages(prev => 
@@ -528,10 +601,10 @@ const Ask: React.FC = () => {
         }
       ]
       setMessages(welcomeMessages)
-      setCurrentEpigraphs([])
-      setMessageEpigraphs(new Map())
-      setEpigraphHistory([])
-      setCurrentEpigraphIndex(-1)
+      setCurrentPageEpigraphs([])
+      setCurrentPageMessageId(null)
+      setEpigraphPages(new Map())
+      epigraphCacheRef.current = new Map()
       localStorage.removeItem("hudhudChatHistory")
     }
   }
@@ -551,7 +624,10 @@ const Ask: React.FC = () => {
 
   const formatMessage = (text: string, messageId: string) => {
     const linkifyEpigraphIds = (html: string) => {
-      const messageEpis = messageEpigraphs.get(messageId) || []
+      const epigraphIds = epigraphPages.get(messageId) || []
+      if (epigraphIds.length === 0) return html
+
+      const messageEpis = epigraphIds.map(id => epigraphCacheRef.current.get(id)).filter(Boolean)
       if (messageEpis.length === 0) return html
 
       html = html.replace(/\[EPIGRAPH:([^\]]+)\]/g, (_match, epigraphId) => {
@@ -568,7 +644,7 @@ const Ask: React.FC = () => {
       })
 
       // Also try to match exact epigraph titles in the text
-      messageEpis.forEach(ep => {
+      messageEpis.forEach((ep: any) => {
         const epigraphTitle = ep.title
         if (epigraphTitle && epigraphTitle.length > 3) {
           const escapedTitle = epigraphTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -733,17 +809,17 @@ const Ask: React.FC = () => {
                           ) : null}
                         </div>
 
-                        {message.type === "assistant" && message.epigraphs && message.epigraphs.length > 0 && (
+                        {message.type === "assistant" && message.epigraphIds && message.epigraphIds.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-100">
                             <button
                               onClick={() => {
-                                updateCurrentEpigraphs(message.epigraphs || [], message.id)
-                                setMobileView('info') // Switch to info view on mobile
+                                loadEpigraphPage(message.id)
+                                setMobileView('info')
                               }}
                               className="flex items-center gap-2 px-4 py-2 bg-zinc-600 hover:bg-zinc-500 text-white text-sm rounded-lg transition-colors w-full justify-center"
                             >
                               <BookOpen size={18} weight="bold" />
-                              View {message.epigraphs.length} Source{message.epigraphs.length !== 1 ? 's' : ''}
+                              View {message.epigraphIds.length} Source{message.epigraphIds.length !== 1 ? 's' : ''}
                             </button>
                           </div>
                         )}
@@ -811,19 +887,26 @@ const Ask: React.FC = () => {
           {/* Scrollable content area */}
           <div ref={infoPanelRef} className="flex-1 overflow-y-auto scrollbar-offset-top pt-[80px] pb-[33px] mb-[25px]">
             <div className="px-4 py-6">
+              {isLoadingPage && (
+                <div className="mb-6 flex items-center justify-center gap-3 py-8">
+                  <Spinner colour="#666" size="w-6 h-6" />
+                  <span className="text-sm text-gray-600">Loading sources...</span>
+                </div>
+              )}
+
               {/* Source Epigraphs Section - Shows when available */}
-              {currentEpigraphs.length > 0 && (
+              {!isLoadingPage && currentPageEpigraphs.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-lg font-semibold text-gray-900">Source Epigraphs</h2>
                       <p className="text-sm text-gray-600 mt-1">
-                        {currentEpigraphs.length} source{currentEpigraphs.length !== 1 ? 's' : ''} found
+                        {currentPageEpigraphs.length} source{currentPageEpigraphs.length !== 1 ? 's' : ''} found
                       </p>
                     </div>
                   </div>
                   <div className="space-y-4 mb-6">
-                    {currentEpigraphs.map((epigraph, index) => {
+                    {currentPageEpigraphs.map((epigraph, index) => {
                       const epigraphKey = String(epigraph.id)
                       return (
                         <div 
@@ -920,22 +1003,22 @@ const Ask: React.FC = () => {
             </button>
 
             {/* Navigation Controls */}
-            {epigraphHistory.length > 1 && (
+            {epigraphPages.size > 1 && (
               <div className="flex items-center justify-center gap-2 mb-3">
                 <button
                   onClick={() => navigateEpigraphs('prev')}
-                  disabled={currentEpigraphIndex <= 0}
+                  disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) <= 0}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 rounded transition-colors"
                 >
                   <CaretLeft size={14} weight="bold" />
                   Previous
                 </button>
                 <span className="text-xs text-gray-500 px-2">
-                  {currentEpigraphIndex + 1} of {epigraphHistory.length}
+                  {currentPageMessageId ? Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) + 1 : 0} of {epigraphPages.size}
                 </span>
                 <button
                   onClick={() => navigateEpigraphs('next')}
-                  disabled={currentEpigraphIndex >= epigraphHistory.length - 1}
+                  disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) >= epigraphPages.size - 1}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 rounded transition-colors"
                 >
                   Next
@@ -946,8 +1029,13 @@ const Ask: React.FC = () => {
 
             <div className="flex items-center justify-between">
               <div className="text-xs text-gray-600">
-                {currentEpigraphs.length > 0 ? (
-                  <span className="font-medium">{currentEpigraphs.length} source{currentEpigraphs.length !== 1 ? 's' : ''} loaded</span>
+                {isLoadingPage ? (
+                  <span className="flex items-center gap-2">
+                    <Spinner colour="#666" size="w-3 h-3" />
+                    <span>Loading sources...</span>
+                  </span>
+                ) : currentPageEpigraphs.length > 0 ? (
+                  <span className="font-medium">{currentPageEpigraphs.length} source{currentPageEpigraphs.length !== 1 ? 's' : ''} loaded</span>
                 ) : (
                   <span>No sources loaded</span>
                 )}
