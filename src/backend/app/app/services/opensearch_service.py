@@ -86,15 +86,27 @@ class OpenSearchService:
                 "number_of_shards": 1,
                 "number_of_replicas": 0,
                 "analysis": {
+                    "char_filter": {
+                        "superscript_mapper": {
+                            "type": "mapping",
+                            "mappings": [
+                                "¹ => ~sup1",
+                                "² => ~sup2",
+                                "³ => ~sup3"
+                            ]
+                        }
+                    },
                     "analyzer": {
                         "custom_text_analyzer": {
                             "type": "custom",
                             "tokenizer": "standard",
+                            "char_filter": ["superscript_mapper"],
                             "filter": ["lowercase", "stop", "kstem"]
                         },
                         "edge_ngram_analyzer": {
                             "type": "custom",
                             "tokenizer": "edge_ngram_tokenizer",
+                            "char_filter": ["superscript_mapper"],
                             "filter": ["lowercase"]
                         }
                     },
