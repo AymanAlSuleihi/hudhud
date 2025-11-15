@@ -12,7 +12,7 @@ interface EpigraphCardProps {
   notes?: boolean
   bibliography?: boolean
   hideHudhudLink?: boolean
-  compact?: boolean // Force compact/column layout regardless of screen size
+  compact?: boolean
 }
 
 export const EpigraphCard: React.FC<EpigraphCardProps> = ({
@@ -829,6 +829,86 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                         {obj.measures && (
                           <div className="mt-1">
                             <span className="font-medium">Measures:</span> {obj.measures}
+                          </div>
+                        )}
+
+                        {Array.isArray((obj as any).decorations) && (obj as any).decorations.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-medium">Decorations:</span>
+                            <div className="text-sm mt-1 space-y-2">
+                              {((obj as any).decorations as any[]).map((decoration: any, decIdx: number) => {
+                                const renderValue = (value: any, depth: number = 0): JSX.Element => {
+                                  if (value === null || value === undefined) return <span className="text-gray-400">N/A</span>
+                                  
+                                  if (Array.isArray(value)) {
+                                    if (value.length === 0) return <span className="text-gray-400">None</span>
+                                    return (
+                                      <div className="space-y-2">
+                                        {value.map((item, idx) => (
+                                          <div key={idx} className={`${depth > 0 ? 'ml-3' : ''} ${idx > 0 ? 'border-t border-gray-200 pt-1' : ''}`}>
+                                            {renderValue(item, depth + 1)}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )
+                                  }
+                                  
+                                  if (typeof value === 'object') {
+                                    return (
+                                      <div className="space-y-1">
+                                        {Object.entries(value)
+                                          .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+                                          .map(([k, v]) => (
+                                            <div key={k} className={`${depth > 0 ? 'ml-3' : ''}`}>
+                                              <span className="font-medium capitalize">
+                                                {k.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                                              </span>{' '}
+                                              <span className="">
+                                                {typeof v === 'object' || Array.isArray(v) ? '' : String(v)}
+                                              </span>
+                                              {(typeof v === 'object' || Array.isArray(v)) && (
+                                                <div className="mt-1">
+                                                  {renderValue(v, depth + 1)}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                      </div>
+                                    )
+                                  }
+                                  
+                                  return <span className="text-gray-800">{String(value)}</span>
+                                }
+
+                                return (
+                                  <div key={decIdx} className={`px-2 py-1 rounded-sm text-sm ${decIdx > 0 ? 'mt-2 pt-2' : ''}`}>
+                                    {typeof decoration === 'string' ? (
+                                      <span>{decoration}</span>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        {Object.entries(decoration).filter(([_, value]) => 
+                                          value !== null && value !== undefined && value !== ''
+                                        ).map(([key, value]) => (
+                                          <div key={key}>
+                                            <span className="font-medium capitalize">
+                                              {key.replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1').replace(/^./, str => str.toUpperCase())}:
+                                            </span>{' '}
+                                            <span className="">
+                                              {typeof value === 'object' || Array.isArray(value) ? '' : String(value)}
+                                            </span>
+                                            {(typeof value === 'object' || Array.isArray(value)) && (
+                                              <div className="mt-1">
+                                                {renderValue(value, 1)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
