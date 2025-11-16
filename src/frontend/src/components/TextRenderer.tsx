@@ -129,6 +129,8 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
 
       if (tagName === "supplied") {
         const reason = element.getAttribute("reason")
+        const prev = element.getAttribute("prev")
+        const next = element.getAttribute("next")
         const content = Array.from(element.childNodes).map((child, index) => (
           <React.Fragment key={index}>
             {renderNode(child)}
@@ -136,53 +138,129 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
         ))
 
         if (reason === "lost") {
-          return (
-            <>
-              [{content}]
-            </>
-          )
+          const hasContent = element.textContent && element.textContent.trim().length > 0
+
+          if (prev && next) {
+            return hasContent ? content : ""
+          }
+
+          if (prev) {
+            return hasContent ? <>{content}]</> : "...]"
+          }
+
+          if (next) {
+            if (hasContent) {
+              return <>[{content}</>
+            }
+            return "[... "
+          }
+
+          if (!hasContent) {
+            return ""
+          }
+
+          return <>[{content}]</>
         }
 
         return content
       }
 
       if (tagName === "gap") {
-        const unit = element.getAttribute("unit")
         const reason = element.getAttribute("reason")
+        const extent = element.getAttribute("extent")
         const quantity = element.getAttribute("quantity")
 
-        if (reason === "lost" && unit === "character" && quantity) {
-          const dots = ".".repeat(Math.min(parseInt(quantity), 5))
-          return `[${dots}]`
+        if (reason === "lost") {
+          const prevSibling = element.previousSibling
+          let isInLinkedSequence = false
+
+          if (prevSibling && prevSibling.nodeType === Node.ELEMENT_NODE) {
+            const prevEl = prevSibling as Element
+            if (prevEl.tagName.toLowerCase() === "supplied" && prevEl.getAttribute("next")) {
+              isInLinkedSequence = true
+            }
+          }
+
+          if (quantity) {
+            const numDots = parseInt(quantity)
+            const dots = ".".repeat(Math.min(numDots, 5))
+            return `[${dots}]`
+          }
+
+          if (extent === "unknown") {
+            if (isInLinkedSequence) {
+              return "... "
+            }
+            return "[... ...]"
+          }
         }
 
-        return "[...]"
+        return "... "
+      }
+
+      if (tagName === "app") {
+        const lem = element.querySelector("lem")
+        const rdg = element.querySelector("rdg")
+
+        if (lem && rdg) {
+          return (
+            <>
+              {Array.from(lem.childNodes).map((child, index) => (
+                <React.Fragment key={index}>
+                  {renderNode(child)}
+                </React.Fragment>
+              ))}
+              ((
+              {Array.from(rdg.childNodes).map((child, index) => (
+                <React.Fragment key={index}>
+                  {renderNode(child)}
+                </React.Fragment>
+              ))}
+              ))
+            </>
+          )
+        }
+
+        if (lem) {
+          return Array.from(lem.childNodes).map((child, index) => (
+            <React.Fragment key={index}>
+              {renderNode(child)}
+            </React.Fragment>
+          ))
+        }
+
+        return null
+      }
+
+      if (tagName === "lem" || tagName === "rdg") {
+        return Array.from(element.childNodes).map((child, index) => (
+          <React.Fragment key={index}>
+            {renderNode(child)}
+          </React.Fragment>
+        ))
+      }
+
+      if (tagName === "unclear") {
+        const content = Array.from(element.childNodes).map((child, index) => (
+          <React.Fragment key={index}>
+            {renderNode(child)}
+          </React.Fragment>
+        ))
+
+        return <>({content})</>
       }
 
       if (tagName === "lb") {
         const lineNum = element.getAttribute("n")
-        const isLineBreak = element.getAttribute("break") === "no"
         const displayLineNum = lineNum === "undefined" ? "" : lineNum
         const numericLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : undefined
-        const allLbElements = Array.from(doc.querySelectorAll("lb"))
-        const isFirstLbElement = allLbElements[0] === element
         const handleEnter = () => enableLineHover && onLineHover && numericLineNum && onLineHover(numericLineNum)
         const handleLeave = () => enableLineHover && onLineHover && onLineHover(null)
 
-        if (lineNum === "1" && isFirstLbElement) {
-          return (
-            <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 w-8`}
-              onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
-          )
-        } else {
-          return (
-            <React.Fragment>
-              {isLineBreak && <span className="text-gray-500 text-sm">—</span>}
-              <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 w-8`}
-                onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
-            </React.Fragment>
-          )
-        }
+        return (
+          <span className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 w-8`}
+            onMouseEnter={handleEnter} onMouseLeave={handleLeave}>{displayLineNum}</span>
+        )
       }
 
       const attributes: Record<string, string | undefined> = {}
@@ -252,7 +330,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
 
   return (
     <div className="w-full">
-      <div className="flex flex-col lg:flex-row lg:items-center text-sm mb-2 ml-5 gap-2">
+      <div className="flex flex-wrap lg:items-center text-sm mb-2 ml-5 gap-2">
         <div className="flex-shrink-0 w-auto">
           <ToggleButton 
             isSelected={showMarkers}
@@ -277,7 +355,7 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
             </span>
           </ToggleButton>
         </div>
-        <div className="flex items-center gap-1 p-2 lg:ml-3 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
+        <div className="flex items-center gap-1 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs">
           <WarningCircle size={16} className="min-w-[16px] min-h-[16px]" />
           Development in progress - Text rendering may be inaccurate, incomplete, or misaligned.
         </div>
@@ -294,8 +372,8 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
             const finishLine = () => {
               if (currentLineContent.length > 0 || currentLineNum !== null) {
                 const isHighlighted = currentLineNum && highlightedLines.includes(currentLineNum)
-                const visualHighlightClass = isHighlighted ? "bg-yellow-100/70 shadow-md border-l-4 scale-105 backdrop-blur-sm" : ""
-                const layoutClass = "-ml-10 pl-10"
+                const visualHighlightClass = isHighlighted ? "pl-10 bg-yellow-100/70 shadow-md border-l-4 scale-105 backdrop-blur-sm" : ""
+                const layoutClass = "-ml-10 pl-8"
                 const lineNumForClosure = currentLineNum
                 const handleLineEnter = () => enableLineHover && onLineHover && lineNumForClosure && onLineHover(lineNumForClosure)
                 const handleLineLeave = () => enableLineHover && onLineHover && onLineHover(null)
@@ -318,12 +396,47 @@ const TextRenderer: React.FC<TextRendererProps> = ({ text, showMarkers: initialS
               if (node.nodeType === Node.ELEMENT_NODE) {
                 const element = node as Element
                 if (element.tagName.toLowerCase() === 'lb') {
+                  const isLineBreak = element.getAttribute("break") === "no"
+
+                  if (isLineBreak) {
+                    currentLineContent.push(<span key={`break-${Math.random()}`} className="text-gray-500 text-sm">—</span>)
+                  }
+
                   finishLine()
 
                   const lineNum = element.getAttribute("n")
                   currentLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : null
 
-                  currentLineContent.push(renderNode(node))
+                  const numericLineNum = lineNum && lineNum !== "undefined" ? parseInt(lineNum) : undefined
+                  const allLbElements = Array.from(doc.querySelectorAll("lb"))
+                  const isFirstLbElement = allLbElements[0] === element
+                  const handleEnter = () => enableLineHover && onLineHover && numericLineNum && onLineHover(numericLineNum)
+                  const handleLeave = () => enableLineHover && onLineHover && onLineHover(null)
+                  const displayLineNum = lineNum === "undefined" ? "" : lineNum
+
+                  if (lineNum !== "1" || !isFirstLbElement) {
+                    currentLineContent.push(
+                      <span 
+                        key={`linenum-${lineNum}`}
+                        className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 min-w-8`}
+                        onMouseEnter={handleEnter} 
+                        onMouseLeave={handleLeave}
+                      >
+                        {displayLineNum}
+                      </span>
+                    )
+                  } else {
+                    currentLineContent.push(
+                      <span 
+                        key={`linenum-${lineNum}`}
+                        className={`text-gray-400 text-sm px-4 absolute left-0 text-right cursor-pointer transition-all duration-200 min-w-8`}
+                        onMouseEnter={handleEnter} 
+                        onMouseLeave={handleLeave}
+                      >
+                        {displayLineNum}
+                      </span>
+                    )
+                  }
                   return
                 }
               }
