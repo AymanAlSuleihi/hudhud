@@ -94,7 +94,7 @@ const Epigraph: React.FC = () => {
         .then((response) => {
           setEpigraph(response)
           updateMapMarkers(response, [])
-          fetchSimilarEpigraphs(parseInt(urlKey))
+          fetchSimilarEpigraphs(response.id)
         })
         .catch((err) => {
           console.error("Error fetching epigraph:", err)
