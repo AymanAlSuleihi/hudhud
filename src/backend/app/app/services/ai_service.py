@@ -377,7 +377,7 @@ class AIService:
 
             messages.append({
                 "role": "user", 
-                "content": f"Question: {user_query}\n\nRelevant excerpts from inscriptions:\n{formatted_json}"
+                "content": f"Question: {user_query}\n\n[System retrieved these relevant excerpts from inscriptions]:\n{formatted_json}"
             })
 
             stream = self.client.responses.create(
@@ -581,7 +581,7 @@ class AIService:
 
             messages.append({
                 "role": "user", 
-                "content": f"Question: {user_query}\n\nComplete epigraphs from the database:\n{formatted_json}"
+                "content": f"Question: {user_query}\n\n[System retrieved these epigraphs from the database for context]:\n{formatted_json}"
             })
 
             stream = self.client.responses.create(
