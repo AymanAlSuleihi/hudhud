@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel import select
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep
 from app.models.epigraph import Epigraph, EpigraphOut
@@ -97,14 +98,17 @@ async def query_hudhud(
                     if ep_id not in unique_epigraph_ids:
                         unique_epigraph_ids.insert(0, ep_id)
 
-            epigraphs_query = select(Epigraph).where(Epigraph.id.in_(unique_epigraph_ids))
+            epigraphs_query = select(Epigraph).where(Epigraph.id.in_(unique_epigraph_ids)).options(
+                selectinload(Epigraph.objects),
+                selectinload(Epigraph.sites_objs)
+            )
             all_epigraphs = list(session.exec(epigraphs_query).all())
 
             title_matched_eps = [ep for ep in all_epigraphs if ep.id in title_matched_epigraph_ids]
             semantic_matched_eps = [ep for ep in all_epigraphs if ep.id not in title_matched_epigraph_ids]
             source_epigraphs = title_matched_eps + semantic_matched_eps
 
-            epigraphs_data = [ep.model_dump(exclude={'embedding', 'created_at', 'updated_at', 'last_modified'}) for ep in source_epigraphs]
+            epigraphs_data = [ep.model_dump(exclude={'embedding', 'created_at', 'updated_at', 'last_modified', 'images'}) for ep in source_epigraphs]
 
             logger.info(f"Sending {len(epigraphs_data)} epigraphs to frontend")
             yield f"data: {json.dumps({'type': 'epigraphs', 'content': epigraphs_data})}\n\n"

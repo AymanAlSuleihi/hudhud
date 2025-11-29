@@ -456,6 +456,9 @@ class AIService:
                     "dasi_object",
                     "sites",
                     "embedding",
+                    "objects",
+                    "sites_objs",
+                    "words",
                 },
             )
 
@@ -465,8 +468,53 @@ class AIService:
 
                 epigraph_info["epigraph_text_cleaned"] = cleaned
 
-            if epigraph_info.get("sites_objs") and len(epigraph_info["sites_objs"]) > 0:
-                epigraph_info["sites_objs"] = [epigraph_info["sites_objs"][0]]
+            if hasattr(epigraph, 'sites_objs') and epigraph.sites_objs:
+                epigraph_info["sites_objs"] = [
+                    site.model_dump(
+                        include={
+                            "dasi_id",
+                            "modern_name", 
+                            "ancient_name",
+                            "country",
+                            "governorate",
+                            "geographical_area",
+                            "type_of_site",
+                            "kingdom",
+                        }
+                    )
+                    for site in epigraph.sites_objs[:1]
+                ]
+            else:
+                epigraph_info["sites_objs"] = []
+
+            if hasattr(epigraph, 'objects') and epigraph.objects:
+                epigraph_info["objects"] = [
+                    obj.model_dump(exclude={
+                        "id",
+                        "uri",
+                        "embedding",
+                        "created_at",
+                        "updated_at",
+                        "first_published",
+                        "last_modified",
+                        "dasi_object",
+                        "bibliography",
+                        "concordances",
+                        "license",
+                        "editors",
+                        "epigraphs",
+                        "sites",
+                    })
+                    for obj in epigraph.objects
+                ]
+                    
+                logging.info(f"Epigraph {epigraph.title} has {len(epigraph_info['objects'])} objects")
+                for obj in epigraph_info['objects']:
+                    if obj.get('decorations'):
+                        logging.info(f"  Object {obj.get('title', 'Unknown')} has decorations: {obj['decorations'][:200] if isinstance(obj['decorations'], str) else str(obj['decorations'])[:200]}")
+            else:
+                epigraph_info["objects"] = []
+                logging.debug(f"Epigraph {epigraph.title} has no objects")
 
             formatted_epigraphs.append(epigraph_info)
 
@@ -489,7 +537,12 @@ class AIService:
         - Apparatus notes: technical philological notes on specific lines
         - General notes: broader scholarly context and interpretations
         - Archaeological context: site information and object descriptions
-        - Physical details: materials, measurements, decorations (when objects are present)
+        - **Physical appearance and decorations**: When an epigraph has associated "objects", the objects array contains detailed decoration information including:
+          * figurativeSubjects: detailed descriptions of depicted subjects (animals, humans, symbols, monograms)
+          * subjectLevel1 and subjectLevel2: hierarchical classification of depicted subjects (e.g., "Animal" > "Snake", "Symbol" > "Crescent moon")
+          * Materials, shape, measurements, support types
+          * Deposit information and cultural notes about the physical objects
+          * **CRITICAL**: For questions about physical appearance, symbols, depictions, decorations, or what's shown on objects, ALWAYS check the "objects" array and its "decorations" field
 
         When responding:
         1. Draw from the full context of each epigraph, including all available scholarly notes
@@ -497,8 +550,8 @@ class AIService:
         3. Use apparatus_notes for linguistic and philological details
         4. Reference general_notes for broader historical interpretations
         5. Mention site and object information when relevant to the question
-        6. Note when chronology is conjectural or dates are mentioned
-        7. Distinguish between royal inscriptions and other types
+        6. **IMPORTANT: For questions about physical appearance, symbols, animals, or decorations, examine the objects array and specifically look at the decorations field with figurativeSubjects**
+        7. Distinguish between royal inscriptions and other types when relevant
         8. Synthesise information from multiple epigraphs when appropriate
         9. **CRITICAL: When quoting inscription text, use natural language**
            - Simply present the text naturally as "the inscription reads", "the text says", "the opening lines are", etc.
