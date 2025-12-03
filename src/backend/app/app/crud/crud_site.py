@@ -11,10 +11,14 @@ class CRUDSite(CRUDBase[Site, SiteCreate, SiteUpdate]):
         return db.query(self.model).filter(self.model.dasi_id == dasi_id).first()
 
     def link_to_epigraph(self, db: Session, *, site: Site, epigraph_id: int) -> Site:
-        link = db.query(EpigraphSiteLink).filter(
-            EpigraphSiteLink.epigraph_id == epigraph_id,
-            EpigraphSiteLink.site_id == site.id,
-        ).first()
+        link = (
+            db.query(EpigraphSiteLink)
+            .filter(
+                EpigraphSiteLink.epigraph_id == epigraph_id,
+                EpigraphSiteLink.site_id == site.id,
+            )
+            .first()
+        )
 
         if link:
             return site
@@ -25,10 +29,14 @@ class CRUDSite(CRUDBase[Site, SiteCreate, SiteUpdate]):
         return site
 
     def link_to_object(self, db: Session, *, site: Site, object_id: int) -> Site:
-        link = db.query(ObjectSiteLink).filter(
-            ObjectSiteLink.object_id == object_id,
-            ObjectSiteLink.site_id == site.id,
-        ).first()
+        link = (
+            db.query(ObjectSiteLink)
+            .filter(
+                ObjectSiteLink.object_id == object_id,
+                ObjectSiteLink.site_id == site.id,
+            )
+            .first()
+        )
 
         if link:
             return site
@@ -37,12 +45,18 @@ class CRUDSite(CRUDBase[Site, SiteCreate, SiteUpdate]):
         db.add(link)
         db.commit()
         return site
-    
-    def unlink_from_epigraph(self, db: Session, *, site: Site, epigraph_id: int) -> Site:
-        link = db.query(EpigraphSiteLink).filter(
-            EpigraphSiteLink.epigraph_id == epigraph_id,
-            EpigraphSiteLink.site_id == site.id,
-        ).first()
+
+    def unlink_from_epigraph(
+        self, db: Session, *, site: Site, epigraph_id: int
+    ) -> Site:
+        link = (
+            db.query(EpigraphSiteLink)
+            .filter(
+                EpigraphSiteLink.epigraph_id == epigraph_id,
+                EpigraphSiteLink.site_id == site.id,
+            )
+            .first()
+        )
 
         if not link:
             return site
@@ -52,10 +66,14 @@ class CRUDSite(CRUDBase[Site, SiteCreate, SiteUpdate]):
         return site
 
     def unlink_from_object(self, db: Session, *, site: Site, object_id: int) -> Site:
-        link = db.query(ObjectSiteLink).filter(
-            ObjectSiteLink.object_id == object_id,
-            ObjectSiteLink.site_id == site.id,
-        ).first()
+        link = (
+            db.query(ObjectSiteLink)
+            .filter(
+                ObjectSiteLink.object_id == object_id,
+                ObjectSiteLink.site_id == site.id,
+            )
+            .first()
+        )
 
         if not link:
             return site
