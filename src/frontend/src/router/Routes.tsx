@@ -1,8 +1,7 @@
 import { createBrowserRouter } from "react-router-dom"
 
 import App from "../App.tsx"
-import Home from "../views/Home.tsx"
-import Word from "../views/Word.tsx"
+import Stats from "../views/Stats.tsx"
 import Words from "../views/Words.tsx"
 import Epigraph from "../views/Epigraph.tsx"
 import Epigraphs from "../views/Epigraphs.tsx"
@@ -41,7 +40,7 @@ export const Router = createBrowserRouter([
       },
       {
         path: "/stats",
-        element: <Home />,
+        element: <Stats />,
       },
       {
         path: "/about",
