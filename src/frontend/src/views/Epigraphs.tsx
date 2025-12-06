@@ -432,7 +432,7 @@ const Epigraphs: React.FC = () => {
           <MySelect
             label="Results per page"
             selectedKey={pageSize.toString()}
-            onSelectionChange={(key) => {
+            onSelectionChange={(key: React.Key | null) => {
               if (typeof key === "string") {
                 handlePageSizeChange(Number(key))
               }
@@ -794,7 +794,7 @@ const Epigraphs: React.FC = () => {
                   <MySelect
                     label={label}
                     selectedKey={filters[key as keyof Filters] || "all"}
-                    onSelectionChange={(value) => {
+                    onSelectionChange={(value: React.Key | null) => {
                       if (typeof value === "string") {
                         handleFilterChange(key as keyof Filters, value)
                       }
@@ -905,7 +905,7 @@ const Epigraphs: React.FC = () => {
             <MySelect
               label="Sort By"
               selectedKey={sortField}
-              onSelectionChange={(key) => {
+              onSelectionChange={(key: React.Key | null) => {
                 if (typeof key === "string") {
                   handleSortChange(key)
                 }
@@ -924,7 +924,7 @@ const Epigraphs: React.FC = () => {
             <MySelect
               label="Sort Order"
               selectedKey={sortOrder}
-              onSelectionChange={(key) => {
+              onSelectionChange={(key: React.Key | null) => {
                 if (typeof key === "string") {
                   handleOrderChange(key)
                 }
