@@ -3,12 +3,6 @@ services:
     labels: []
     ports:
       - "8081:8081"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8081/api/v1/utils/health-check\")'"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
 
   frontend:
     labels: []
