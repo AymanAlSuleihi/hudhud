@@ -6,7 +6,7 @@ import Words from "../views/Words.tsx"
 import Epigraph from "../views/Epigraph.tsx"
 import Epigraphs from "../views/Epigraphs.tsx"
 import About from "../views/About.tsx"
-import Map from "../views/Map.tsx"
+import Maps from "../views/Maps.tsx"
 import Ask from "../views/Ask.tsx"
 import TermsOfService from "../views/TermsOfService.tsx"
 import PrivacyPolicy from "../views/PrivacyPolicy.tsx"
@@ -21,10 +21,6 @@ export const Router = createBrowserRouter([
       {
         path: "/",
         element: <Ask />,
-      },
-      {
-        path: "/word/:urlKey",
-        element: <Word />,
       },
       {
         path: "/words",
@@ -48,7 +44,7 @@ export const Router = createBrowserRouter([
       },
       {
         path: "/maps",
-        element: <Map />,
+        element: <Maps />,
       },
       {
         path: "/terms-of-service",
