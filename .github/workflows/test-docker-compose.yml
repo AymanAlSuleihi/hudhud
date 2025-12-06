@@ -1,0 +1,50 @@
+name: Test Docker Compose
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  test-docker-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create .env file
+        working-directory: src
+        run: |
+          cat > .env << EOF
+          STACK_NAME=hudhud-test
+          DOMAIN=localhost
+          POSTGRES_PASSWORD=test_password
+          SECRET_KEY=test-secret-key
+          OPENAI_API_KEY=test-key
+          OPENSEARCH_PASSWORD=test_password
+          EOF
+
+      - name: Build
+        working-directory: src
+        run: docker compose build
+
+      - name: Down
+        working-directory: src
+        run: docker compose down -v --remove-orphans
+
+      - name: Up
+        working-directory: src
+        run: docker compose up -d --wait backend db opensearch
+
+      - name: Test backend is up
+        working-directory: src
+        run: curl http://localhost:8081/api/v1/utils/health-check
+
+      - name: Down
+        if: always()
+        working-directory: src
+        run: docker compose down -v --remove-orphans
