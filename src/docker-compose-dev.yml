@@ -18,8 +18,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/utils/health-check"]
       interval: 5s
       timeout: 3s
-      retries: 15
-      start_period: 10s
+      retries: 30
+      start_period: 30s
     labels:
       - traefik.enable=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/docs`) || PathPrefix(`/public`))

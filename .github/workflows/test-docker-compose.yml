@@ -32,6 +32,26 @@ jobs:
         working-directory: src
         run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --wait backend db opensearch
 
+      - name: Show container status
+        if: always()
+        working-directory: src
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml ps -a
+
+      - name: Show backend logs on failure
+        if: failure()
+        working-directory: src
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs backend
+
+      - name: Show database logs on failure
+        if: failure()
+        working-directory: src
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs db
+
+      - name: Show opensearch logs on failure
+        if: failure()
+        working-directory: src
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml logs opensearch
+
       - name: Test backend is up
         working-directory: src
         run: curl http://localhost:8081/api/v1/utils/health-check
