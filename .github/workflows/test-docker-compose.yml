@@ -16,17 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Create .env file
+      - name: Copy .env.test to .env
         working-directory: src
-        run: |
-          cat > .env << EOF
-          STACK_NAME=hudhud-test
-          DOMAIN=localhost
-          POSTGRES_PASSWORD=test_password
-          SECRET_KEY=test-secret-key
-          OPENAI_API_KEY=test-key
-          OPENSEARCH_PASSWORD=test_password
-          EOF
+        run: cp backend/app/.env.test .env
 
       - name: Build
         working-directory: src
