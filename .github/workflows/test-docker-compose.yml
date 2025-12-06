@@ -22,15 +22,15 @@ jobs:
 
       - name: Build
         working-directory: src
-        run: docker compose build
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml build
 
       - name: Down
         working-directory: src
-        run: docker compose down -v --remove-orphans
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v --remove-orphans
 
       - name: Up
         working-directory: src
-        run: docker compose up -d --wait backend db opensearch
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --wait backend db opensearch
 
       - name: Test backend is up
         working-directory: src
@@ -39,4 +39,4 @@ jobs:
       - name: Down
         if: always()
         working-directory: src
-        run: docker compose down -v --remove-orphans
+        run: docker compose -f docker-compose.yml -f docker-compose.test.yml down -v --remove-orphans

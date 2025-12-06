@@ -1,0 +1,15 @@
+services:
+  backend:
+    labels: []
+    ports:
+      - "8081:8081"
+
+  frontend:
+    labels: []
+
+  opensearch-dashboards:
+    labels: []
+
+networks:
+  traefik-public:
+    external: false
