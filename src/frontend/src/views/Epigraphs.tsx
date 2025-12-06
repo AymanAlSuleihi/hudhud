@@ -443,9 +443,7 @@ const Epigraphs: React.FC = () => {
             <MyItem key="25" id="25">25</MyItem>
             <MyItem key="50" id="50">50</MyItem>
             <MyItem key="100" id="100">100</MyItem>
-            <MyItem key="200" id="200">200</MyItem>
-            <MyItem key="500" id="500">500</MyItem>
-            <MyItem key="1000" id="1000">1000</MyItem>
+            <MyItem key="250" id="250">250</MyItem>
           </MySelect>
         </div>
       </div>
