@@ -1,5 +1,7 @@
 # Hudhud | 𐩠𐩵𐩠𐩵
 
+[![Test Docker Compose](https://github.com/AymanAlSuleihi/hudhud/actions/workflows/test-docker-compose.yml/badge.svg)](https://github.com/AymanAlSuleihi/hudhud/actions/workflows/test-docker-compose.yml)
+
 Hudhud is a modern digital platform for exploring pre-Islamic Arabian inscriptions. It aims to make these valuable historical artifacts accessible to researchers, students, and anyone interested in ancient Arabian cultures and languages.
 
 Explore at: [hudhud.shebascaravan.com](https://hudhud.shebascaravan.com)
