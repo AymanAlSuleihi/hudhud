@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import safeLocalStorage from "../utils/safeLocalStorage"
 
 const COOKIE_CONSENT_KEY = "hudhud_cookie_consent"
 
@@ -7,11 +8,15 @@ export const CookieConsent: React.FC = () => {
   const [showBanner, setShowBanner] = useState(false)
 
   useEffect(() => {
-    const consent = localStorage.getItem(COOKIE_CONSENT_KEY)
-    if (!consent) {
+    try {
+      const consent = safeLocalStorage.getItem(COOKIE_CONSENT_KEY)
+      if (!consent) {
+        setShowBanner(true)
+      } else if (consent === "accepted") {
+        enableAnalytics()
+      }
+    } catch (e) {
       setShowBanner(true)
-    } else if (consent === "accepted") {
-      enableAnalytics()
     }
   }, [])
 
@@ -32,13 +37,21 @@ export const CookieConsent: React.FC = () => {
   }
 
   const handleAccept = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, "accepted")
+    try {
+      safeLocalStorage.setItem(COOKIE_CONSENT_KEY, "accepted")
+    } catch (e) {
+      // ignore
+    }
     enableAnalytics()
     setShowBanner(false)
   }
 
   const handleDecline = () => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, "declined")
+    try {
+      safeLocalStorage.setItem(COOKIE_CONSENT_KEY, "declined")
+    } catch (e) {
+      // ignore
+    }
     disableAnalytics()
     setShowBanner(false)
   }

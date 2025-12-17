@@ -6,6 +6,7 @@ import { EpigraphCard } from "../components/EpigraphCard"
 import { MetaTags } from "../components/MetaTags"
 import { getDefaultMetaTags } from "../utils/metaTags"
 import { EpigraphsService } from "../client/services/EpigraphsService"
+import safeLocalStorage from "../utils/safeLocalStorage"
 
 interface Message {
   id: string
@@ -326,7 +327,7 @@ const Ask: React.FC = () => {
   }, [epigraphPages, currentPageMessageId, currentPageEpigraphs])
 
   useEffect(() => {
-    const savedQueries = localStorage.getItem("hudhudRecentQueries")
+    const savedQueries = safeLocalStorage.getItem("hudhudRecentQueries")
     if (savedQueries) {
       try {
         setRecentQueries(JSON.parse(savedQueries))
@@ -335,7 +336,7 @@ const Ask: React.FC = () => {
       }
     }
 
-    const savedMessages = localStorage.getItem("hudhudChatHistory")
+    const savedMessages = safeLocalStorage.getItem("hudhudChatHistory")
     if (savedMessages) {
       try {
         const parsed = JSON.parse(savedMessages)
@@ -373,14 +374,22 @@ const Ask: React.FC = () => {
 
   useEffect(() => {
     if (recentQueries.length > 0) {
-      localStorage.setItem("hudhudRecentQueries", JSON.stringify(recentQueries))
+      try {
+        safeLocalStorage.setItem("hudhudRecentQueries", JSON.stringify(recentQueries))
+      } catch (e) {
+        // ignore storage errors
+      }
     }
   }, [recentQueries])
 
   useEffect(() => {
     if (messages.length > 0) {
       const messagesToStore = messages.slice(-50)
-      localStorage.setItem("hudhudChatHistory", JSON.stringify(messagesToStore))
+      try {
+        safeLocalStorage.setItem("hudhudChatHistory", JSON.stringify(messagesToStore))
+      } catch (e) {
+        // ignore storage errors
+      }
     }
   }, [messages])
 
@@ -601,7 +610,11 @@ const Ask: React.FC = () => {
       setCurrentPageMessageId(null)
       setEpigraphPages(new Map())
       epigraphCacheRef.current = new Map()
-      localStorage.removeItem("hudhudChatHistory")
+      try {
+        safeLocalStorage.removeItem("hudhudChatHistory")
+      } catch (e) {
+        // ignore
+      }
     }
   }
 
