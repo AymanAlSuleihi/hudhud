@@ -1,11 +1,13 @@
 import time
 from collections import deque
 from typing import Deque, Dict
+
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.api.api_v1.api import api_router
