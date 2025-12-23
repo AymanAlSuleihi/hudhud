@@ -74,7 +74,7 @@ services:
 
   opensearch:
     container_name: hudhud-opensearch
-    image: opensearchproject/opensearch:latest
+    image: opensearchproject/opensearch:3.1.0
     environment:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
