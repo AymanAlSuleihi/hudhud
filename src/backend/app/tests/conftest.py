@@ -11,6 +11,8 @@ from app.api.deps import get_db
 from app.models.user import User
 from app.models.epigraph import Epigraph
 from app.models.epigraph_chunk import EpigraphChunk
+from app.models.dasi_sync import DasiImportCursor, DasiSourceSnapshot
+from app.models.pipeline_run import PipelineRun
 from app.models.site import Site
 from app.models.object import Object
 from app.models.word import Word
