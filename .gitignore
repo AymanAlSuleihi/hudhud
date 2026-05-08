@@ -1,2 +1,4 @@
 .env
+src/.dev.env
 acme.json
+src/backend/app/.skills-venv/
