@@ -24,7 +24,6 @@ fileConfig(config.config_file_name)
 from app.core.models import SQLModel  # noqa
 from app.models.user import User
 from app.models.epigraph import Epigraph
-from app.models.task_progress import TaskProgress
 from app.models.analytics_cache import AnalyticsCache
 from app.models.word import Word
 from app.models.site import Site
@@ -37,6 +36,8 @@ from app.models.links import (
     ObjectSiteLink,
 )
 from app.models.epigraph_chunk import EpigraphChunk
+from app.models.dasi_sync import DasiImportCursor, DasiSourceSnapshot
+from app.models.pipeline_run import PipelineRun
 # from sqlmodel import SQLModel
 # from app import models
 # from models import *
