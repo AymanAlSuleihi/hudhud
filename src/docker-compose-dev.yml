@@ -7,6 +7,8 @@ services:
       dockerfile: backend.dockerfile
     volumes:
       - ./backend/app:/app
+    ports:
+      - 8081:8081
     env_file:
       - .dev.env
     depends_on:
@@ -44,6 +46,8 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
+    ports:
+      - 5002:5002
     labels:
       - traefik.enable=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.rule=Host(`hudhud-dev.${DOMAIN}`)
