@@ -5,7 +5,6 @@ from typing import Deque, Dict
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -13,30 +12,28 @@ from starlette.responses import Response
 from app.api.api_v1.api import api_router
 from app.api.api_v1.endpoints.social_meta import router as social_meta_router
 from app.core.config import settings
-from app.db.engine import engine
 
 
 def custom_generate_unique_id(route: APIRoute):
-    return f"{route.tags[0]}-{route.name}"
-
-
-middleware = [
-    Middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        # allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
-        allow_credentials=True,
-        allow_methods=["POST", "PUT", "DELETE"],
-        allow_headers=["*"],
-    )
-]
+    first_tag = route.tags[0] if route.tags else "default"
+    return f"{first_tag}-{route.name}"
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    summary="API for epigraph search, enrichment pipelines, and editorial operations.",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url=f"{settings.API_V1_STR}/docs",
+    redoc_url=f"{settings.API_V1_STR}/redoc",
     generate_unique_id_function=custom_generate_unique_id,
-    middleware=middleware,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    # allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -81,11 +78,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-@app.get("/api/v1/", tags=["read_root"])
-def read_root():
+@app.get("/api/v1/", include_in_schema=False)
+def read_root() -> dict[str, str]:
     return {"Hello": "World"}
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-app.include_router(social_meta_router, tags=["social-meta"])
+app.include_router(social_meta_router)
 app.mount("/public", StaticFiles(directory="public"), name="public")
 app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
