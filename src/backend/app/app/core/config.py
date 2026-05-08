@@ -1,8 +1,8 @@
 import secrets
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
-from pydantic import AnyHttpUrl, EmailStr, HttpUrl, PostgresDsn, validator
-from pydantic_settings import BaseSettings
+from pydantic import AnyHttpUrl, EmailStr, PostgresDsn, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     # "http://localhost:8080", "http://local.dockertoolbox.tiangolo.com"]'
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
@@ -40,10 +41,12 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
 
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
-    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
+    @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: Optional[str], info: ValidationInfo) -> Any:
         if isinstance(v, str):
             return v
+        values = info.data
         return PostgresDsn.build(
             scheme="postgresql+psycopg",
             username=values.get("POSTGRES_USER"),
@@ -79,7 +82,7 @@ class Settings(BaseSettings):
     #         and values.get("EMAILS_FROM_EMAIL")
     #     )
 
-    EMAIL_TEST_USER: EmailStr = "test@example.com"  # type: ignore
+    EMAIL_TEST_USER: EmailStr = "test@example.com"
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
     USERS_OPEN_REGISTRATION: bool = False
@@ -88,12 +91,41 @@ class Settings(BaseSettings):
 
     OPENSEARCH_USERNAME: str
     OPENSEARCH_PASSWORD: str
+    REDIS_URL: str = "redis://redis:6379/0"
+    CELERY_BROKER_URL: Optional[str] = None
+    CELERY_RESULT_BACKEND: Optional[str] = None
+    CELERY_TASK_ALWAYS_EAGER: bool = False
+    PIPELINE_NIGHTLY_SYNC_ENABLED: bool = True
+    PIPELINE_NIGHTLY_SYNC_HOUR: int = 1
+    PIPELINE_NIGHTLY_SYNC_MINUTE: int = 0
+    PIPELINE_DEFAULT_RATE_LIMIT_DELAY_SECONDS: float = 10.0
+    EMBEDDING_MODEL: str = "text-embedding-3-large"
+    EMBEDDING_MAX_INPUT_TOKENS: int = 8192
+    EMBEDDING_MAX_BATCH_INPUTS: int = 2048
+    EMBEDDING_MAX_BATCH_TOKENS: int = 300000
+    EMBEDDING_PENDING_MAX_AGE_SECONDS: int = 300
+    EMBEDDING_PENDING_FLUSH_INTERVAL_SECONDS: int = 60
+    EMBEDDING_DEFER_PIPELINE_REQUESTS: bool = True
+
+    @field_validator("CELERY_BROKER_URL", mode="before")
+    @classmethod
+    def assemble_celery_broker(cls, v: Optional[str], info: ValidationInfo) -> str:
+        if isinstance(v, str) and v:
+            return v
+        return str(info.data.get("REDIS_URL") or "")
+
+    @field_validator("CELERY_RESULT_BACKEND", mode="before")
+    @classmethod
+    def assemble_celery_result_backend(cls, v: Optional[str], info: ValidationInfo) -> str:
+        if isinstance(v, str) and v:
+            return v
+        return str(info.data.get("REDIS_URL") or "")
 
     DASI_API_URL: str
     DASI_ADDRESS: str
+    DASI_INCREMENTAL_LOOKBACK_PAGES: int = 1
 
-    class Config:
-        case_sensitive = True
+    model_config = SettingsConfigDict(case_sensitive=True)
 
 
-settings = Settings()
+settings = cast(Any, Settings)()
