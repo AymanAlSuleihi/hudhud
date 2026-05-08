@@ -10,7 +10,7 @@ from app.models.epigraph_chunk import EpigraphChunk, EpigraphChunkCreate
 from app.models.object import Object
 from app.models.site import Site
 from app.crud.crud_epigraph_chunk import epigraph_chunk as crud_epigraph_chunk
-from app.services.embeddings_service import EmbeddingsService
+from app.services.enrichment.embeddings import EmbeddingsService
 
 
 def _string_list(value: Any) -> list[str]:

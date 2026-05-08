@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, cast
 
 import openai
 
@@ -175,9 +175,10 @@ class AIService:
                 logging.warning(f"Empty response for query: {user_query}")
                 return "domain", None, user_query, []
 
-            if hasattr(response, "usage"):
-                input_tokens = response.usage.input_tokens
-                output_tokens = response.usage.output_tokens
+            usage = response.usage
+            if usage is not None:
+                input_tokens = usage.input_tokens
+                output_tokens = usage.output_tokens
                 costs = self.calculate_cost(input_tokens, output_tokens)
                 logging.info(f"[process_query] Tokens - Input: {input_tokens}, Output: {output_tokens}")
                 logging.info(f"[process_query] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
@@ -279,9 +280,10 @@ class AIService:
                 ]
             )
 
-            if hasattr(response, 'usage'):
-                input_tokens = response.usage.input_tokens
-                output_tokens = response.usage.output_tokens
+            usage = response.usage
+            if usage is not None:
+                input_tokens = usage.input_tokens
+                output_tokens = usage.output_tokens
                 costs = self.calculate_cost(input_tokens, output_tokens)
                 logging.info(f"[generate_answer_with_chunks] Tokens - Input: {input_tokens}, Output: {output_tokens}")
                 logging.info(f"[generate_answer_with_chunks] Costs - Input: ${costs['input_cost']:.6f}, Output: ${costs['output_cost']:.6f}, Total: ${costs['total_cost']:.6f}")
@@ -299,7 +301,7 @@ class AIService:
         user_query: str, 
         chunk_results: List[Tuple[EpigraphChunk, Epigraph, float]], 
         chunk_limit: int = 15,
-        conversation_history: List[Dict[str, str]] = None
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Generate an answer using chunk-based context with streaming support."""
         if not self.client:
@@ -369,7 +371,7 @@ class AIService:
         try:
             logging.info(f"Starting streaming response for query: {user_query}")
 
-            messages = [{"role": "system", "content": system_prompt}]
+            messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
             if conversation_history:
                 messages.extend(conversation_history)
@@ -381,25 +383,25 @@ class AIService:
 
             stream = self.client.responses.create(
                 model="gpt-5-mini",
-                input=messages,
+                input=cast(Any, messages),
                 stream=True
             )
 
             input_tokens = 0
             output_tokens = 0
-            accumulated_output = ""
 
             for event in stream:
                 if event.type == "response.output_text.delta":
-                    content = event.delta
-                    accumulated_output += content
-                    yield {"type": "token", "content": content}
+                    content = getattr(event, "delta", None)
+                    if isinstance(content, str):
+                        yield {"type": "token", "content": content}
 
                 elif event.type == "response.completed":
-                    if hasattr(event, 'response') and event.response:
-                        if hasattr(event.response, 'usage') and event.response.usage:
-                            input_tokens = event.response.usage.input_tokens
-                            output_tokens = event.response.usage.output_tokens
+                    response_payload = cast(Any, getattr(event, "response", None))
+                    usage = getattr(response_payload, "usage", None)
+                    if usage is not None:
+                        input_tokens = cast(int, usage.input_tokens)
+                        output_tokens = cast(int, usage.output_tokens)
 
             if input_tokens > 0 or output_tokens > 0:
                 costs = self.calculate_cost(input_tokens, output_tokens)
@@ -420,7 +422,7 @@ class AIService:
         self, 
         user_query: str, 
         epigraphs: List[Any],
-        conversation_history: List[Dict[str, str]] = None
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Generate an answer using full epigraph context with streaming support."""
         logging.info("=== Starting answer generation ===")
@@ -573,7 +575,7 @@ class AIService:
         """
 
         try:
-            messages = [{"role": "system", "content": system_prompt}]
+            messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
             if conversation_history:
                 messages.extend(conversation_history)
@@ -585,7 +587,7 @@ class AIService:
 
             stream = self.client.responses.create(
                 model="gpt-5-mini",
-                input=messages,
+                input=cast(Any, messages),
                 stream=True
             )
 
@@ -595,15 +597,17 @@ class AIService:
 
             for event in stream:
                 if event.type == "response.output_text.delta":
-                    content = event.delta
-                    full_response += content
-                    yield {"type": "token", "content": content}
+                    content = getattr(event, "delta", None)
+                    if isinstance(content, str):
+                        full_response += content
+                        yield {"type": "token", "content": content}
 
                 elif event.type == "response.completed":
-                    if hasattr(event, 'response') and event.response:
-                        if hasattr(event.response, 'usage') and event.response.usage:
-                            input_tokens = event.response.usage.input_tokens
-                            output_tokens = event.response.usage.output_tokens
+                    response_payload = cast(Any, getattr(event, "response", None))
+                    usage = getattr(response_payload, "usage", None)
+                    if usage is not None:
+                        input_tokens = cast(int, usage.input_tokens)
+                        output_tokens = cast(int, usage.output_tokens)
 
             logging.info(f"Full response: {full_response[:500]}...")
 

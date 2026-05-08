@@ -456,7 +456,7 @@ class OpenSearchService:
     ) -> Dict[str, Any]:
         """Searches epigraphs in the OpenSearch index"""
 
-        searchable_fields = {
+        searchable_fields: Dict[str, Optional[List[str]]] = {
             "title": None,
             "epigraph_text": None,
             "general_notes": None,
@@ -502,7 +502,7 @@ class OpenSearchService:
         }
 
         if not fields:
-            search_fields = []
+            search_fields: List[str] = []
             for field_name, subfields in searchable_fields.items():
                 if subfields is None:
                     search_fields.append(field_name)
@@ -511,8 +511,9 @@ class OpenSearchService:
         else:
             search_fields = []
             for f in fields:
-                if f in searchable_fields and searchable_fields[f] is not None:
-                    search_fields.extend([f + "." + sub for sub in searchable_fields[f]])
+                subfields = searchable_fields.get(f)
+                if subfields is not None:
+                    search_fields.extend([f + "." + sub for sub in subfields])
                 else:
                     search_fields.append(f)
 
@@ -917,7 +918,7 @@ class OpenSearchService:
                 }
             })
 
-        bool_query = {
+        bool_query: Dict[str, Any] = {
             "filter": [
                 {"term": {"dasi_published": True}}
             ]
@@ -934,7 +935,7 @@ class OpenSearchService:
         if must_not_queries:
             bool_query["must_not"] = must_not_queries
 
-        search_body = {
+        search_body: Dict[str, Any] = {
             "query": {
                 "bool": bool_query
             },
@@ -1087,7 +1088,7 @@ class OpenSearchService:
 
     def _epigraph_to_document(self, epigraph: Epigraph) -> Dict[str, Any]:
         """Convert an Epigraph object to an OpenSearch document."""
-        doc = {
+        doc: Dict[str, Any] = {
             "id": epigraph.id,
             "dasi_id": epigraph.dasi_id,
             "title": epigraph.title,
@@ -1178,7 +1179,7 @@ class OpenSearchService:
                     # Flatten
                     for decoration in obj.decorations:
                         if isinstance(decoration, dict):
-                            flattened_decoration = {}
+                            flattened_decoration: Dict[str, Any] = {}
                             for key in ["typeLevel1", "type", "typeLevel2"]:
                                 if key in decoration:
                                     flattened_decoration[key] = decoration[key]

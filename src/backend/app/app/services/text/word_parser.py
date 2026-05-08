@@ -1,9 +1,10 @@
 from xml.etree import ElementTree as ET
+
 from sqlalchemy.orm import Session
 
+from app.crud.crud_word import word as crud_word
 from app.models.epigraph import Epigraph
 from app.models.word import Word, WordCreate
-from app.crud.crud_word import word as crud_word
 
 
 class WordParser:

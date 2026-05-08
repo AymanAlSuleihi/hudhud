@@ -3,21 +3,18 @@ import requests
 import time
 
 from bs4 import BeautifulSoup
-from sqlalchemy.orm import Session
+from bs4.element import Tag
+from sqlmodel import Session
 
 from app.crud.crud_site import site as crud_site
-from app.crud.crud_epigraph import epigraph as crud_epigraph
-from app.crud.crud_object import obj as crud_object
 from app.models.site import Site, SiteCreate, SiteUpdate
-from app.services.task_progress import TaskProgressService
-from app.services.import_service import ImportService
+from app.services.importers.base import ImportService
 
 
 class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
-    def __init__(self, session: Session, task_progress_service: TaskProgressService):
+    def __init__(self, session: Session):
         super().__init__(
             session=session,
-            task_progress_service=task_progress_service,
             crud=crud_site,
             create_schema=SiteCreate,
             update_schema=SiteUpdate,
@@ -46,7 +43,7 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
                 minutes = float(parts[1])
                 seconds = float(parts[2]) if len(parts) >= 3 else 0.0
 
-                decimal = degrees + minutes/60 + seconds/3600
+                decimal = degrees + minutes / 60 + seconds / 3600
 
                 if dms_str.strip()[0] == "-":
                     decimal = -decimal
@@ -132,14 +129,19 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
             uri = site.uri.replace("csai-", "")
             response = requests.get(uri, timeout=30)
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.text, "html.parser")
             content_dict = {}
 
-            inner_row_fluid = soup.find("div", class_="row-fluid").find("div", class_="row-fluid")
-            accordion = inner_row_fluid.find("div", class_="accordion") if inner_row_fluid else None
+            first_row_fluid = soup.find("div", class_="row-fluid")
+            inner_row_fluid = (
+                first_row_fluid.find("div", class_="row-fluid")
+                if isinstance(first_row_fluid, Tag)
+                else None
+            )
+            accordion = inner_row_fluid.find("div", class_="accordion") if isinstance(inner_row_fluid, Tag) else None
             if not accordion:
-                p = inner_row_fluid.find("p")
+                p = inner_row_fluid.find("p") if isinstance(inner_row_fluid, Tag) else None
                 if p and "not published" in p.get_text():
                     content_dict["SITE NOT PUBLISHED"] = {
                         "header": "Site not published",
@@ -149,7 +151,8 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
                         }
                     }
             else:
-                h3_elements = accordion.find_all("h3")
+                accordion_tag = accordion if isinstance(accordion, Tag) else None
+                h3_elements = accordion_tag.find_all("h3") if accordion_tag else []
 
                 for h3 in h3_elements:
                     header_text = h3.get_text(strip=True)
@@ -160,27 +163,42 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
                     }
 
                     current = h3.next_sibling
-                    while current and current.name != "h3":
-                        if current.name == "table":
-                            content_dict[header_text]["sections"].append({
-                                "section": header_text,
-                                "table": str(current),
-                            })
-                            content_dict[header_text]["parsed_data"] = self.parse_table(current)
+                    while current:
+                        if isinstance(current, Tag):
+                            if current.name == "h3":
+                                break
 
-                        elif current.name == "div" and "accordion-group" in current.get("class", []):
-                            accordion_inner = current.find("div", class_="accordion-inner")
-                            table = accordion_inner.find("table") if accordion_inner else None
-
-                            if table:
-                                section_title = current.find("a", class_="accordion-toggle").get_text(strip=True)
-                                parsed_data = self.parse_table(table)
-
+                            class_names: list[str] = []
+                            if current.name == "table":
                                 content_dict[header_text]["sections"].append({
-                                    "section": section_title,
-                                    "table": str(table),
+                                    "section": header_text,
+                                    "table": str(current),
                                 })
-                                content_dict[header_text]["parsed_data"][section_title] = parsed_data
+                                content_dict[header_text]["parsed_data"] = self.parse_table(current)
+
+                            else:
+                                raw_class_names = current.get("class")
+                                if isinstance(raw_class_names, list):
+                                    class_names = [str(class_name) for class_name in raw_class_names]
+                                elif isinstance(raw_class_names, str):
+                                    class_names = [raw_class_names]
+                                else:
+                                    class_names = []
+
+                            if current.name == "div" and "accordion-group" in class_names:
+                                accordion_inner = current.find("div", class_="accordion-inner")
+                                table = accordion_inner.find("table") if isinstance(accordion_inner, Tag) else None
+                                accordion_toggle = current.find("a", class_="accordion-toggle")
+
+                                if table and isinstance(accordion_toggle, Tag):
+                                    section_title = accordion_toggle.get_text(strip=True)
+                                    parsed_data = self.parse_table(table)
+
+                                    content_dict[header_text]["sections"].append({
+                                        "section": section_title,
+                                        "table": str(table),
+                                    })
+                                    content_dict[header_text]["parsed_data"][section_title] = parsed_data
 
                         current = current.next_sibling
 
@@ -196,19 +214,12 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
         except requests.RequestException as e:
             raise Exception(f"Failed to scrape URI {site.uri}: {str(e)}")
 
-    def scrape_all(self, task_id: str, rate_limit_delay: float = 10.0) -> dict[str, Any]:
+    def scrape_all(self, rate_limit_delay: float = 10.0) -> dict[str, Any]:
         """Scrape data for all sites with URIs."""
-        task = self.task_progress_service.get_task(task_id)
-        total_scraped = task.processed_items
+        total_scraped = 0
+        failed_items = 0
 
         try:
-            self.task_progress_service.update_progress(
-                uuid=task_id,
-                processed=0,
-                total=None,
-                status="running",
-            )
-
             sites = self.crud.get_multi(self.session, skip=0, limit=10000)
             total_sites = len(sites)
 
@@ -219,32 +230,24 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
                         total_scraped += 1
                     except Exception as e:
                         print(f"Error scraping site {site.id}: {str(e)}")
+                        failed_items += 1
                         continue
 
-                self.task_progress_service.update_progress(
-                    uuid=task_id,
-                    processed=total_scraped,
-                    total=total_sites,
-                    status="running",
-                )
-
-            self.task_progress_service.update_progress(
-                uuid=task_id,
-                processed=total_scraped,
-                total=total_sites,
-                status="completed",
-            )
-
-            return {"status": "success", "total_scraped": total_scraped}
+            return {
+                "status": "success",
+                "processed_items": total_scraped,
+                "failed_items": failed_items,
+                "total_items": total_sites,
+            }
 
         except Exception as e:
-            self.task_progress_service.update_progress(
-                uuid=task_id,
-                processed=total_scraped,
-                status="failed",
-                error=str(e),
-            )
-            return {"status": "error", "error": str(e)}
+            return {
+                "status": "error",
+                "error": str(e),
+                "processed_items": total_scraped,
+                "failed_items": failed_items,
+                "total_items": total_scraped + failed_items,
+            }
 
     def transfer_scraped_data(self, data: dict[str, Any]) -> SiteUpdate:
         """Transfer scraped data to the update schema."""
@@ -308,80 +311,26 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
 
         return SiteUpdate(**update_data)
 
-    def _link_to_related_entities(self, db_item, detail_data):
-        epigraph_list = detail_data.get("epigraphs", [])
-        epigraph_dasi_ids = [
-            int(epigraph["@id"].split("/")[-1])
-            for epigraph in epigraph_list
-            if "@id" in epigraph
-        ]
-        for epigraph_dasi_id in epigraph_dasi_ids:
-            epigraph = crud_epigraph.get_by_dasi_id(
-                self.session, dasi_id=epigraph_dasi_id
-            )
-            if epigraph:
-                crud_site.link_to_epigraph(
-                    self.session, site=db_item, epigraph_id=epigraph.id
-                )
-        object_list = detail_data.get("objects", [])
-        object_dasi_ids = [
-            int(obj["@id"].split("/")[-1])
-            for obj in object_list
-            if "@id" in obj
-        ]
-        for object_dasi_id in object_dasi_ids:
-            obj = crud_object.get_by_dasi_id(
-                self.session, dasi_id=object_dasi_id
-            )
-            if obj:
-                crud_site.link_to_object(
-                    self.session, site=db_item, object_id=obj.id
-                )
-        return db_item
-
-    def import_single(self, item_id: int, rate_limit_delay: float = 10, dasi_published: bool = True) -> Site:
-        time.sleep(rate_limit_delay)
-        detail_response = requests.get(
-            f"{self.base_url}/{item_id}",
-            timeout=30
-        )
-        detail_response.raise_for_status()
-        detail_data = detail_response.json()
-        parsed_data = self._parse_fields(detail_data)
-
-        db_item = self.crud.get_by_dasi_id(self.session, dasi_id=item_id)
-        if db_item:
-            db_item = self.crud.update(
-                db=self.session,
-                db_obj=db_item,
-                obj_in=self.update_schema(
-                    dasi_id=item_id,
-                    dasi_object=detail_data,
-                    dasi_published=dasi_published,
-                    **parsed_data,
-                ),
-            )
-        else:
-            db_item = self.crud.create(
-                db=self.session,
-                obj_in=self.create_schema(
-                    dasi_id=item_id,
-                    dasi_object=detail_data,
-                    **parsed_data,
-                ),
-            )
-
-        if db_item.uri:
+    def _post_process_imported_item(
+        self,
+        db_item: Site,
+        *,
+        item_id: int,
+        detail_data: dict[str, Any],
+        dasi_published: bool | None = None,
+        rate_limit_delay: float = 10,
+    ) -> Site:
+        if db_item.uri and db_item.id is not None:
             db_item = self.scrape_single(db_item.id, rate_limit_delay)
 
         scraped_data = db_item.dasi_object.get("scraped_data", {})
+        site_update: SiteUpdate | None = None
         if scraped_data:
             site_update = self.transfer_scraped_data(scraped_data)
-        else:
-            if not dasi_published is None:
-                site_update = self.update_schema(
-                    dasi_published=dasi_published,
-                )
+        elif dasi_published is not None:
+            site_update = self.update_schema(
+                dasi_published=dasi_published,
+            )
 
         if site_update:
             db_item = self.crud.update(
@@ -390,5 +339,4 @@ class SiteImportService(ImportService[Site, SiteCreate, SiteUpdate]):
                 obj_in=site_update,
             )
 
-        db_item = self._link_to_related_entities(db_item, detail_data)
         return db_item

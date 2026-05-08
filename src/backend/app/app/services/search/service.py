@@ -1,11 +1,11 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import openai
 from pydantic import BaseModel
-from sqlalchemy import String, cast, text
+from sqlalchemy import String, cast as sa_cast, text
 from sqlmodel import Session, asc, desc, func, or_, select
 
 from app.core.config import settings
@@ -13,9 +13,9 @@ from app.models.epigraph import Epigraph, EpigraphsOut
 from app.models.epigraph_chunk import EpigraphChunk
 from app.models.links import EpigraphObjectLink
 from app.models.object import Object
-from app.services.ai_service import AIService
 from app.services.enrichment.embeddings import EmbeddingsService
-from app.services.opensearch_service import OpenSearchService
+from app.services.search.ai import AIService
+from app.services.search.opensearch import OpenSearchService
 from app.utils import parse_period
 
 
@@ -137,15 +137,20 @@ class SearchService:
             )
 
             logging.info(f"Response: {response}")
-            logging.info(f"Token usage: {response.usage.input_tokens} input, {response.usage.output_tokens} output")
+            usage = response.usage
+            if usage is not None:
+                logging.info(f"Token usage: {usage.input_tokens} input, {usage.output_tokens} output")
 
             search_params = response.output_parsed
-            primary_query = search_params.primary_query.dict()
+            if search_params is None:
+                return {"primary_query": {"search_text": user_query}, "alternative_queries": []}
+
+            primary_query = search_params.primary_query.model_dump()
             self._validate_query_fields(primary_query, filter_options)
 
             alternative_queries = []
             for alt_query_model in search_params.alternative_queries:
-                alt_query = alt_query_model.dict()
+                alt_query = alt_query_model.model_dump()
                 self._validate_query_fields(alt_query, filter_options)
                 alternative_queries.append(alt_query)
 
@@ -209,28 +214,36 @@ class SearchService:
         cleaned_text = re.sub(r'[!@#$%^&*()+=\[\]{};:"\\|,._<>/?]', " ", search_text)
         processed_search_text = " ".join(cleaned_text.split())
 
-        base_query = select(Epigraph)
+        base_query: Any = select(Epigraph)
+        epigraph_published_column = cast(Any, Epigraph.dasi_published)
 
-        base_query = base_query.where(Epigraph.dasi_published.is_not(False))
+        base_query = base_query.where(epigraph_published_column.is_not(False))
 
         if include_objects:
-            base_query = base_query.outerjoin(EpigraphObjectLink, Epigraph.id == EpigraphObjectLink.epigraph_id)
-            base_query = base_query.outerjoin(Object, EpigraphObjectLink.object_id == Object.id)
-            base_query = base_query.where(or_(Object.id.is_(None), Object.dasi_published.is_not(False)))
+            epigraph_id_column = cast(Any, Epigraph.id)
+            link_epigraph_id_column = cast(Any, EpigraphObjectLink.epigraph_id)
+            link_object_id_column = cast(Any, EpigraphObjectLink.object_id)
+            object_id_column = cast(Any, Object.id)
+            object_published_column = cast(Any, Object.dasi_published)
+
+            base_query = base_query.outerjoin(EpigraphObjectLink, epigraph_id_column == link_epigraph_id_column)
+            base_query = base_query.outerjoin(Object, link_object_id_column == object_id_column)
+            base_query = base_query.where(or_(object_id_column.is_(None), object_published_column.is_not(False)))
             base_query = base_query.distinct()
 
         search_conditions = []
 
         if fields:
-            fields = fields.split(",")
+            field_names = fields.split(",")
             field_vectors = []
+            epigraph_table = getattr(Epigraph, "__table__")
 
-            for field in fields:
-                if field not in Epigraph.__table__.columns:
+            for field in field_names:
+                if field not in epigraph_table.columns:
                     logging.warning(f"Invalid epigraph field: {field}")
                     continue
 
-                column_type = str(Epigraph.__table__.columns[field].type)
+                column_type = str(epigraph_table.columns[field].type)
 
                 if "JSONB" in column_type:
                     field_vectors.append(
@@ -262,13 +275,14 @@ class SearchService:
         if include_objects and object_fields:
             object_fields_list = object_fields.split(",")
             object_field_vectors = []
+            object_table = getattr(Object, "__table__")
 
             for field in object_fields_list:
-                if field not in Object.__table__.columns:
+                if field not in object_table.columns:
                     logging.warning(f"Invalid object field: {field}")
                     continue
 
-                column_type = str(Object.__table__.columns[field].type)
+                column_type = str(object_table.columns[field].type)
 
                 if "JSONB" in column_type:
                     object_field_vectors.append(
@@ -313,7 +327,7 @@ class SearchService:
                         getattr(Epigraph, key) == value
                     )
 
-        epigraph_count = self.session.exec(select(func.count()).select_from(base_query.subquery())).one()
+        epigraph_count = int(self.session.exec(select(func.count()).select_from(base_query.subquery())).one())
         logging.info(f"Found {epigraph_count} epigraphs")
 
         if sort_field:
@@ -324,7 +338,7 @@ class SearchService:
 
         base_query = base_query.offset(skip).limit(limit)
 
-        epigraphs = self.session.exec(base_query).all()
+        epigraphs = list(self.session.exec(base_query).all())
 
         return epigraphs, epigraph_count
 
@@ -351,7 +365,8 @@ class SearchService:
         )
 
         if epigraph_ids:
-            epigraphs_query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+            epigraph_id_column = cast(Any, Epigraph.id)
+            epigraphs_query = select(Epigraph).where(epigraph_id_column.in_(epigraph_ids))
             epigraphs_used = list(self.session.exec(epigraphs_query).all())
             logging.info(f"Returning {len(epigraphs_used)} epigraphs used in answer generation")
         else:
@@ -393,7 +408,7 @@ class SearchService:
 
         if embedding is None:
             logging.error("Failed to generate embedding for semantic search.")
-            return []
+            return EpigraphsOut(epigraphs=[], count=0)
 
         result = embeddings_service.get_nearest_embeddings(
             embedding=embedding,
@@ -426,38 +441,44 @@ class SearchService:
             logging.error("Failed to generate embedding for chunk-based semantic search.")
             return []
 
-        query = select(
+        chunk_embedding_column = cast(Any, EpigraphChunk.embedding)
+        chunk_epigraph_id_column = cast(Any, EpigraphChunk.epigraph_id)
+        epigraph_id_column = cast(Any, Epigraph.id)
+        epigraph_published_column = cast(Any, Epigraph.dasi_published)
+        chunk_type_column = cast(Any, EpigraphChunk.chunk_type)
+
+        query: Any = select(
             EpigraphChunk,
-            EpigraphChunk.embedding.cosine_distance(query_embedding).label('distance')
+            chunk_embedding_column.cosine_distance(query_embedding).label('distance')
         ).join(
-            Epigraph, EpigraphChunk.epigraph_id == Epigraph.id
+            Epigraph, chunk_epigraph_id_column == epigraph_id_column
         ).where(
-            EpigraphChunk.embedding.is_not(None),
-            Epigraph.dasi_published.is_not(False),
-            Epigraph.dasi_published.is_not(None),
+            chunk_embedding_column.is_not(None),
+            epigraph_published_column.is_not(False),
+            epigraph_published_column.is_not(None),
         )
 
         if chunk_types:
-            query = query.where(EpigraphChunk.chunk_type.in_(chunk_types))
+            query = query.where(chunk_type_column.in_(chunk_types))
 
         if periods or languages:
             if periods:
                 query = query.where(
-                    cast(EpigraphChunk.chunk_metadata['period'], String).in_(periods)
+                    sa_cast(EpigraphChunk.chunk_metadata['period'], String).in_(periods)
                 )
 
             if languages:
                 query = query.where(
-                    cast(EpigraphChunk.chunk_metadata['language'], String).in_(languages)
+                    sa_cast(EpigraphChunk.chunk_metadata['language'], String).in_(languages)
                 )
 
         query = query.where(
-            EpigraphChunk.embedding.cosine_distance(query_embedding) < distance_threshold
+            chunk_embedding_column.cosine_distance(query_embedding) < distance_threshold
         )
 
         query = query.order_by('distance').limit(limit)
 
-        results = self.session.exec(query).all()
+        results = list(self.session.exec(query).all())
 
         chunk_results = []
         for chunk, distance in results:
@@ -511,11 +532,11 @@ class SearchService:
                 sort_order,
             )
 
-            search_fields = None
+            search_fields: Optional[List[str]] = None
             if fields:
                 search_fields = [field.strip() for field in fields.split(",")]
 
-            search_filters = {}
+            search_filters: Dict[str, Any] = {}
             if filters:
                 filters_dict = json.loads(filters) if isinstance(filters, str) else filters
                 search_filters.update(filters_dict)
@@ -536,9 +557,10 @@ class SearchService:
             if not epigraph_ids:
                 return [], 0
 
-            query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+            epigraph_id_column = cast(Any, Epigraph.id)
+            query = select(Epigraph).where(epigraph_id_column.in_(epigraph_ids))
 
-            epigraphs_dict = {epigraph.id: epigraph for epigraph in self.session.exec(query).all()}
+            epigraphs_dict = {epigraph.id: epigraph for epigraph in list(self.session.exec(query).all())}
             ordered_epigraphs = [
                 epigraphs_dict[eid]
                 for eid in epigraph_ids
@@ -548,7 +570,7 @@ class SearchService:
             logging.info(
                 f"OpenSearch found {total_count} epigraphs, returned {len(ordered_epigraphs)}"
             )
-            return ordered_epigraphs, total_count
+            return ordered_epigraphs, int(total_count)
 
         except Exception as e:
             logging.error(f"OpenSearch error, falling back to PostgreSQL: {e}")
@@ -599,8 +621,9 @@ class SearchService:
         try:
             self.opensearch.create_index()
 
-            query = select(Epigraph).where(Epigraph.dasi_published.is_not(False))
-            epigraphs = self.session.exec(query).all()
+            epigraph_published_column = cast(Any, Epigraph.dasi_published)
+            query = select(Epigraph).where(epigraph_published_column.is_not(False))
+            epigraphs = list(self.session.exec(query).all())
 
             batch_size = 100
             total_indexed = 0
