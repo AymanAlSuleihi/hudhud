@@ -3,16 +3,27 @@ import logging
 import os
 import re
 import shutil
-import asyncio
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Sequence, cast
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlmodel import select, func, asc, desc, text, or_
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text as sql_text
+from sqlmodel import asc, desc, func, select
 
 from app.api.deps import (
     SessionDep,
     get_current_active_superuser,
-    get_current_active_superuser_no_error,
+)
+from app.api.params import (
+    DasiIdPath,
+    JsonFiltersParam,
+    ObjectFieldsParam,
+    PageLimit,
+    PageOffset,
+    ResourceIdPath,
+    SearchTextParam,
+    SortFieldParam,
+    SortOrderParam,
+    TranslationTextParam,
 )
 from app.crud.crud_epigraph import epigraph as crud_epigraph
 from app.crud.crud_site import site as crud_site
@@ -24,11 +35,12 @@ from app.models.epigraph import (
     EpigraphUpdate,
     EpigraphsOut,
 )
-from app.services.epigraph.import_service import EpigraphImportService
-from app.services.word.word_parser import WordParser
-from app.services.task_progress import TaskProgressService
-from app.services.embeddings_service import EmbeddingsService
-from app.services.search_service import SearchService
+from app.models.pipeline_run import PipelineRun, PipelineRunOut
+from app.services.enrichment.embeddings import EmbeddingsService
+from app.services.importers.epigraph import EpigraphImportService
+from app.services.pipeline.dispatch import dispatch_dasi_pipeline
+from app.services.search.service import SearchService
+from app.services.text.word_parser import WordParser
 from app.utils import parse_period
 
 
@@ -40,7 +52,14 @@ logging.basicConfig(
 )
 
 
-router = APIRouter()
+router = APIRouter(prefix="/epigraphs", tags=["epigraphs"])
+
+
+def _build_epigraphs_out(epigraphs: Sequence[Epigraph], count: int) -> EpigraphsOut:
+    return EpigraphsOut(
+        epigraphs=[EpigraphOut.model_validate(epigraph) for epigraph in epigraphs],
+        count=count,
+    )
 
 @router.get(
     "/",
@@ -49,11 +68,11 @@ router = APIRouter()
 )
 def read_epigraphs(
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
-    filters: Optional[str] = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
 ) -> EpigraphsOut:
     """
     Retrieve epigraphs.
@@ -80,7 +99,7 @@ def read_epigraphs(
     total_count = session.exec(total_count_statement).one()
 
     if sort_field:
-        if sort_order and sort_order.lower() == "desc":
+        if sort_order == "desc":
             if sort_field in ["period", "language_level_1"]:
                 epigraphs_statement = epigraphs_statement.order_by(desc(getattr(Epigraph, sort_field)), desc(Epigraph.id))
             else:
@@ -95,7 +114,7 @@ def read_epigraphs(
 
     epigraphs = session.exec(epigraphs_statement).all()
 
-    return EpigraphsOut(epigraphs=epigraphs, count=total_count)
+    return _build_epigraphs_out(epigraphs, int(total_count))
 
 
 @router.get(
@@ -104,10 +123,10 @@ def read_epigraphs(
 )
 def filter_epigraphs(
     session: SessionDep,
-    translation_text: str,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
-    filters: Optional[str] = None,
+    translation_text: TranslationTextParam,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
 ):
     """
     Filter epigraphs by searching within all translations.
@@ -118,7 +137,7 @@ def filter_epigraphs(
     query = select(Epigraph)
 
     query = query.where(
-        text("""
+        sql_text("""
             EXISTS (
                 SELECT 1 
                 FROM jsonb_array_elements(translations) as t 
@@ -140,7 +159,7 @@ def filter_epigraphs(
                 )
 
     if sort_field:
-        if sort_order.lower() == "desc":
+        if sort_order == "desc":
             if sort_field in ["period", "language_level_1"]:
                 query = query.order_by(desc(sort_field), desc(Epigraph.id))
             else:
@@ -155,7 +174,7 @@ def filter_epigraphs(
 
     logging.info(f"Found {len(epigraphs)} epigraphs")
 
-    return EpigraphsOut(epigraphs=epigraphs, count=len(epigraphs))
+    return _build_epigraphs_out(epigraphs, len(epigraphs))
 
 
 @router.post(
@@ -178,13 +197,14 @@ def get_epigraphs_by_ids(
             detail="Cannot fetch more than 100 epigraphs at once"
         )
 
-    query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
+    epigraph_id_column = cast(Any, Epigraph.id)
+    query = select(Epigraph).where(epigraph_id_column.in_(epigraph_ids))
     epigraphs = session.exec(query).all()
 
     epigraph_dict = {ep.id: ep for ep in epigraphs}
     ordered_epigraphs = [epigraph_dict[id] for id in epigraph_ids if id in epigraph_dict]
 
-    return EpigraphsOut(epigraphs=ordered_epigraphs, count=len(ordered_epigraphs))
+    return _build_epigraphs_out(ordered_epigraphs, len(ordered_epigraphs))
 
 
 @router.get(
@@ -193,15 +213,15 @@ def get_epigraphs_by_ids(
 )
 def full_text_search_epigraphs(
     session: SessionDep,
-    search_text: str,
+    search_text: SearchTextParam,
     fields: Optional[str] = None,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
-    filters: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
     include_objects: bool = False,
-    object_fields: Optional[str] = None,
+    object_fields: ObjectFieldsParam = None,
 ):
     """
     Full text search epigraphs using OpenSearch when available, falling back to PostgreSQL.
@@ -220,7 +240,7 @@ def full_text_search_epigraphs(
         object_fields=object_fields,
     )
 
-    return EpigraphsOut(epigraphs=epigraphs, count=count)
+    return _build_epigraphs_out(epigraphs, count)
 
 
 @router.get(
@@ -252,9 +272,9 @@ def semantic_search_epigraphs(
     response_model=EpigraphOut,
 )
 def read_epigraph_by_id(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
-) -> EpigraphOut:
+) -> Epigraph:
     """
     Retrieve epigraph by ID.
     """
@@ -272,9 +292,9 @@ def read_epigraph_by_id(
     response_model=EpigraphOut,
 )
 def read_epigraph_by_dasi_id(
-    dasi_id: int,
+    dasi_id: DasiIdPath,
     session: SessionDep,
-) -> EpigraphOut:
+) -> Epigraph:
     """
     Retrieve epigraph by DASI ID.
     """
@@ -298,7 +318,7 @@ def read_epigraph_by_dasi_id(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def read_epigraph_text_by_id(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
 ) -> Dict[str, str]:
     """
@@ -366,7 +386,7 @@ def get_all_field_values(
 )
 def get_filtered_field_values(
     session: SessionDep,
-    filters: Optional[str] = None,
+    filters: JsonFiltersParam = None,
 ) -> Dict[str, List[str]]:
     """
     Get field values based on current filters.
@@ -440,7 +460,7 @@ def get_filtered_field_values(
             getattr(Epigraph, field).is_not(None)
         ).order_by(asc(getattr(Epigraph, field)))
 
-        values = session.exec(field_query).all()
+        values = session.exec(cast(Any, field_query)).all()
         values = [v for v in values if v]
 
         if field == "period":
@@ -454,12 +474,13 @@ def get_filtered_field_values(
 @router.post(
     "/",
     response_model=EpigraphOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def create_epigraph(
     epigraph: EpigraphCreate,
     session: SessionDep,
-) -> EpigraphOut:
+) -> Epigraph:
     """
     Create new epigraph.
     """
@@ -472,10 +493,10 @@ def create_epigraph(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def update_epigraph(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     epigraph_in: EpigraphUpdate,
     session: SessionDep,
-) -> EpigraphOut:
+) -> Epigraph:
     """
     Update epigraph.
     """
@@ -493,94 +514,70 @@ def update_epigraph(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_epigraph(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
 ) -> None:
     """
     Delete epigraph.
     """
-    return crud_epigraph.remove(session, id=epigraph_id)
+    crud_epigraph.remove(session, id=epigraph_id)
+    return None
 
 
 @router.post(
     "/import",
+    response_model=PipelineRunOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_epigraphs(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
-) -> dict:
+) -> PipelineRun:
     """
     Import epigraphs from external api.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_epigraphs")
-
-    epigraph_import_service = EpigraphImportService(session, task_service)
-    background_tasks.add_task(epigraph_import_service.import_all, task.uuid, 10)
-    return {"task_id": task.uuid}
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": False,
+            "import_objects": False,
+            "import_epigraphs": True,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
+    )
 
 
 @router.post(
     "/import_range",
+    response_model=PipelineRunOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_epigraphs_range(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
     start_id: int,
     end_id: int,
-    dasi_published: bool = None,
+    dasi_published: Optional[bool] = None,
     update_existing: bool = False,
-) -> dict:
+) -> PipelineRun:
     """
     Import epigraphs from external api in a range.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_epigraphs_range")
-
-    epigraph_import_service = EpigraphImportService(session, task_service)
-    background_tasks.add_task(
-        epigraph_import_service.import_range,
-        task_id=task.uuid,
-        start_id=start_id,
-        end_id=end_id,
-        dasi_published=dasi_published,
-        rate_limit_delay=10,
-        update_existing=update_existing,
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": False,
+            "import_objects": False,
+            "import_epigraphs": True,
+            "start_id": start_id,
+            "end_id": end_id,
+            "dasi_published": dasi_published,
+            "update_existing": update_existing,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
     )
-
-    return {"task_id": task.uuid}
-
-
-@router.get(
-    "/import_metrics/{task_id}",
-    dependencies=[Depends(get_current_active_superuser_no_error)],
-)
-def import_epigraphs_metrics(
-    task_id: str,
-    session: SessionDep,
-):
-    """
-    Get import epigraphs task metrics.
-    """
-    task_service = TaskProgressService(session)
-    return task_service.get_metrics(task_id)
-
-
-@router.get(
-    "/import_images/metrics/{task_id}",
-    dependencies=[Depends(get_current_active_superuser_no_error)],
-)
-def import_images_metrics(
-    task_id: str,
-    session: SessionDep,
-):
-    """
-    Get import images task metrics and progress.
-    """
-    task_service = TaskProgressService(session)
-    return task_service.get_metrics(task_id)
 
 
 @router.get(
@@ -635,11 +632,11 @@ def get_epigraph_missing_fields(
 )
 def transfer_fields(
     session: SessionDep,
-) -> None:
+) -> dict[str, str]:
     """
     Transfer fields for every epigraph object that's already in the db.
     """
-    epigraph_import_service = EpigraphImportService(session, TaskProgressService(session))
+    epigraph_import_service = EpigraphImportService(session)
     epigraphs = session.exec(select(Epigraph)).all()
 
     for epigraph in epigraphs:
@@ -669,7 +666,7 @@ def link_to_sites(
         ]
         for site_dasi_id in site_dasi_ids:
             site = crud_site.get_by_dasi_id(session, dasi_id=site_dasi_id)
-            if site:
+            if site and site.id is not None:
                 crud_epigraph.link_to_site(session, epigraph=epigraph, site_id=site.id)
     return {"status": "success", "message": "Linked all epigraphs to sites"}
 
@@ -694,7 +691,7 @@ def link_to_objects(
         ]
         for object_dasi_id in object_dasi_ids:
             obj = crud_object.get_by_dasi_id(session, dasi_id=object_dasi_id)
-            if obj:
+            if obj and obj.id is not None:
                 crud_epigraph.link_to_object(session, epigraph=epigraph, object_id=obj.id)
     return {"status": "success", "message": "Linked all epigraphs to objects"}
 
@@ -705,85 +702,85 @@ def link_to_objects(
 )
 def generate_embeddings_all(
     session: SessionDep,
-    background_tasks: BackgroundTasks,
     skip_existing: bool = True
 ) -> dict:
     """
     Generate embeddings for all epigraphs.
     """
-    def generate_all_embeddings_task(session, skip_existing):
-        query = select(Epigraph)
-        if skip_existing:
-            query = query.where(Epigraph.embedding.is_(None))
-        epigraphs = session.exec(query).all()
-        embeddings_service = EmbeddingsService(session)
+    query = select(Epigraph)
+    if skip_existing:
+        query = query.where(sql_text("embedding IS NULL"))
+    epigraphs = session.exec(query).all()
+    embeddings_service = EmbeddingsService(session)
+    processed = 0
+    failed_ids = []
 
-        for epigraph in epigraphs:
-            text_parts = []
+    for epigraph in epigraphs:
+        text_parts = []
 
-            def field_to_string(field_value):
-                if field_value is None:
-                    return ""
-                elif isinstance(field_value, str):
-                    return field_value
-                elif isinstance(field_value, (list, dict)):
-                    json_str = json.dumps(field_value, ensure_ascii=False)
-                    clean_str = re.sub(r'[{}\[\]",:]', "", json_str)
-                    clean_str = re.sub(r"\s+", " ", clean_str)
-                    return clean_str
-                else:
-                    return str(field_value)
+        def field_to_string(field_value):
+            if field_value is None:
+                return ""
+            if isinstance(field_value, str):
+                return field_value
+            if isinstance(field_value, (list, dict)):
+                json_str = json.dumps(field_value, ensure_ascii=False)
+                clean_str = re.sub(r'[{}\[\]",:]', "", json_str)
+                clean_str = re.sub(r"\s+", " ", clean_str)
+                return clean_str
+            return str(field_value)
 
-            embedding_fields = [
-                "epigraph.epigraph_text",
-                "epigraph.translations",
-                "epigraph.general_notes",
-                "epigraph.apparatus_notes",
-                "epigraph.cultural_notes",
-                "object.support_notes",
-                "object.cultural_notes",
-                "object.deposit_notes",
-                "object.concordances",
-                "epigraph.bibliography",
-            ]
+        embedding_fields = [
+            "epigraph.epigraph_text",
+            "epigraph.translations",
+            "epigraph.general_notes",
+            "epigraph.apparatus_notes",
+            "epigraph.cultural_notes",
+            "object.support_notes",
+            "object.cultural_notes",
+            "object.deposit_notes",
+            "object.concordances",
+            "epigraph.bibliography",
+        ]
 
-            epigraph_data = epigraph.dict()
-            object_data = epigraph.objects[0].dict() if epigraph.objects and len(epigraph.objects) > 0 else {}
-            for field_name in embedding_fields:
-                source, field = field_name.split(".")
-                data = epigraph_data if source == "epigraph" else object_data
-                if field in data and data[field]:
-                    field_value = data[field]
-                    text = ""
-                    if field == "epigraph_text":
-                        epigraph_text = epigraph.epigraph_text
-                        epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph_text)
-                        epigraph_text = re.sub(r"<[^>]*>", "", epigraph_text)
-                        field_value = epigraph_text
+        epigraph_data = epigraph.model_dump()
+        object_data = epigraph.objects[0].model_dump() if epigraph.objects and len(epigraph.objects) > 0 else {}
+        for field_name in embedding_fields:
+            source, field = field_name.split(".")
+            data = epigraph_data if source == "epigraph" else object_data
+            if field in data and data[field]:
+                field_value = data[field]
+                if field == "epigraph_text":
+                    epigraph_text = re.sub(r"<milestone unit=\"clitic\"/>", " ", epigraph.epigraph_text)
+                    field_value = re.sub(r"<[^>]*>", "", epigraph_text)
 
-                    text = field_to_string(field_value)
-                    if text.strip():
-                        text_parts.append(text)
+                text = field_to_string(field_value)
+                if text.strip():
+                    text_parts.append(text)
 
-            combined_text = " ".join(text_parts)
+        combined_text = " ".join(text_parts)
+        if not combined_text.strip():
+            failed_ids.append(epigraph.id)
+            continue
 
-            if not combined_text.strip():
-                logging.warning(f"Epigraph ID {epigraph.id} has no valid text for embedding")
-                continue
+        embedding = embeddings_service.generate_embedding(combined_text)
+        if embedding is None:
+            failed_ids.append(epigraph.id)
+            continue
 
-            embedding = embeddings_service.generate_embedding(combined_text)
+        crud_epigraph.update(
+            session,
+            db_obj=epigraph,
+            obj_in=EpigraphUpdate(embedding=embedding)
+        )
+        processed += 1
 
-            if embedding is None:
-                continue
-
-            crud_epigraph.update(
-                session,
-                db_obj=epigraph,
-                obj_in=EpigraphUpdate(embedding=embedding)
-            )
-
-    background_tasks.add_task(generate_all_embeddings_task, session, skip_existing)
-    return {"status": "started", "message": "Embeddings generation started in background"}
+    return {
+        "status": "success",
+        "processed_items": processed,
+        "failed_items": len(failed_ids),
+        "failed_ids": failed_ids,
+    }
 
 
 @router.put(
@@ -832,8 +829,8 @@ def generate_embeddings(
         "epigraph.bibliography",
     ]
 
-    epigraph_data = epigraph.dict()
-    object_data = epigraph.objects[0].dict() if epigraph.objects and len(epigraph.objects) > 0 else {}
+    epigraph_data = epigraph.model_dump()
+    object_data = epigraph.objects[0].model_dump() if epigraph.objects and len(epigraph.objects) > 0 else {}
     for field_name in embedding_fields:
         source, field = field_name.split(".")
         data = epigraph_data if source == "epigraph" else object_data
@@ -1087,7 +1084,7 @@ def get_similar_epigraphs(
         ep for ep in result["epigraphs"] if ep.id != epigraph_id
     ]
 
-    return EpigraphsOut(epigraphs=result["epigraphs"], count=result["total_count"])
+    return _build_epigraphs_out(result["epigraphs"], result["total_count"])
 
 
 @router.post(
@@ -1095,7 +1092,6 @@ def get_similar_epigraphs(
     dependencies=[Depends(get_current_active_superuser)],
 )
 async def import_all_images(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
     start_rec_id: int = 1,
     image_size: str = "high",
@@ -1105,46 +1101,13 @@ async def import_all_images(
     """
     Import all images from DASI starting from start_rec_id until no more images are found.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_all_images")
-
-    def import_all_images_task(task_id: str, session):
-        try:
-            task_service = TaskProgressService(session)
-            epigraph_import_service = EpigraphImportService(session, task_service)
-
-            result = asyncio.run(epigraph_import_service.import_all_images(
-                task_id=task_id,
-                start_rec_id=start_rec_id,
-                image_size=image_size,
-                rate_limit_delay=rate_limit_delay,
-                max_consecutive_failures=max_consecutive_failures,
-            ))
-
-            return result
-
-        except Exception as e:
-            task_service = TaskProgressService(session)
-            task_service.update_progress(
-                uuid=task_id,
-                processed=0,
-                status="failed",
-                error=str(e),
-            )
-            return {"status": "error", "error": str(e)}
-
-    background_tasks.add_task(import_all_images_task, task.uuid, session)
-
-    return {
-        "task_id": task.uuid,
-        "message": f"Started importing all images from rec_id {start_rec_id}",
-        "parameters": {
-            "start_rec_id": start_rec_id,
-            "image_size": image_size,
-            "rate_limit_delay": rate_limit_delay,
-            "max_consecutive_failures": max_consecutive_failures
-        }
-    }
+    epigraph_import_service = EpigraphImportService(session)
+    return await epigraph_import_service.import_all_images(
+        start_rec_id=start_rec_id,
+        image_size=image_size,
+        rate_limit_delay=rate_limit_delay,
+        max_consecutive_failures=max_consecutive_failures,
+    )
 
 
 @router.post(
@@ -1152,7 +1115,6 @@ async def import_all_images(
     dependencies=[Depends(get_current_active_superuser)],
 )
 async def import_images_range(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
     start_rec_id: int,
     end_rec_id: int,
@@ -1168,54 +1130,20 @@ async def import_images_range(
             detail="start_rec_id must be less than or equal to end_rec_id",
         )
 
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_images_range")
-
-    def import_images_range_task(task_id: str, session):
-        try:
-            task_service = TaskProgressService(session)
-            epigraph_import_service = EpigraphImportService(session, task_service)
-
-            result = asyncio.run(epigraph_import_service.import_images_range(
-                task_id=task_id,
-                start_id=start_rec_id,
-                end_id=end_rec_id,
-                image_size=image_size,
-                rate_limit_delay=rate_limit_delay,
-            ))
-
-            return result
-
-        except Exception as e:
-            task_service = TaskProgressService(session)
-            task_service.update_progress(
-                uuid=task_id,
-                processed=0,
-                status="failed",
-                error=str(e),
-            )
-            return {"status": "error", "error": str(e)}
-
-    background_tasks.add_task(import_images_range_task, task.uuid, session)
-    return {
-        "task_id": task.uuid,
-        "message": f"Started importing images for rec_ids {start_rec_id} to {end_rec_id}",
-        "total_images": end_rec_id - start_rec_id + 1,
-        "parameters": {
-            "start_rec_id": start_rec_id,
-            "end_rec_id": end_rec_id,
-            "image_size": image_size,
-            "rate_limit_delay": rate_limit_delay
-        }
-    }
+    epigraph_import_service = EpigraphImportService(session)
+    return await epigraph_import_service.import_images_range(
+        start_id=start_rec_id,
+        end_id=end_rec_id,
+        image_size=image_size,
+        rate_limit_delay=rate_limit_delay,
+    )
 
 
 @router.post(
     "/scrape_images/range",
     dependencies=[Depends(get_current_active_superuser)],
 )
-def scrape_epigraphs_images_range(
-    background_tasks: BackgroundTasks,
+async def scrape_epigraphs_images_range(
     session: SessionDep,
     start_dasi_id: int,
     end_dasi_id: int,
@@ -1225,72 +1153,35 @@ def scrape_epigraphs_images_range(
     """
     Scrape image details for epigraphs in a DASI ID range.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("scrape_epigraphs_images_range")
+    epigraph_import_service = EpigraphImportService(session)
+    epigraphs_query = select(Epigraph).where(
+        Epigraph.dasi_id >= start_dasi_id,
+        Epigraph.dasi_id <= end_dasi_id
+    )
+    epigraphs = session.exec(epigraphs_query).all()
 
-    def scrape_range_task(task_uuid: str):
+    success_count = 0
+    failed_ids = []
+    for epigraph in epigraphs:
         try:
-            epigraph_import_service = EpigraphImportService(session, task_service)
-
-            epigraphs_query = select(Epigraph).where(
-                Epigraph.dasi_id >= start_dasi_id,
-                Epigraph.dasi_id <= end_dasi_id
+            await epigraph_import_service.scrape_single(
+                dasi_id=epigraph.dasi_id,
+                rate_limit_delay=rate_limit_delay,
+                max_retries=max_retries,
             )
-            epigraphs = session.exec(epigraphs_query).all()
-
-            total_items = len(epigraphs)
-            task_service.update_progress(task_uuid, processed=0, total=total_items, status="running")
-
-            success_count = 0
-            error_count = 0
-
-            for i, epigraph in enumerate(epigraphs):
-                try:
-                    epigraph_import_service.scrape_single(
-                        dasi_id=epigraph.dasi_id,
-                        rate_limit_delay=rate_limit_delay,
-                        max_retries=max_retries
-                    )
-                    success_count += 1
-                    task_service.update_progress(
-                        task_uuid, 
-                        processed=i + 1,
-                        total=total_items,
-                        status="running"
-                    )
-                except Exception as e:
-                    error_count += 1
-                    logging.error(f"Error scraping images for DASI ID {epigraph.dasi_id}: {str(e)}")
-                    task_service.update_progress(
-                        task_uuid, 
-                        processed=i + 1,
-                        total=total_items,
-                        status="running",
-                        error=str(e)
-                    )
-
-            final_status = "completed" if error_count == 0 else "completed_with_errors"
-            task_service.update_progress(
-                task_uuid, 
-                processed=total_items, 
-                total=total_items, 
-                status=final_status
-            )
-
+            success_count += 1
         except Exception as e:
-            logging.error(f"Fatal error in scrape_range_task: {str(e)}", exc_info=True)
-            task_service.update_progress(
-                task_uuid,
-                processed=0,
-                status="failed",
-                error=f"Task failed: {str(e)}"
-            )
+            logging.error(f"Error scraping images for DASI ID {epigraph.dasi_id}: {str(e)}")
+            failed_ids.append(epigraph.dasi_id)
 
-    background_tasks.add_task(scrape_range_task, task.uuid)
     return {
-        "task_id": task.uuid, 
+        "status": "success",
+        "processed_items": success_count,
+        "failed_items": len(failed_ids),
+        "failed_ids": failed_ids,
+        "total_items": len(epigraphs),
         "range": f"{start_dasi_id}-{end_dasi_id}",
-        "max_retries": max_retries
+        "max_retries": max_retries,
     }
 
 
@@ -1298,8 +1189,7 @@ def scrape_epigraphs_images_range(
     "/scrape_images/all",
     dependencies=[Depends(get_current_active_superuser)],
 )
-def scrape_all_epigraphs_images(
-    background_tasks: BackgroundTasks,
+async def scrape_all_epigraphs_images(
     session: SessionDep,
     rate_limit_delay: float = 10,
     update_existing: bool = False,
@@ -1308,83 +1198,34 @@ def scrape_all_epigraphs_images(
     """
     Scrape image details for all epigraphs.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("scrape_all_epigraphs_images")
-
-    def scrape_all_task(task_uuid: str):
-        try:
-            epigraph_import_service = EpigraphImportService(session, task_service)
-
-            if update_existing:
-                epigraphs_query = select(Epigraph)
-            else:
-                epigraphs_query = select(Epigraph).where(Epigraph.images.is_(None))
-
-            epigraphs = session.exec(epigraphs_query).all()
-
-            total_items = len(epigraphs)
-            task_service.update_progress(task_uuid, processed=0, total=total_items, status="running")
-
-            success_count = 0
-            error_count = 0
-
-            for i, epigraph in enumerate(epigraphs):
-                try:
-                    epigraph_import_service.scrape_single(
-                        dasi_id=epigraph.dasi_id,
-                        rate_limit_delay=rate_limit_delay,
-                        max_retries=max_retries
-                    )
-                    success_count += 1
-                    task_service.update_progress(
-                        task_uuid, 
-                        processed=i + 1,
-                        total=total_items,
-                        status="running"
-                    )
-                except Exception as e:
-                    error_count += 1
-                    logging.error(f"Error scraping images for DASI ID {epigraph.dasi_id}: {str(e)}")
-                    task_service.update_progress(
-                        task_uuid, 
-                        processed=i + 1,
-                        total=total_items,
-                        status="running",
-                        error=str(e)
-                    )
-
-            final_status = "completed" if error_count == 0 else "completed_with_errors"
-            task_service.update_progress(
-                task_uuid, 
-                processed=total_items, 
-                total=total_items, 
-                status=final_status
-            )
-
-        except Exception as e:
-            logging.error(f"Fatal error in scrape_all_task: {str(e)}", exc_info=True)
-            task_service.update_progress(
-                task_uuid,
-                processed=0,
-                status="failed",
-                error=f"Task failed: {str(e)}"
-            )
-
-    background_tasks.add_task(scrape_all_task, task.uuid)
-
     if update_existing:
-        total_count = len(session.exec(select(Epigraph)).all())
-        message = "all epigraphs"
+        epigraphs = session.exec(select(Epigraph)).all()
     else:
-        total_count = len(session.exec(select(Epigraph).where(Epigraph.images.is_(None))).all())
-        message = "epigraphs not yet scraped (images is null)"
+        epigraphs = session.exec(select(Epigraph).where(sql_text("images IS NULL"))).all()
+
+    epigraph_import_service = EpigraphImportService(session)
+    success_count = 0
+    failed_ids = []
+    for epigraph in epigraphs:
+        try:
+            await epigraph_import_service.scrape_single(
+                dasi_id=epigraph.dasi_id,
+                rate_limit_delay=rate_limit_delay,
+                max_retries=max_retries,
+            )
+            success_count += 1
+        except Exception as e:
+            logging.error(f"Error scraping images for DASI ID {epigraph.dasi_id}: {str(e)}")
+            failed_ids.append(epigraph.dasi_id)
 
     return {
-        "task_id": task.uuid, 
-        "total_epigraphs": total_count,
+        "status": "success",
+        "processed_items": success_count,
+        "failed_items": len(failed_ids),
+        "failed_ids": failed_ids,
+        "total_items": len(epigraphs),
         "update_existing": update_existing,
         "max_retries": max_retries,
-        "message": f"Started scraping images for {message}"
     }
 
 
@@ -1393,20 +1234,19 @@ def scrape_all_epigraphs_images(
     response_model=EpigraphOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
-def scrape_epigraph_images_single(
+async def scrape_epigraph_images_single(
     dasi_id: int,
     session: SessionDep,
     rate_limit_delay: float = 10,
     max_retries: int = 1,
-) -> EpigraphOut:
+) -> Epigraph:
     """
     Scrape image details for a single epigraph by DASI ID.
     """
-    task_service = TaskProgressService(session)
-    epigraph_import_service = EpigraphImportService(session, task_service)
+    epigraph_import_service = EpigraphImportService(session)
     
     try:
-        updated_epigraph = epigraph_import_service.scrape_single(
+        updated_epigraph = await epigraph_import_service.scrape_single(
             dasi_id=dasi_id,
             rate_limit_delay=rate_limit_delay,
             max_retries=max_retries
@@ -1436,8 +1276,8 @@ def move_images_free_from_copyright(
     """
     epigraphs = session.exec(
         select(Epigraph).where(
-            Epigraph.images.isnot(None),
-            text("jsonb_array_length(images) > 0")
+            sql_text("images IS NOT NULL"),
+            sql_text("jsonb_array_length(images) > 0")
         )
     ).all()
 
@@ -1448,7 +1288,7 @@ def move_images_free_from_copyright(
         updated_images = []
         epigraph_updated = False
 
-        for image in epigraph.images:
+        for image in epigraph.images or []:
             image_copy = dict(image)
 
             if "free from copyright" in image.get("caption", "").lower():

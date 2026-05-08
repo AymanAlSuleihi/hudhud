@@ -1,15 +1,16 @@
-from typing import Any, List
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
-from app import crud
 from app.api.deps import (
     CurrentUser,
     SessionDep,
     get_current_active_superuser,
 )
+from app.api.params import PageLimit, PageOffset, ResourceIdPath
 from app.core.config import settings
+from app.crud.crud_user import user as crud_user
 from app.models.user import (
     User,
     UserCreate,
@@ -20,7 +21,7 @@ from app.models.user import (
 )
 # from app.utils import send_new_account_email
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get(
@@ -28,7 +29,7 @@ router = APIRouter()
     dependencies=[Depends(get_current_active_superuser)],
     response_model=List[UserOut],
 )
-def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
+def read_users(session: SessionDep, skip: PageOffset = 0, limit: PageLimit = 100) -> List[User]:
     """
     Retrieve users.
     """
@@ -40,18 +41,18 @@ def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
 @router.post(
     "/", dependencies=[Depends(get_current_active_superuser)], response_model=UserOut
 )
-def create_user(*, session: SessionDep, user_in: UserCreate) -> Any:
+def create_user(*, session: SessionDep, user_in: UserCreate) -> User:
     """
     Create new user.
     """
-    user = crud.get_user_by_email(session=session, email=user_in.email)
+    user = crud_user.get_by_email(db=session, email=user_in.email)
     if user:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="The user with this username already exists in the system.",
         )
 
-    user = crud.create_user(session=session, user_create=user_in)
+    user = crud_user.create(db=session, obj_in=user_in)
     # if settings.EMAILS_ENABLED and user_in.email:
     #     send_new_account_email(
     #         email_to=user_in.email, username=user_in.email, password=user_in.password
@@ -62,25 +63,24 @@ def create_user(*, session: SessionDep, user_in: UserCreate) -> Any:
 @router.put("/me", response_model=UserOut)
 def update_user_me(
     *, session: SessionDep, body: UserUpdateMe, current_user: CurrentUser
-) -> Any:
+) -> User:
     """
     Update own user.
     """
-    # TODO: Refactor when SQLModel has update
-    # current_user_data = jsonable_encoder(current_user)
-    # user_in = UserUpdate(**current_user_data)
-    # if password is not None:
-    #     user_in.password = password
-    # if full_name is not None:
-    #     user_in.full_name = full_name
-    # if email is not None:
-    #     user_in.email = email
-    # user = crud.user.update(session, session_obj=current_user, obj_in=user_in)
-    # return user
+    if body.email and body.email != current_user.email:
+        existing_user = crud_user.get_by_email(db=session, email=body.email)
+        if existing_user and existing_user.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The user with this email already exists in the system.",
+            )
+
+    user_in = UserUpdate(**body.model_dump(exclude_unset=True))
+    return crud_user.update(db=session, db_obj=current_user, obj_in=user_in)
 
 
 @router.get("/me", response_model=UserOut)
-def read_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
+def read_user_me(session: SessionDep, current_user: CurrentUser) -> User:
     """
     Get current user.
     """
@@ -88,40 +88,44 @@ def read_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
 
 
 @router.post("/open", response_model=UserOut)
-def create_user_open(session: SessionDep, user_in: UserCreateOpen) -> Any:
+def create_user_open(session: SessionDep, user_in: UserCreateOpen) -> User:
     """
     Create new user without the need to be logged in.
     """
     if not settings.USERS_OPEN_REGISTRATION:
         raise HTTPException(
-            status_code=403,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Open user registration is forbidden on this server",
         )
-    user = crud.get_user_by_email(session=session, email=user_in.email)
+    user = crud_user.get_by_email(db=session, email=user_in.email)
     if user:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="The user with this username already exists in the system",
         )
-    user_create = UserCreate.from_orm(user_in)
-    user = crud.create_user(session=session, user_create=user_create)
+    user_create = UserCreate.model_validate(user_in)
+    user = crud_user.create(db=session, obj_in=user_create)
     return user
 
 
 @router.get("/{user_id}", response_model=UserOut)
 def read_user_by_id(
-    user_id: int, session: SessionDep, current_user: CurrentUser
-) -> Any:
+    user_id: ResourceIdPath, session: SessionDep, current_user: CurrentUser
+) -> User:
     """
     Get a specific user by id.
     """
     user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The user does not exist in the system.",
+        )
     if user == current_user:
         return user
     if not current_user.is_superuser:
         raise HTTPException(
-            # TODO: Review status code
-            status_code=400,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="The user doesn't have enough privileges",
         )
     return user
@@ -135,19 +139,16 @@ def read_user_by_id(
 def update_user(
     *,
     session: SessionDep,
-    user_id: int,
+    user_id: ResourceIdPath,
     user_in: UserUpdate,
-) -> Any:
+) -> User:
     """
     Update a user.
     """
-
-    # TODO: Refactor when SQLModel has update
-    # user = session.get(User, user_id)
-    # if not user:
-    #     raise HTTPException(
-    #         status_code=404,
-    #         detail="The user with this username does not exist in the system",
-    #     )
-    # user = crud.user.update(session, db_obj=user, obj_in=user_in)
-    # return user
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The user with this username does not exist in the system",
+        )
+    return crud_user.update(db=session, db_obj=user, obj_in=user_in)

@@ -1,41 +1,43 @@
 from typing import Dict, Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import select
 
 from app.api.deps import SessionDep, get_current_active_superuser
+from app.api.params import ResourceIdPath
 from app.models.epigraph import Epigraph
-from app.services.search_service import SearchService
+from app.models.pipeline_run import PipelineRunOut
+from app.services.pipeline.dispatch import dispatch_dasi_pipeline
+from app.services.search.service import SearchService
 
-router = APIRouter()
+router = APIRouter(prefix="/opensearch", tags=["opensearch"])
 
 
-@router.post("/reindex")
+@router.post(
+    "/reindex",
+    response_model=PipelineRunOut,
+    dependencies=[Depends(get_current_active_superuser)],
+)
 def reindex_all_epigraphs(
     session: SessionDep,
-    background_tasks: BackgroundTasks,
-    _: dict = Depends(get_current_active_superuser),
 ):
     """Reindex all epigraphs to OpenSearch."""
-    def reindex_task():
-        search_service = SearchService(session)
-        try:
-            total_indexed = search_service.reindex_all_epigraphs()
-            return {"message": f"Successfully reindexed {total_indexed} epigraphs"}
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to reindex epigraphs: {str(e)}"
-            )
-
-    background_tasks.add_task(reindex_task)
-    return {"message": "Reindexing started in background"}
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": False,
+            "import_objects": False,
+            "import_epigraphs": False,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": True,
+        },
+    )
 
 
-@router.get("/stats")
+@router.get("/stats", dependencies=[Depends(get_current_active_superuser)])
 def get_opensearch_stats(
     session: SessionDep,
-    _: dict = Depends(get_current_active_superuser),
 ) -> Dict[str, Any]:
     """Get OpenSearch index statistics."""
     search_service = SearchService(session)
@@ -43,11 +45,10 @@ def get_opensearch_stats(
     return stats
 
 
-@router.post("/index/{epigraph_id}")
+@router.post("/index/{epigraph_id}", dependencies=[Depends(get_current_active_superuser)])
 def index_epigraph(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
-    _: dict = Depends(get_current_active_superuser),
 ):
     """Index a specific epigraph to OpenSearch."""
     search_service = SearchService(session)

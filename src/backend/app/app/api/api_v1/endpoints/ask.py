@@ -4,17 +4,17 @@ from typing import AsyncGenerator, List, Optional
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep
 from app.models.epigraph import Epigraph, EpigraphOut
-from app.services.search_service import SearchService
-from app.services.ai_service import AIService
+from app.services.search.ai import AIService
+from app.services.search.service import SearchService
 from app.crud.crud_epigraph import epigraph as epigraph_crud
 
-router = APIRouter()
+router = APIRouter(prefix="/ask", tags=["ask"])
 
 logger = logging.getLogger(__name__)
 
@@ -24,20 +24,21 @@ class ConversationMessage(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    conversation_history: Optional[List[ConversationMessage]] = []
+    conversation_history: Optional[List[ConversationMessage]] = Field(default_factory=list)
 
 class QueryResponse(BaseModel):
     answer: str
-    epigraphs: list[EpigraphOut] = []
+    epigraphs: list[EpigraphOut] = Field(default_factory=list)
 
 
 @router.post(
     "/query",
+    response_class=StreamingResponse,
 )
 async def query_hudhud(
     request: QueryRequest,
     session: SessionDep,
-):
+) -> StreamingResponse:
     """Stream the AI response in real-time using Server-Sent Events."""
 
     async def generate_stream() -> AsyncGenerator[str, None]:

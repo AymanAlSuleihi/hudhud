@@ -1,5 +1,4 @@
 import json
-from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select, func, asc, desc
@@ -7,8 +6,8 @@ from sqlmodel import select, func, asc, desc
 from app.api.deps import (
     SessionDep,
     get_current_active_superuser,
-    get_current_active_superuser_no_error,
 )
+from app.api.params import JsonFiltersParam, PageLimit, PageOffset, ResourceIdPath, SortFieldParam, SortOrderParam
 from app.crud.crud_word import word as crud_word
 from app.models.word import (
     Word,
@@ -21,19 +20,19 @@ from app.models.links import EpigraphWordLink, WordLink
 
 
 router = APIRouter()
-
+router = APIRouter(prefix="/words", tags=["words"])
 
 @router.get(
     "/",
     response_model=WordsOut,
 )
 def read_words(
-  session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
-    filters: Optional[str] = None,
+        session: SessionDep,
+        skip: PageOffset = 0,
+        limit: PageLimit = 100,
+        sort_field: SortFieldParam = None,
+        sort_order: SortOrderParam = None,
+        filters: JsonFiltersParam = None,
 ) -> WordsOut:
     """
     Retrieve words.
@@ -68,7 +67,7 @@ def read_words(
                 .where(EpigraphWordLink.word_id == Word.id)
                 .scalar_subquery()
             )
-        if sort_order.lower() == "desc":
+        if sort_order == "desc":
             words_statement = words_statement.order_by(desc(sort_field))
         else:
             words_statement = words_statement.order_by(asc(sort_field))
@@ -83,7 +82,7 @@ def read_words(
     response_model=WordOut,
 )
 def read_word(
-    word_id: int,
+    word_id: ResourceIdPath,
     session: SessionDep,
 ) -> WordOut:
     """
@@ -101,6 +100,7 @@ def read_word(
 @router.post(
     "/",
     response_model=WordOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def create_word(
@@ -119,7 +119,7 @@ def create_word(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def update_word(
-    word_id: int,
+    word_id: ResourceIdPath,
     word_in: WordUpdate,
     session: SessionDep,
 ) -> WordOut:
@@ -141,7 +141,7 @@ def update_word(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_word(
-    word_id: int,
+    word_id: ResourceIdPath,
     session: SessionDep,
 ) -> WordOut:
     """

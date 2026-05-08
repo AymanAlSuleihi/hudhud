@@ -1,15 +1,13 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from sqlmodel import Session
 import os
 import re
-from typing import Optional
 
 from app.api.deps import SessionDep
 from app.core.config import settings
 from app.crud.crud_epigraph import epigraph as epigraph_crud
 
-router = APIRouter()
+router = APIRouter(tags=["social-meta"])
 
 def is_social_media_bot(user_agent: str) -> bool:
     """Check if the request is from a social media crawler/bot"""
@@ -48,7 +46,7 @@ def load_index_html() -> str:
             if os.path.exists(frontend_path):
                 with open(frontend_path, "r", encoding="utf-8") as f:
                     return f.read()
-        except Exception as e:
+        except Exception:
             continue
 
     return """
@@ -146,7 +144,7 @@ async def get_epigraph_page(
     dasi_id: int,
     request: Request,
     session: SessionDep
-):
+) -> HTMLResponse:
     """Serve epigraph page with proper meta tags for social media crawlers"""
 
     user_agent = request.headers.get("user-agent", "")

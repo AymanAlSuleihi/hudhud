@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.api_v1.endpoints import (
     epigraphs,
     login,
-    task_progress,
+    pipeline_runs,
     users,
     words,
     sites,
@@ -15,14 +15,14 @@ from app.api.api_v1.endpoints import (
 )
 
 api_router = APIRouter()
-api_router.include_router(utils.router, prefix="/utils", tags=["utils"])
-api_router.include_router(epigraphs.router, prefix="/epigraphs", tags=["epigraphs"])
-api_router.include_router(login.router, tags=["login"])
-api_router.include_router(task_progress.router, prefix="/task-progress", tags=["task-progress"])
-api_router.include_router(users.router, prefix="/users", tags=["users"])
-api_router.include_router(words.router, prefix="/words", tags=["words"])
-api_router.include_router(sites.router, prefix="/sites", tags=["sites"])
-api_router.include_router(objects.router, prefix="/objects", tags=["objects"])
-api_router.include_router(ask.router, prefix="/ask", tags=["ask"])
-api_router.include_router(opensearch.router, prefix="/opensearch", tags=["opensearch"])
-api_router.include_router(epigraph_chunks.router, prefix="/chunks", tags=["chunks"])
+api_router.include_router(utils.router)
+api_router.include_router(epigraphs.router)
+api_router.include_router(login.router)
+api_router.include_router(pipeline_runs.router)
+api_router.include_router(users.router)
+api_router.include_router(words.router)
+api_router.include_router(sites.router)
+api_router.include_router(objects.router)
+api_router.include_router(ask.router)
+api_router.include_router(opensearch.router)
+api_router.include_router(epigraph_chunks.router)

@@ -1,17 +1,16 @@
 import logging
-import asyncio
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select, func
 
 from app.api.deps import SessionDep, get_current_active_superuser
+from app.api.params import BatchIdPath, BatchListLimit, ChunkTypePath, PageLimit, PageOffset, ResourceIdPath
 from app.models.epigraph import Epigraph
 from app.models.epigraph_chunk import (
     EpigraphChunk,
     EpigraphChunkOut,
-    EpigraphChunkOutWithScore,
     EpigraphChunkCreate,
     EpigraphChunkUpdate,
     ChunkEpigraphsRequest,
@@ -28,13 +27,13 @@ from app.models.epigraph_chunk import (
     ChunkSearchResult,
     SemanticSearchResponse,
 )
-from app.services.chunking_service import ChunkingService
-from app.services.embeddings_service import EmbeddingsService
+from app.services.enrichment.chunking import ChunkingService
+from app.services.enrichment.embeddings import EmbeddingsService
 from app.crud.crud_epigraph_chunk import epigraph_chunk as crud_epigraph_chunk
 
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/chunks", tags=["chunks"])
 
 
 @router.get(
@@ -43,8 +42,8 @@ router = APIRouter()
 )
 def read_chunks(
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
 ) -> EpigraphChunksOut:
     """Retrieve chunks with pagination."""
     total_count_statement = select(func.count()).select_from(EpigraphChunk)
@@ -132,7 +131,7 @@ def get_chunk_statistics(
     response_model=EpigraphChunkOut,
 )
 def read_chunk(
-    chunk_id: int,
+    chunk_id: ResourceIdPath,
     session: SessionDep,
 ) -> EpigraphChunkOut:
     """Retrieve a single chunk by ID."""
@@ -150,10 +149,10 @@ def read_chunk(
     response_model=EpigraphChunksOut,
 )
 def read_chunks_by_epigraph(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
 ) -> EpigraphChunksOut:
     """Retrieve all chunks for a specific epigraph."""
     chunks = crud_epigraph_chunk.get_by_epigraph_id(
@@ -178,10 +177,10 @@ def read_chunks_by_epigraph(
     response_model=EpigraphChunksOut,
 )
 def read_chunks_by_type(
-    chunk_type: str,
+    chunk_type: ChunkTypePath,
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
 ) -> EpigraphChunksOut:
     """Retrieve chunks by type (e.g., translation, cultural_notes)."""
     chunks = crud_epigraph_chunk.get_by_chunk_type(
@@ -204,6 +203,7 @@ def read_chunks_by_type(
 @router.post(
     "/create",
     response_model=EpigraphChunkOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def create_chunk(
@@ -221,7 +221,7 @@ def create_chunk(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def update_chunk(
-    chunk_id: int,
+    chunk_id: ResourceIdPath,
     chunk_in: EpigraphChunkUpdate,
     session: SessionDep,
 ) -> EpigraphChunkOut:
@@ -242,7 +242,7 @@ def update_chunk(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_chunk(
-    chunk_id: int,
+    chunk_id: ResourceIdPath,
     session: SessionDep,
 ) -> EpigraphChunkOut:
     """Delete a chunk by ID."""
@@ -262,7 +262,7 @@ def delete_chunk(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_chunks_by_epigraph(
-    epigraph_id: int,
+    epigraph_id: ResourceIdPath,
     session: SessionDep,
 ) -> Dict[str, Any]:
     """Delete all chunks for a specific epigraph."""
@@ -275,58 +275,16 @@ def delete_chunks_by_epigraph(
     }
 
 
-def chunk_epigraphs_background(
-    session,
-    epigraph_ids: Optional[List[int]] = None,
-    limit: Optional[int] = None,
-    rechunk: bool = False
-):
-    """Background task to chunk epigraphs."""
-    try:
-        chunking_service = ChunkingService(session)
-
-        if epigraph_ids:
-            query = select(Epigraph).where(Epigraph.id.in_(epigraph_ids))
-        elif rechunk:
-            query = select(Epigraph).where(Epigraph.dasi_published.is_(True))
-            if limit:
-                query = query.limit(limit)
-        else:
-            subquery = select(EpigraphChunk.epigraph_id).distinct()
-            query = select(Epigraph).where(
-                Epigraph.id.not_in(subquery),
-                Epigraph.dasi_published.is_(True)
-            )
-            if limit:
-                query = query.limit(limit)
-
-        epigraphs = session.exec(query).all()
-
-        logger.info(f"Background task: Processing {len(epigraphs)} epigraphs")
-
-        for epigraph in epigraphs:
-            if rechunk:
-                chunking_service.update_chunks_for_epigraph(epigraph)
-            else:
-                chunking_service.create_and_save_chunks(epigraph)
-
-        logger.info(f"Background task: Completed chunking {len(epigraphs)} epigraphs")
-
-    except Exception as e:
-        logger.error(f"Background chunking task failed: {e}")
-
-
 @router.post(
     "/process",
     response_model=ChunkEpigraphsResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(get_current_active_superuser)],
 )
 def chunk_epigraphs(
     *,
     session: SessionDep,
     request: ChunkEpigraphsRequest,
-    background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_active_superuser),
 ) -> ChunkEpigraphsResponse:
     """Chunk epigraphs into smaller pieces for RAG with optional immediate embeddings."""
     import time
@@ -361,23 +319,6 @@ def chunk_epigraphs(
             failed=0,
             elapsed_seconds=0,
             message="No epigraphs to process"
-        )
-
-    if len(epigraphs) > 100:
-        background_tasks.add_task(
-            chunk_epigraphs_background,
-            session=session,
-            epigraph_ids=request.epigraph_ids,
-            limit=request.limit,
-            rechunk=request.rechunk
-        )
-        return ChunkEpigraphsResponse(
-            status="processing",
-            processed=0,
-            chunks_created=0,
-            failed=0,
-            elapsed_seconds=0,
-            message=f"Processing {len(epigraphs)} epigraphs in background"
         )
 
     processed = 0
@@ -419,12 +360,12 @@ def chunk_epigraphs(
     "/embeddings/batch/create",
     response_model=BatchEmbeddingResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(get_current_active_superuser)],
 )
 def create_batch_embedding_job(
     *,
     session: SessionDep,
     request: BatchEmbeddingRequest,
-    current_user=Depends(get_current_active_superuser),
 ) -> BatchEmbeddingResponse:
     """Create a batch embedding job for chunks using OpenAI's Batch API (50% cost savings)."""
     embeddings_service = EmbeddingsService(session)
@@ -501,7 +442,7 @@ def create_batch_embedding_job(
 def get_batch_embedding_status(
     *,
     session: SessionDep,
-    batch_id: str,
+    batch_id: BatchIdPath,
 ) -> BatchStatusResponse:
     """Check the status of a batch embedding job."""
     embeddings_service = EmbeddingsService(session)
@@ -520,12 +461,12 @@ def get_batch_embedding_status(
 @router.post(
     "/embeddings/batch/apply/{batch_id}",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(get_current_active_superuser)],
 )
 def apply_batch_embedding_results(
     *,
     session: SessionDep,
-    batch_id: str,
-    current_user=Depends(get_current_active_superuser),
+    batch_id: BatchIdPath,
 ) -> Dict[str, Any]:
     """Apply results from a completed batch embedding job to chunks."""
     embeddings_service = EmbeddingsService(session)
@@ -569,7 +510,7 @@ def apply_batch_embedding_results(
 def list_batch_jobs(
     *,
     session: SessionDep,
-    limit: int = Query(default=20, le=100),
+    limit: BatchListLimit = 20,
 ) -> Dict[str, Any]:
     """List recent batch embedding jobs from OpenAI's batch API."""
     embeddings_service = EmbeddingsService(session)
@@ -614,12 +555,12 @@ def list_batch_jobs(
     "/embeddings/batch/create-multiple",
     response_model=MultiBatchResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(get_current_active_superuser)],
 )
 def create_multiple_batch_jobs(
     *,
     session: SessionDep,
     request: MultiBatchRequest,
-    current_user=Depends(get_current_active_superuser),
 ) -> MultiBatchResponse:
     """Create multiple batch embedding jobs for large-scale processing (auto-splits into batches of up to 50k chunks)."""
     embeddings_service = EmbeddingsService(session)
@@ -803,12 +744,12 @@ def get_multiple_batch_status(
 @router.post(
     "/embeddings/batch/apply-multiple",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(get_current_active_superuser)],
 )
 def apply_multiple_batch_results(
     *,
     session: SessionDep,
     batch_ids: List[str],
-    current_user=Depends(get_current_active_superuser),
 ) -> Dict[str, Any]:
     """Apply results from multiple completed batch jobs (skips incomplete batches)."""
     embeddings_service = EmbeddingsService(session)
@@ -940,7 +881,6 @@ def semantic_search_chunks(
 
     if request.periods or request.languages:
         from sqlalchemy import cast, String
-        from sqlalchemy.dialects.postgresql import JSONB
 
         if request.periods:
             query = query.where(

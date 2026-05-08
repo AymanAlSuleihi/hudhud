@@ -1,7 +1,7 @@
 import json
-from typing import Optional
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select, func, asc, desc
 
 from app.api.deps import (
@@ -9,6 +9,7 @@ from app.api.deps import (
     get_current_active_superuser,
     get_current_active_superuser_no_error,
 )
+from app.api.params import DasiIdPath, JsonFiltersParam, PageLimit, PageOffset, ResourceIdPath, SortFieldParam, SortOrderParam
 from app.crud.crud_site import site as crud_site
 from app.crud.crud_epigraph import epigraph as crud_epigraph
 from app.crud.crud_object import obj as crud_object
@@ -19,12 +20,12 @@ from app.models.site import (
     SiteOut,
     SitesOut,
 )
-from app.models.links import EpigraphSiteLink
-from app.services.site.import_service import SiteImportService
-from app.services.task_progress import TaskProgressService
+from app.models.pipeline_run import PipelineRun, PipelineRunOut
+from app.services.importers.site import SiteImportService
+from app.services.pipeline.dispatch import dispatch_dasi_pipeline
 
 
-router = APIRouter()
+router = APIRouter(prefix="/sites", tags=["sites"])
 
 
 @router.get(
@@ -33,11 +34,11 @@ router = APIRouter()
 )
 def read_sites(
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
-    filters: Optional[str] = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
 ) -> SitesOut:
     """
     Retrieve sites.
@@ -81,9 +82,9 @@ def read_sites(
     response_model=SiteOut,
 )
 def read_site(
-    site_id: int,
+    site_id: ResourceIdPath,
     session: SessionDep,
-) -> SiteOut:
+) -> Site:
     """
     Retrieve a site by ID.
     """
@@ -101,9 +102,9 @@ def read_site(
     response_model=SiteOut,
 )
 def read_site_by_dasi_id(
-    dasi_id: int,
+    dasi_id: DasiIdPath,
     session: SessionDep,
-) -> SiteOut:
+) -> Site:
     """
     Retrieve a site by DASI ID.
     """
@@ -119,12 +120,13 @@ def read_site_by_dasi_id(
 @router.post(
     "/",
     response_model=SiteOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def create_site(
     site_in: SiteCreate,
     session: SessionDep,
-) -> SiteOut:
+) -> Site:
     """
     Create a new site.
     """
@@ -138,10 +140,10 @@ def create_site(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def update_site(
-    site_id: int,
+    site_id: ResourceIdPath,
     site_in: SiteUpdate,
     session: SessionDep,
-) -> SiteOut:
+) -> Site:
     """
     Update a site by ID.
     """
@@ -161,9 +163,9 @@ def update_site(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_site(
-    site_id: int,
+    site_id: ResourceIdPath,
     session: SessionDep,
-) -> SiteOut:
+) -> Site:
     """
     Delete a site by ID.
     """
@@ -173,8 +175,13 @@ def delete_site(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Site not found",
         )
-    site = crud_site.remove(session, id=site_id)
-    return site
+    deleted_site = crud_site.remove(session, id=site_id)
+    if deleted_site is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Site removal failed",
+        )
+    return deleted_site
 
 
 @router.post(
@@ -182,67 +189,65 @@ def delete_site(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_sites(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
-    dasi_id: Optional[int] = None,
+    dasi_id: Annotated[int | None, Query(ge=1)] = None,
+    update_existing: bool = False,
 ):
     """
     Import sites from external api.
     """
-    task_service = TaskProgressService(session)
-    site_import_service = SiteImportService(session, task_service)
+    site_import_service = SiteImportService(session)
     if dasi_id:
         site = crud_site.get_by_dasi_id(session, dasi_id=dasi_id)
-        if site:
+        if site and not update_existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Site already exists",
             )
         return site_import_service.import_single(dasi_id)
-    else:
-        task = task_service.get_or_create_task("import_sites")
 
-        if task.status == "running":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Task is already running",
-            )
-        background_tasks.add_task(site_import_service.import_all, task.uuid, 10)
-    return {"task_id": task.uuid}
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": True,
+            "import_objects": False,
+            "import_epigraphs": False,
+            "update_existing": update_existing,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
+    )
 
 
 @router.post(
     "/import_range",
+    response_model=PipelineRunOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_sites_range(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
-    start_id: int,
-    end_id: int,
+    start_id: Annotated[int, Query(ge=1)],
+    end_id: Annotated[int, Query(ge=1)],
     update_existing: bool = False,
-):
+) -> PipelineRun:
     """
     Import sites from external api in a range.
     """
-    task_service = TaskProgressService(session)
-    site_import_service = SiteImportService(session, task_service)
-    task = task_service.get_or_create_task("import_sites_range")
-
-    if task.status == "running":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Task is already running",
-        )
-    background_tasks.add_task(
-        site_import_service.import_range,
-        task_id=task.uuid,
-        start_id=start_id,
-        end_id=end_id,
-        rate_limit_delay=10,
-        update_existing=update_existing,
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": True,
+            "import_objects": False,
+            "import_epigraphs": False,
+            "start_id": start_id,
+            "end_id": end_id,
+            "update_existing": update_existing,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
     )
-    return {"task_id": task.uuid}
 
 
 @router.get(
@@ -297,11 +302,11 @@ def get_site_missing_fields(
 )
 def transfer_fields(
     session: SessionDep,
-) -> None:
+) -> dict[str, str]:
     """
     Transfer fields for every site object that's already in the db.
     """
-    site_import_service = SiteImportService(session, TaskProgressService(session))
+    site_import_service = SiteImportService(session)
     sites = session.exec(select(Site)).all()
     for site in sites:
         if site.dasi_id != 125:
@@ -332,7 +337,7 @@ def link_sites_to_epigraphs(
         ]
         for epigraph_dasi_id in epigraph_dasi_ids:
             epigraph = crud_epigraph.get_by_dasi_id(session, dasi_id=epigraph_dasi_id)
-            if epigraph:
+            if epigraph and epigraph.id is not None:
                 crud_site.link_to_epigraph(session, site=site, epigraph_id=epigraph.id)
     return {"status": "success", "message": "Sites linked to epigraphs."}
 
@@ -357,7 +362,7 @@ def link_sites_to_objects(
         ]
         for object_dasi_id in object_dasi_ids:
             obj = crud_object.get_by_dasi_id(session, dasi_id=object_dasi_id)
-            if obj:
+            if obj and obj.id is not None:
                 crud_site.link_to_object(session, site=site, object_id=obj.id)
     return {"status": "success", "message": "Sites linked to objects."}
 
@@ -367,7 +372,7 @@ def link_sites_to_objects(
     dependencies=[Depends(get_current_active_superuser_no_error)],
 )
 def scrape_site(
-    site_id: int,
+    site_id: ResourceIdPath,
     session: SessionDep,
 ):
     """
@@ -379,8 +384,13 @@ def scrape_site(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Site not found",
         )
+    if site.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Site ID missing",
+        )
 
-    site_import_service = SiteImportService(session, TaskProgressService(session))
+    site_import_service = SiteImportService(session)
 
     return site_import_service.scrape_single(site.id)
 
@@ -391,17 +401,12 @@ def scrape_site(
 )
 def scrape_all_sites(
     session: SessionDep,
-    background_tasks: BackgroundTasks,
 ):
     """
     Scrape all sites.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("scrape_all_sites")
-
-    site_import_service = SiteImportService(session, task_service)
-    background_tasks.add_task(site_import_service.scrape_all, task.uuid, 10)
-    return {"task_id": task.uuid}
+    site_import_service = SiteImportService(session)
+    return site_import_service.scrape_all(rate_limit_delay=10)
 
 
 @router.get(
@@ -547,7 +552,7 @@ def transfer_scraped_data(
     """
     Transfer scraped data for every site object that's already in the db.
     """
-    site_import_service = SiteImportService(session, TaskProgressService(session))
+    site_import_service = SiteImportService(session)
     sites = session.exec(select(Site)).all()
     for site in sites:
         scraped_data = site.dasi_object.get("scraped_data", {})

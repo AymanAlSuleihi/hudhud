@@ -1,10 +1,8 @@
-import json
 import logging
 import sys
-from typing import Annotated, Generator, List, Optional
+from typing import Annotated, Generator
 
-from fastapi import Depends, Form, HTTPException, status
-from fastapi.encoders import jsonable_encoder
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from pydantic import ValidationError
@@ -15,7 +13,6 @@ from app.core.config import settings
 from app.db.engine import engine
 from app.models.token import TokenPayload
 from app.models.user import User
-from app.services.task_progress import TaskProgressService
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token",
@@ -29,7 +26,7 @@ def get_db() -> Generator:
 
 
 SessionDep = Annotated[Session, Depends(get_db)]
-TokenDep = Annotated[str, Depends(reusable_oauth2)]
+TokenDep = Annotated[str | None, Depends(reusable_oauth2)]
 
 
 logger = logging.getLogger(__name__)
@@ -37,9 +34,15 @@ logger.setLevel(logging.DEBUG)
 stream_handler = logging.StreamHandler(sys.stdout)
 log_formatter = logging.Formatter("%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s")
 stream_handler.setFormatter(log_formatter)
-logger.addHandler(stream_handler)
+if not logger.handlers:
+    logger.addHandler(stream_handler)
 
 def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials",
+        )
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
@@ -64,12 +67,13 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 def get_current_active_superuser(current_user: CurrentUser) -> User:
     if not current_user.is_superuser:
         raise HTTPException(
-            status_code=400, detail="The user doesn't have enough privileges"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
         )
     return current_user
 
 
-def get_current_user_no_error(session: SessionDep, token: TokenDep) -> User:
+def get_current_user_no_error(session: SessionDep, token: TokenDep) -> User | None:
     if not token:
         return None
     try:
@@ -87,10 +91,10 @@ def get_current_user_no_error(session: SessionDep, token: TokenDep) -> User:
     return user
 
 
-CurrentUserNoError = Annotated[User, Depends(get_current_user_no_error)]
+CurrentUserNoError = Annotated[User | None, Depends(get_current_user_no_error)]
 
 
-def get_current_active_superuser_no_error(current_user: CurrentUserNoError) -> User:
+def get_current_active_superuser_no_error(current_user: CurrentUserNoError) -> User | None:
     if not current_user:
         return None
     if not current_user.is_superuser:
@@ -98,5 +102,5 @@ def get_current_active_superuser_no_error(current_user: CurrentUserNoError) -> U
     return current_user
 
 
-def get_task_progress_service(session: SessionDep) -> TaskProgressService:
-    return TaskProgressService(session)
+CurrentSuperuser = Annotated[User, Depends(get_current_active_superuser)]
+CurrentSuperuserNoError = Annotated[User | None, Depends(get_current_active_superuser_no_error)]

@@ -1,14 +1,13 @@
-import json
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlmodel import select, func, asc, desc
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import select, func
 
 from app.api.deps import (
     SessionDep,
     get_current_active_superuser,
-    get_current_active_superuser_no_error,
 )
+from app.api.params import DasiIdPath, PageLimit, PageOffset, ResourceIdPath, SortFieldParam, SortOrderParam
 from app.crud.crud_object import obj as crud_object
 from app.crud.crud_site import site as crud_site
 from app.crud.crud_epigraph import epigraph as crud_epigraph
@@ -19,12 +18,12 @@ from app.models.object import (
     ObjectOut,
     ObjectsOut,
 )
-from app.models.links import EpigraphObjectLink, ObjectSiteLink
-from app.services.object.import_service import ObjectImportService
-from app.services.task_progress import TaskProgressService
+from app.models.pipeline_run import PipelineRun, PipelineRunOut
+from app.services.importers.object import ObjectImportService
+from app.services.pipeline.dispatch import dispatch_dasi_pipeline
 
 
-router = APIRouter()
+router = APIRouter(prefix="/objects", tags=["objects"])
 
 
 @router.get(
@@ -33,10 +32,10 @@ router = APIRouter()
 )
 def read_objects(
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
-    sort_field: Optional[str] = None,
-    sort_order: Optional[str] = None,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
     filters: Optional[str] = None,
 ) -> ObjectsOut:
     """
@@ -56,9 +55,9 @@ def read_objects(
     response_model=ObjectOut,
 )
 def read_object(
-    object_id: int,
+    object_id: ResourceIdPath,
     session: SessionDep,
-) -> ObjectOut:
+) -> Object:
     """
     Retrieve a single object by ID.
     """
@@ -76,9 +75,9 @@ def read_object(
     response_model=ObjectOut,
 )
 def read_object_by_dasi_id(
-    dasi_id: int,
+    dasi_id: DasiIdPath,
     session: SessionDep,
-) -> ObjectOut:
+) -> Object:
     """
     Retrieve a single object by DASI ID.
     """
@@ -94,12 +93,13 @@ def read_object_by_dasi_id(
 @router.post(
     "/",
     response_model=ObjectOut,
+    status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def create_object(
     object_in: ObjectCreate,
     session: SessionDep,
-) -> ObjectOut:
+) -> Object:
     """
     Create a new object.
     """
@@ -113,10 +113,10 @@ def create_object(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def update_object(
-    object_id: int,
+    object_id: ResourceIdPath,
     object_in: ObjectUpdate,
     session: SessionDep,
-) -> ObjectOut:
+) -> Object:
     """
     Update an existing object.
     """
@@ -136,9 +136,9 @@ def update_object(
     dependencies=[Depends(get_current_active_superuser)],
 )
 def delete_object(
-    object_id: int,
+    object_id: ResourceIdPath,
     session: SessionDep,
-) -> ObjectOut:
+) -> Object:
     """
     Delete an object by ID.
     """
@@ -148,60 +148,69 @@ def delete_object(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Object not found"
         )
-    obj = crud_object.remove(session, id=object_id)
-    return obj
+    deleted_obj = crud_object.remove(session, id=object_id)
+    if deleted_obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Object removal failed",
+        )
+    return deleted_obj
 
 
 @router.post(
     "/import",
+    response_model=PipelineRunOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_objects(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
-) -> dict:
+) -> PipelineRun:
     """
     Import objects from external api.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_objects")
-
-    object_import_service = ObjectImportService(session, task_service)
-    background_tasks.add_task(object_import_service.import_all, task.uuid, 10)
-
-    return {"task_id": task.uuid}
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": False,
+            "import_objects": True,
+            "import_epigraphs": False,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
+    )
 
 
 @router.post(
     "/import_range",
+    response_model=PipelineRunOut,
     dependencies=[Depends(get_current_active_superuser)],
 )
 def import_objects_range(
-    background_tasks: BackgroundTasks,
     session: SessionDep,
-    start_id: int,
-    end_id: int,
+    start_id: Annotated[int, Query(ge=1)],
+    end_id: Annotated[int, Query(ge=1)],
     dasi_published: Optional[bool] = None,
     update_existing: bool = False,
-) -> dict:
+) -> PipelineRun:
     """
     Import objects from external api in a range.
     """
-    task_service = TaskProgressService(session)
-    task = task_service.get_or_create_task("import_objects_range")
-
-    object_import_service = ObjectImportService(session, task_service)
-    background_tasks.add_task(
-        object_import_service.import_range,
-        task_id=task.uuid,
-        start_id=start_id,
-        end_id=end_id,
-        dasi_published=dasi_published,
-        rate_limit_delay=10,
-        update_existing=update_existing,
+    return dispatch_dasi_pipeline(
+        session,
+        parameters={
+            "import_sites": False,
+            "import_objects": True,
+            "import_epigraphs": False,
+            "start_id": start_id,
+            "end_id": end_id,
+            "dasi_published": dasi_published,
+            "update_existing": update_existing,
+            "run_chunking": False,
+            "generate_embeddings": False,
+            "reindex_search": False,
+        },
     )
-
-    return {"task_id": task.uuid}
 
 
 @router.get(
@@ -256,11 +265,11 @@ def get_dasi_object_missing_fields(
 )
 def transfer_fields(
     session: SessionDep,
-) -> None:
+) -> dict[str, str]:
     """
     Transfer fields for every object that's already in the db.
     """
-    object_import_service = ObjectImportService(session, TaskProgressService(session))
+    object_import_service = ObjectImportService(session)
     objects = session.exec(select(Object)).all()
 
     for obj in objects:
@@ -290,7 +299,7 @@ def link_to_sites(
         ]
         for site_dasi_id in site_dasi_ids:
             site = crud_site.get_by_dasi_id(session, dasi_id=site_dasi_id)
-            if site:
+            if site and site.id is not None:
                 crud_object.link_to_site(session, obj=obj, site_id=site.id)
     return {"status": "success", "message": "Linked all objects to their sites"}
 
@@ -315,6 +324,6 @@ def link_to_epigraphs(
         ]
         for epigraph_dasi_id in epigraph_dasi_ids:
             epigraph = crud_epigraph.get_by_dasi_id(session, dasi_id=epigraph_dasi_id)
-            if epigraph:
+            if epigraph and epigraph.id is not None:
                 crud_object.link_to_epigraph(session, obj=obj, epigraph_id=epigraph.id)
     return {"status": "success", "message": "Linked all objects to their epigraphs"}
