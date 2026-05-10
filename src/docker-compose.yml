@@ -39,9 +39,9 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
-    volumes:
-      - ./frontend:/app
-      - ./frontend/node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
     labels:
       - traefik.enable=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.rule=Host(`hudhud.${DOMAIN}`)
