@@ -1,17 +1,8 @@
 import React from "react"
-import { MetaTags } from "../components/MetaTags"
 
 const TermsOfService: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <MetaTags data={{
-        title: "Terms of Service - Hudhud",
-        description: "Terms of Service for using the Hudhud platform for Ancient South Arabian Inscriptions.",
-        url: `${import.meta.env.VITE_BASE_URL}/terms-of-service`,
-        image: `${import.meta.env.VITE_BASE_URL}/hudhud_logo_white.png`,
-        type: "website"
-      }} />
-
       <h1 className="text-3xl font-bold mb-6">Terms of Service</h1>
 
       <p className="mb-6 text-sm text-gray-600">

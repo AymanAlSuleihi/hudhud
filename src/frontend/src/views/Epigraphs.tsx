@@ -1,5 +1,7 @@
+"use client"
+
 import React, { useEffect, useState, useRef } from "react"
-import { useSearchParams, useNavigate } from "react-router-dom"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { X, MagnifyingGlass, Funnel, MapTrifold, Keyboard, ToggleLeft, ToggleRight, Hash, ArrowRight } from "@phosphor-icons/react"
 import {
   SearchField,
@@ -11,10 +13,8 @@ import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MySelect, MyItem } from "../components/Select"
 import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
-import { MapComponent } from "../components/Map"
+import { ClientMap } from "../next/components/ClientMap"
 import { MyDisclosure } from "../components/Disclosure"
-import { MetaTags } from "../components/MetaTags"
-import { generateEpigraphsListMetaTags } from "../utils/metaTags"
 
 interface Filters {
   period?: string
@@ -32,7 +32,9 @@ interface Filters {
 }
 
 const Epigraphs: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
   const [epigraphs, setEpigraphs] = useState<EpigraphsOut | null>(null)
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
   const [pageSize, setPageSize] = useState(Number(searchParams.get("pageSize") || 25))
@@ -58,7 +60,6 @@ const Epigraphs: React.FC = () => {
   const [pageInputValue, setPageInputValue] = useState(currentPage.toString())
   const [showKeyboard, setShowKeyboard] = useState(false)
   const [mapVisible, setMapVisible] = useState(true)
-  const navigate = useNavigate()
   const [dasiIdInput, setDasiIdInput] = useState("")
   const [mapMarkers, setMapMarkers] = useState<Array<{
     id: string
@@ -89,6 +90,19 @@ const Epigraphs: React.FC = () => {
     royal_inscription: "Royal Inscription",
   }
 
+  const replaceSearchParams = (params: Record<string, string>) => {
+    const nextSearchParams = new URLSearchParams()
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        nextSearchParams.set(key, value)
+      }
+    })
+
+    const queryString = nextSearchParams.toString()
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
   const fetchEpigraphs = async (
     page: number = 1, 
     size: number = pageSize, 
@@ -117,7 +131,7 @@ const Epigraphs: React.FC = () => {
         urlParams.search_physical = searchFields.physical.toString()
       }
 
-      setSearchParams(urlParams)
+      replaceSearchParams(urlParams)
 
       const apiFilters = {
         dasi_published: true,
@@ -536,7 +550,6 @@ const Epigraphs: React.FC = () => {
 
   return (
     <div className="2xl:max-w-10/12 p-4 mx-auto">
-      <MetaTags data={generateEpigraphsListMetaTags(searchParams)} />
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
       <div className="mb-1 space-y-4">
         <div className="flex flex-wrap gap-x-2 gap-y-4 items-start">
@@ -756,7 +769,7 @@ const Epigraphs: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 const val = dasiIdInput.trim()
-                if (val) navigate(`/epigraphs/${parseInt(val, 10)}`)
+                if (val) router.push(`/epigraphs/${parseInt(val, 10)}`)
               }
             }}
             className="w-full border border-gray-400 p-2 pl-9 pr-12 rounded h-8"
@@ -770,7 +783,7 @@ const Epigraphs: React.FC = () => {
                 if (!val) return
                 const id = parseInt(val, 10)
                 if (isNaN(id)) return
-                navigate(`/epigraphs/${id}`)
+                router.push(`/epigraphs/${id}`)
               }}
               className="flex items-center justify-center rounded hover:text-gray-700 transition-colors font-semibold h-6 w-6"
               title="Go to epigraph"
@@ -942,7 +955,9 @@ const Epigraphs: React.FC = () => {
             {epigraphs.epigraphs.map((epigraph) => (
               <div
                 key={epigraph.dasi_id}
-                ref={el => epigraphRefs.current[epigraph.dasi_id.toString()] = el}
+                ref={(el) => {
+                  epigraphRefs.current[epigraph.dasi_id.toString()] = el
+                }}
                 data-epigraph-id={epigraph.dasi_id.toString()}
               >
                 <EpigraphCard
@@ -964,7 +979,7 @@ const Epigraphs: React.FC = () => {
 
       {mapMarkers.length > 0 && mapVisible && (
         <div className="fixed bottom-4 right-4 z-40 w-64">
-          <MapComponent
+          <ClientMap
             center={getMapCenter()}
             zoom={mapMarkers.length > 1 ? 6 : 8}
             markers={mapMarkers}

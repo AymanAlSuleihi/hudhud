@@ -1,10 +1,10 @@
+"use client"
+
 import React, { useState, useEffect, useRef } from "react"
-import { Link } from "react-router-dom"
+import Link from "next/link"
 import { Warning, PaperPlaneRight, Trash, BookOpen, InstagramLogo, EnvelopeSimple, ArrowLeft, CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { Spinner } from "../components/Spinner"
 import { EpigraphCard } from "../components/EpigraphCard"
-import { MetaTags } from "../components/MetaTags"
-import { getDefaultMetaTags } from "../utils/metaTags"
 import { EpigraphsService } from "../client/services/EpigraphsService"
 import safeLocalStorage from "../utils/safeLocalStorage"
 
@@ -728,8 +728,6 @@ const Ask: React.FC = () => {
 
   return (
     <>
-      <MetaTags data={getDefaultMetaTags()} />
-
       <style>{`
         .scrollbar-offset-top::-webkit-scrollbar {
           width: 8px;
@@ -920,7 +918,9 @@ const Ask: React.FC = () => {
                       return (
                         <div 
                           key={index} 
-                          ref={el => epigraphRefs.current[epigraphKey] = el}
+                          ref={(el) => {
+                            epigraphRefs.current[epigraphKey] = el
+                          }}
                         >
                           <EpigraphCard
                             epigraph={epigraph}
@@ -1060,8 +1060,8 @@ const Ask: React.FC = () => {
           <div className="flex items-center gap-1">
             <span className="hidden xl:inline">Epigraphic data provided by</span>
             <span className="xl:hidden">Data from</span>
-            <Link
-              to="https://dasi.cnr.it/"
+            <a
+              href="https://dasi.cnr.it/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors"
@@ -1069,10 +1069,10 @@ const Ask: React.FC = () => {
               data-umami-event="Footer DASI Click"
             >
               DASI
-            </Link>
+            </a>
             <span className="hidden sm:inline">
               under {" "}
-              <Link to="https://creativecommons.org/licenses/by/4.0/"
+              <a href="https://creativecommons.org/licenses/by/4.0/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-zinc-600 hover:text-zinc-800 font-medium underline decoration-1 underline-offset-2 transition-colors"
@@ -1080,7 +1080,7 @@ const Ask: React.FC = () => {
                 data-umami-event="Footer CC BY 4.0 Click"
               >
                 CC BY 4.0
-              </Link>
+              </a>
             </span>
           </div>
           <span className="mx-2 text-gray-300">|</span>
@@ -1090,7 +1090,7 @@ const Ask: React.FC = () => {
           </div>
           <span className="mx-2 text-gray-300">|</span>
           <Link 
-            to="/terms-of-service" 
+            href="/terms-of-service" 
             className="text-zinc-600 hover:text-zinc-800 font-medium transition-colors text-nowrap"
           >
             Terms
@@ -1098,25 +1098,25 @@ const Ask: React.FC = () => {
           </Link>
           <span className="mx-2 text-gray-300">|</span>
           <Link 
-            to="/privacy-policy" 
+            href="/privacy-policy" 
             className="text-zinc-600 hover:text-zinc-800 font-medium transition-colors text-nowrap"
           >
             Privacy
             <span className="hidden lg:inline"> Policy</span>
           </Link>
           <span className="mx-2 text-gray-300">|</span>
-          <Link 
-            to="mailto:contact@shebascaravan.com" 
+          <a 
+            href="mailto:contact@shebascaravan.com" 
             className="text-zinc-600 hover:text-zinc-800 font-medium items-center gap-1 transition-colors hidden lg:inline-flex"
             aria-label="Email"
             data-umami-event="Footer Contact Email Click"
           >
             <EnvelopeSimple size={14} weight="bold" />
             contact@shebascaravan.com
-          </Link>
+          </a>
           <span className="mx-2 text-gray-300 hidden lg:inline">|</span>
-          <Link 
-            to="https://instagram.com/shebascaravan"
+          <a 
+            href="https://instagram.com/shebascaravan"
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-600 hover:text-zinc-800 font-medium inline-flex items-center gap-1 transition-colors"
@@ -1125,7 +1125,7 @@ const Ask: React.FC = () => {
           >
             <InstagramLogo size={14} weight="bold" />
             <span className="hidden 3xs:inline">shebascaravan</span>
-          </Link>
+          </a>
         </div>
       </div>
     </>

@@ -1,3 +1,5 @@
+"use client"
+
 import React, { useState, useMemo, useEffect, useRef } from "react"
 import {
   Map,
@@ -9,7 +11,6 @@ import {
   MapRef
 } from "react-map-gl/maplibre"
 import bbox from "@turf/bbox"
-import "maplibre-gl/dist/maplibre-gl.css"
 import { X } from "@phosphor-icons/react"
 import Pin from "./Pin"
 

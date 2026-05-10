@@ -1,5 +1,5 @@
 # Stage 0, "build-stage", based on Node.js, to build and compile the frontend
-FROM node:22 AS build-stage 
+FROM node:22 AS build-stage
 
 WORKDIR /app
 
@@ -12,10 +12,19 @@ COPY ./ /app/
 RUN npm run build
 
 
-# Stage 1, based on Nginx, to have only the compiled app, ready for production with Nginx
-FROM nginx:1
+# Stage 1, based on Node.js, to run the standalone Next.js app
+FROM node:22-alpine
 
-COPY --from=build-stage /app/dist/ /usr/share/nginx/html
+WORKDIR /app
 
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
-COPY ./nginx-backend-not-found.conf /etc/nginx/extra-conf.d/backend-not-found.conf
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=5002
+
+COPY --from=build-stage /app/.next/standalone /app/
+COPY --from=build-stage /app/.next/static /app/.next/static
+COPY --from=build-stage /app/public /app/public
+
+EXPOSE 5002
+
+CMD ["node", "server.js"]

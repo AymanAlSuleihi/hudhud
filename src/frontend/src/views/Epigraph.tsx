@@ -1,18 +1,30 @@
+"use client"
+
 import React, { useEffect } from "react"
-import { useParams } from "react-router-dom"
+import { useParams } from "next/navigation"
 import { EpigraphsService, EpigraphOut } from "../client"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
-import { MapComponent } from "../components/Map"
+import { ClientMap } from "../next/components/ClientMap"
 import { MapTrifold, ArrowLeft, WarningCircle } from "@phosphor-icons/react"
-import { MetaTags } from "../components/MetaTags"
-import { generateEpigraphMetaTags, generateEpigraphStructuredData, getDefaultMetaTags } from "../utils/metaTags"
 
-const Epigraph: React.FC = () => {
-  const { urlKey } = useParams<{ urlKey: string }>()
-  const [epigraph, setEpigraph] = React.useState<EpigraphOut | null>(null)
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+interface EpigraphProps {
+  initialUrlKey?: string
+  initialEpigraph?: EpigraphOut | null
+  initialError?: string | null
+}
+
+const Epigraph: React.FC<EpigraphProps> = ({
+  initialUrlKey,
+  initialEpigraph = null,
+  initialError = null,
+}) => {
+  const params = useParams<{ urlKey?: string | string[] }>()
+  const routeUrlKey = Array.isArray(params?.urlKey) ? params.urlKey[0] : params?.urlKey
+  const urlKey = initialUrlKey ?? routeUrlKey
+  const [epigraph, setEpigraph] = React.useState<EpigraphOut | null>(initialEpigraph)
+  const [isLoading, setIsLoading] = React.useState(!initialEpigraph && !initialError)
+  const [error, setError] = React.useState<string | null>(initialError)
   const [similarEpigraphs, setSimilarEpigraphs] = React.useState<EpigraphOut[]>([])
   const [isSimilarLoading, setIsSimilarLoading] = React.useState(false)
   const [mapVisible, setMapVisible] = React.useState(true)
@@ -57,7 +69,7 @@ const Epigraph: React.FC = () => {
     setMapMarkers(markers)
   }
 
-  const fetchSimilarEpigraphs = async (epigraphId: number) => {
+  const fetchSimilarEpigraphs = async (epigraphId: number, currentEpigraph: EpigraphOut | null = epigraph) => {
     try {
       setIsSimilarLoading(true)
       const response = await EpigraphsService.epigraphsGetSimilarEpigraphs({
@@ -69,8 +81,8 @@ const Epigraph: React.FC = () => {
       const similarData = response.epigraphs || []
       setSimilarEpigraphs(similarData)
 
-      if (epigraph) {
-        updateMapMarkers(epigraph, similarData)
+      if (currentEpigraph) {
+        updateMapMarkers(currentEpigraph, similarData)
       }
     } catch (err) {
       console.error("Error fetching similar epigraphs:", err)
@@ -86,34 +98,78 @@ const Epigraph: React.FC = () => {
   }, [similarEpigraphs])
 
   useEffect(() => {
-    if (urlKey) {
-      setIsLoading(true)
-      setError(null)
+    let isCancelled = false
 
-      EpigraphsService.epigraphsReadEpigraphByDasiId({ dasiId: parseInt(urlKey) })
-        .then((response) => {
-          setEpigraph(response)
-          updateMapMarkers(response, [])
-          fetchSimilarEpigraphs(response.id)
-        })
-        .catch((err) => {
-          console.error("Error fetching epigraph:", err)
-          const status = (err && (err.response?.status || err.status)) || null
-          if (status === 403) {
-            setError("This epigraph is not yet published.")
-          } else if (status === 404) {
-            setError("The requested epigraph does not exist.")
-          } else {
-            setError("Failed to load epigraph. Please try again.")
-          }
-        })
-        .finally(() => {
-          setIsLoading(false)
-        })
-    } else {
+    if (!urlKey) {
       setIsLoading(false)
+      return () => {
+        isCancelled = true
+      }
     }
-  }, [urlKey])
+
+    setSimilarEpigraphs([])
+
+    if (initialEpigraph && String(initialEpigraph.dasi_id) === urlKey) {
+      setEpigraph(initialEpigraph)
+      setError(initialError)
+      setIsLoading(false)
+      updateMapMarkers(initialEpigraph, [])
+      void fetchSimilarEpigraphs(initialEpigraph.id, initialEpigraph)
+
+      return () => {
+        isCancelled = true
+      }
+    }
+
+    if (initialError) {
+      setEpigraph(null)
+      setError(initialError)
+      setMapMarkers([])
+      setIsLoading(false)
+
+      return () => {
+        isCancelled = true
+      }
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    void EpigraphsService.epigraphsReadEpigraphByDasiId({ dasiId: parseInt(urlKey, 10) })
+      .then((response) => {
+        if (isCancelled) {
+          return
+        }
+
+        setEpigraph(response)
+        updateMapMarkers(response, [])
+        void fetchSimilarEpigraphs(response.id, response)
+      })
+      .catch((err) => {
+        if (isCancelled) {
+          return
+        }
+
+        console.error("Error fetching epigraph:", err)
+        const status = (err && (err.response?.status || err.status)) || null
+        if (status === 403) {
+          setError("This epigraph is not yet published.")
+        } else if (status === 404) {
+          setError("The requested epigraph does not exist.")
+        } else {
+          setError("Failed to load epigraph. Please try again.")
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [urlKey, initialEpigraph, initialError])
 
   useEffect(() => {
     if (!epigraph && !similarEpigraphs.length) return
@@ -195,7 +251,6 @@ const Epigraph: React.FC = () => {
   if (isLoading) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
-        <MetaTags data={getDefaultMetaTags()} />
         <div className="flex justify-center items-center min-h-64">
           <Spinner size="w-10 h-10" colour="#666" />
         </div>
@@ -206,8 +261,6 @@ const Epigraph: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-4xl p-4 mx-auto">
-        <MetaTags data={getDefaultMetaTags()} />
-
         <div className="mb-6">
           <button
             type="button"
@@ -230,7 +283,6 @@ const Epigraph: React.FC = () => {
   if (!epigraph && !isLoading && !error) {
     return (
       <div className="max-w-7xl p-4 mx-auto">
-        <MetaTags data={getDefaultMetaTags()} />
         <div className="mb-6">
           <button
             type="button"
@@ -285,11 +337,6 @@ const Epigraph: React.FC = () => {
 
   return (
     <div className="max-w-7xl p-4 mx-auto">
-      <MetaTags 
-        data={generateEpigraphMetaTags(epigraph)} 
-        structuredData={generateEpigraphStructuredData(epigraph)}
-      />
-
       <div className="mb-6">
         <button
           type="button"
@@ -302,7 +349,9 @@ const Epigraph: React.FC = () => {
       </div>
 
       <div 
-        ref={el => epigraphRefs.current[epigraph.dasi_id.toString()] = el}
+        ref={(el) => {
+          epigraphRefs.current[epigraph.dasi_id.toString()] = el
+        }}
         data-epigraph-id={epigraph.dasi_id.toString()}
       >
         <EpigraphCard
@@ -324,7 +373,9 @@ const Epigraph: React.FC = () => {
             {similarEpigraphs.map((similar) => (
               <div 
                 key={similar.id}
-                ref={el => epigraphRefs.current[similar.id.toString()] = el}
+                ref={(el) => {
+                  epigraphRefs.current[similar.id.toString()] = el
+                }}
                 data-epigraph-id={similar.id.toString()}
               >
                 <EpigraphCard
@@ -345,7 +396,7 @@ const Epigraph: React.FC = () => {
         <div 
           className="fixed bottom-4 right-4 z-40 w-64"
         >
-          <MapComponent
+          <ClientMap
             center={getMapCenter()}
             zoom={mapMarkers.length > 1 ? 6 : 8}
             markers={mapMarkers}

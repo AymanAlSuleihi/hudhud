@@ -1,17 +1,8 @@
 import React from "react"
-import { MetaTags } from "../components/MetaTags"
 
 const PrivacyPolicy: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <MetaTags data={{
-        title: "Privacy Policy - Hudhud",
-        description: "Privacy Policy for Hudhud platform explaining how we collect, use, and protect your data.",
-        url: `${import.meta.env.VITE_BASE_URL}/privacy-policy`,
-        image: `${import.meta.env.VITE_BASE_URL}/hudhud_logo_white.png`,
-        type: "website"
-      }} />
-
       <h1 className="text-3xl font-bold mb-6">Privacy Policy</h1>
 
       <p className="mb-6 text-sm text-gray-600">

@@ -1,5 +1,7 @@
+"use client"
+
 import React, { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import Link from "next/link"
 import safeLocalStorage from "../utils/safeLocalStorage"
 
 const COOKIE_CONSENT_KEY = "hudhud_cookie_consent"
@@ -69,7 +71,7 @@ export const CookieConsent: React.FC = () => {
               personal information. By clicking "Accept", you consent to the use of analytics cookies. 
               You can decline and the site will remain fully functional.{" "}
               <Link 
-                to="/privacy-policy" 
+                href="/privacy-policy" 
                 className="text-gray-900 hover:text-gray-700 underline font-medium"
               >
                 Learn more in our Privacy Policy

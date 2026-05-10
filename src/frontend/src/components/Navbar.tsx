@@ -1,6 +1,8 @@
+"use client"
+
 import React, { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
-import { MapTrifold, ChartBar, Info, ChatDots, Scroll, X, Quotes, List } from "@phosphor-icons/react"
+import Link from "next/link"
+import { Info, ChatDots, Scroll, X, Quotes, List, ChartBar, MapTrifold } from "@phosphor-icons/react"
 
 export const Navbar: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -46,15 +48,15 @@ export const Navbar: React.FC = () => {
 
           <div className="hidden 3xs:block absolute left-4 sm:left-8 md:left-20 lg:left-32 xl:left-40 2xl:left-52 top-10 3xs:top-[calc(66.667%-8px)] max-w-[calc(50%-60px)]">
             <div className="flex flex-col 3xs:flex-row gap-y-1 gap-x-2 3xs:gap-x-3 sm:gap-x-4 lg:gap-x-6 xl:gap-x-8 text-xs sm:text-sm">
-              <Link to="/" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 <ChatDots className="w-4 h-4 3xs:hidden xs:inline" />
                 Ask
               </Link>
-              <Link to="/epigraphs" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/epigraphs" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 <Scroll className="w-4 h-4 3xs:hidden xs:inline" />
                 Epigraphs
               </Link>
-              <Link to="/words" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/words" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 <Quotes className="w-4 h-4 3xs:hidden xs:inline" />
                 Words
               </Link>
@@ -62,7 +64,7 @@ export const Navbar: React.FC = () => {
           </div>
 
           <div className="relative z-10 bg-transparent px-2 sm:px-4 md:px-6 flex-shrink-0">
-            <Link to="/">
+            <Link href="/">
               <img 
                 src="/hudhud_logo.png" 
                 alt="Hudhud Logo" 
@@ -91,15 +93,15 @@ export const Navbar: React.FC = () => {
 
           <div className="hidden 3xs:block absolute right-4 sm:right-8 md:right-20 lg:right-32 xl:right-40 2xl:right-52 top-10 3xs:top-[calc(66.667%-8px)] max-w-[calc(50%-60px)]">
             <div className="flex flex-col 3xs:flex-row gap-y-1 gap-x-3 sm:gap-x-5 lg:gap-x-6 xl:gap-x-8 text-xs sm:text-sm">
-              <Link to="/maps" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/maps" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 Maps
                 <MapTrifold className="w-4 h-4 3xs:hidden xs:inline" />
               </Link>
-              <Link to="/stats" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/stats" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 Stats
                 <ChartBar className="w-4 h-4 3xs:hidden xs:inline" />
               </Link>
-              <Link to="/about" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
+              <Link href="/about" className="flex items-center gap-1.5 text-gray-900 font-medium hover:text-gray-700 transition-colors ml-auto py-2 px-1 sm:py-0 sm:px-0 rounded-md sm:rounded-none hover:bg-gray-100 sm:hover:bg-transparent">
                 About
                 <Info className="w-4 h-4 3xs:hidden xs:inline" />
               </Link>
@@ -112,7 +114,7 @@ export const Navbar: React.FC = () => {
         <div className="3xs:hidden fixed top-[64px] left-0 right-0 bg-transparent backdrop-blur-xs border-b border-gray-200 shadow-sm z-40">
           <nav className="px-4 py-3 space-y-1">
               <Link 
-                to="/" 
+                href="/" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -120,7 +122,7 @@ export const Navbar: React.FC = () => {
                 Ask
               </Link>
               <Link 
-                to="/epigraphs" 
+                href="/epigraphs" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -128,7 +130,7 @@ export const Navbar: React.FC = () => {
                 Epigraphs
               </Link>
               <Link 
-                to="/words" 
+                href="/words" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -136,7 +138,7 @@ export const Navbar: React.FC = () => {
                 Words
               </Link>
               <Link 
-                to="/maps" 
+                href="/maps" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -144,7 +146,7 @@ export const Navbar: React.FC = () => {
                 Maps
               </Link>
               <Link 
-                to="/stats" 
+                href="/stats" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
@@ -152,7 +154,7 @@ export const Navbar: React.FC = () => {
                 Stats
               </Link>
               <Link 
-                to="/about" 
+                href="/about" 
                 className="flex justify-center gap-2 px-3 py-2 text-gray-900 hover:bg-gray-100 rounded-md transition-colors font-medium"
                 onClick={() => setIsMobileMenuOpen(false)}
               >

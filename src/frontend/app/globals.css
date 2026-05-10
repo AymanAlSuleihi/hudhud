@@ -1,0 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Noto+Sans+Old+South+Arabian&display=swap");
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@import "tailwindcss";
+@plugin "tailwindcss-react-aria-components";
+
+@theme {
+  --font-sans: "Montserrat", "sans-serif", "Noto Sans Old South Arabian";
+  --breakpoint-3xs: 475px;
+  --breakpoint-2xs: 540px;
+  --breakpoint-xs: 590px;
+}
+
+html {
+  scrollbar-gutter: stable;
+  padding-right: 0 !important;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.select-listbox {
+  animation: enable-interactions 150ms ease-out forwards;
+}
+
+@keyframes enable-interactions {
+  0% {
+    pointer-events: none;
+  }
+  99% {
+    pointer-events: none;
+  }
+  100% {
+    pointer-events: auto;
+  }
+}

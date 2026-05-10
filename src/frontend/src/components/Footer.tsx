@@ -1,5 +1,7 @@
+"use client"
+
 import React from "react"
-import { Link } from "react-router-dom"
+import Link from "next/link"
 import { Copyright, EnvelopeSimple, InstagramLogo } from "@phosphor-icons/react"
 
 export const Footer: React.FC = () => {
@@ -58,14 +60,14 @@ export const Footer: React.FC = () => {
           </div>
           <div className="flex items-center justify-center gap-4 mb-3">
             <Link 
-              to="/terms-of-service" 
+              href="/terms-of-service" 
               className="hover:text-gray-500 transition-colors font-semibold"
             >
               Terms of Service
             </Link>
             <span className="text-gray-400">|</span>
             <Link 
-              to="/privacy-policy" 
+              href="/privacy-policy" 
               className="hover:text-gray-500 transition-colors font-semibold"
             >
               Privacy Policy

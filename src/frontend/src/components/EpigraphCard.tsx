@@ -1,6 +1,8 @@
+"use client"
+
 import React from "react"
 import { EpigraphOut } from "../client"
-import { Link } from "react-router-dom"
+import Link from "next/link"
 import { Eye, Image, ArrowSquareOut, WarningCircle, X, MagnifyingGlass } from "@phosphor-icons/react"
 import { MyDisclosure } from "./Disclosure"
 import TextRenderer from "./TextRenderer"
@@ -113,7 +115,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
       <div className="flex flex-col sm:flex-row sm:flex-wrap justify-between items-start sm:items-center gap-2 border-b border-gray-200 pb-4 mb-4">
         <div className="flex-grow">
           <h2 className="font-bold text-lg">
-            <Link to={`/epigraphs/${epigraph.dasi_id}`} className="hover:underline">
+            <Link href={`/epigraphs/${epigraph.dasi_id}`} className="hover:underline">
               {epigraph.title || "Untitled Epigraph"}
             </Link>
           </h2>
@@ -121,7 +123,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
         <div className="flex flex-col justify-start items-end">
           <div className="flex items-center gap-2 sm:gap-2 text-sm flex-wrap">
             {!hideHudhudLink && (
-              <Link to={`/epigraphs/${epigraph.dasi_id}`} className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap">
+              <Link href={`/epigraphs/${epigraph.dasi_id}`} className="flex items-center gap-1 px-2 sm:px-3 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap">
                 <span className="hidden sm:inline">View on Hudhud</span>
                 <span className="sm:hidden">Hudhud</span>
                 <Eye size={16} />
