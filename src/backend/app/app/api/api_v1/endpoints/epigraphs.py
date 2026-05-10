@@ -62,7 +62,7 @@ def _build_epigraphs_out(epigraphs: Sequence[Epigraph], count: int) -> Epigraphs
     )
 
 @router.get(
-    "/",
+    "",
     response_model=EpigraphsOut,
     # dependencies=[Depends(get_current_active_superuser)],
 )
@@ -472,7 +472,7 @@ def get_filtered_field_values(
 
 
 @router.post(
-    "/",
+    "",
     response_model=EpigraphOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(get_current_active_superuser)],

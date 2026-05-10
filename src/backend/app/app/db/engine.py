@@ -1,5 +1,6 @@
 from sqlmodel import create_engine
 
+import app.models  # noqa: F401
 from app.core.config import settings
 
 engine = create_engine(settings.SQLALCHEMY_DATABASE_URI.unicode_string())
