@@ -2,9 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { TaskProgressOut } from './TaskProgressOut';
-export type TaskProgresssOut = {
-    task_progress: Array<TaskProgressOut>;
+import type { PipelineRunOut } from './PipelineRunOut';
+export type PipelineRunsOut = {
+    pipeline_runs: Array<PipelineRunOut>;
     count: number;
 };
 

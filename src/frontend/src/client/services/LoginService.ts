@@ -53,11 +53,14 @@ export class LoginService {
     public static loginRecoverPassword({
         email,
     }: {
+        /**
+         * User email address
+         */
         email: string,
     }): CancelablePromise<Message> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/password-recovery/{email}',
+            url: '/api/v1/login/password-recovery/{email}',
             path: {
                 'email': email,
             },
@@ -79,7 +82,7 @@ export class LoginService {
     }): CancelablePromise<Message> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/reset-password/',
+            url: '/api/v1/login/reset-password',
             body: requestBody,
             mediaType: 'application/json',
             errors: {

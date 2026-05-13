@@ -6,6 +6,7 @@ import type { ObjectCreate } from '../models/ObjectCreate';
 import type { ObjectOut } from '../models/ObjectOut';
 import type { ObjectsOut } from '../models/ObjectsOut';
 import type { ObjectUpdate } from '../models/ObjectUpdate';
+import type { PipelineRunOut } from '../models/PipelineRunOut';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -23,10 +24,22 @@ export class ObjectsService {
         sortOrder,
         filters,
     }: {
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
         filters?: (string | null),
     }): CancelablePromise<ObjectsOut> {
         return __request(OpenAPI, {
@@ -74,6 +87,9 @@ export class ObjectsService {
     public static objectsReadObject({
         objectId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         objectId: number,
     }): CancelablePromise<ObjectOut> {
         return __request(OpenAPI, {
@@ -97,6 +113,9 @@ export class ObjectsService {
         objectId,
         requestBody,
     }: {
+        /**
+         * Internal resource identifier
+         */
         objectId: number,
         requestBody: ObjectUpdate,
     }): CancelablePromise<ObjectOut> {
@@ -122,6 +141,9 @@ export class ObjectsService {
     public static objectsDeleteObject({
         objectId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         objectId: number,
     }): CancelablePromise<ObjectOut> {
         return __request(OpenAPI, {
@@ -144,6 +166,9 @@ export class ObjectsService {
     public static objectsReadObjectByDasiId({
         dasiId,
     }: {
+        /**
+         * DASI identifier
+         */
         dasiId: number,
     }): CancelablePromise<ObjectOut> {
         return __request(OpenAPI, {
@@ -160,10 +185,10 @@ export class ObjectsService {
     /**
      * Import Objects
      * Import objects from external api.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
-    public static objectsImportObjects(): CancelablePromise<Record<string, any>> {
+    public static objectsImportObjects(): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/objects/import',
@@ -172,7 +197,7 @@ export class ObjectsService {
     /**
      * Import Objects Range
      * Import objects from external api in a range.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
     public static objectsImportObjectsRange({
@@ -185,7 +210,7 @@ export class ObjectsService {
         endId: number,
         dasiPublished?: (boolean | null),
         updateExisting?: boolean,
-    }): CancelablePromise<Record<string, any>> {
+    }): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/objects/import_range',
@@ -227,10 +252,10 @@ export class ObjectsService {
     /**
      * Transfer Fields
      * Transfer fields for every object that's already in the db.
-     * @returns any Successful Response
+     * @returns string Successful Response
      * @throws ApiError
      */
-    public static objectsTransferFields(): CancelablePromise<any> {
+    public static objectsTransferFields(): CancelablePromise<Record<string, string>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/objects/transfer_fields',

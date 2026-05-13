@@ -2,17 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $TaskProgresssOut = {
+export const $ConversationMessage = {
     properties: {
-        task_progress: {
-            type: 'array',
-            contains: {
-                type: 'TaskProgressOut',
-            },
+        role: {
+            type: 'string',
             isRequired: true,
         },
-        count: {
-            type: 'number',
+        content: {
+            type: 'string',
             isRequired: true,
         },
     },

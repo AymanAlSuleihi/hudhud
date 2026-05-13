@@ -8,54 +8,204 @@ import {
   Label,
   ToggleButton,
 } from "react-aria-components"
-import { EpigraphsService, EpigraphsOut } from "../client"
+import {
+  EpigraphFacetBucket,
+  EpigraphFacetSchemaFieldResponse,
+  EpigraphQueryResponse,
+  EpigraphsOut,
+  EpigraphsService,
+  EpigraphSearchSchemaResponse,
+  EpigraphSearchSortOptionResponse,
+} from "../client"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
 import { MySelect, MyItem } from "../components/Select"
+import { MySlider } from "../components/Slider"
 import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
 import { ClientMap } from "../next/components/ClientMap"
-import { MyDisclosure } from "../components/Disclosure"
 
-interface Filters {
-  period?: string
-  chronology_conjectural?: string
-  language_level_1?: string
-  language_level_2?: string
-  language_level_3?: string
-  alphabet?: string
-  script_typology?: string
-  script_cursus?: string
-  textual_typology?: string
-  textual_typology_conjectural?: string
-  writing_techniques?: string
-  royal_inscription?: string
+type FilterValue = string | boolean | string[]
+type Filters = Record<string, FilterValue>
+type SearchScopeState = Record<string, boolean>
+type FacetValue = string | boolean | number | string[]
+type FilterOption = {
+  key: string
+  label: string
+  value: FacetValue
+  count?: number
+}
+
+const LEGACY_SCOPE_PARAM_KEYS: Record<string, string[]> = {
+  epigraphText: ["search_epigraph_text", "search_epigraphText"],
+  translationText: ["search_translations", "search_translationText"],
+  notes: ["search_notes"],
+  bibliography: ["search_bibliography"],
+  title: ["search_title"],
+  physical: ["search_physical"],
+}
+
+const BOOLEAN_FILTER_KEYS = [
+  "chronology_conjectural",
+  "textual_typology_conjectural",
+  "royal_inscription",
+] as const
+
+const LANGUAGE_FILTER_KEYS = ["language_level_1", "language_level_2", "language_level_3"] as const
+
+const NON_GENERIC_FILTER_KEYS = new Set<string>(["period", ...BOOLEAN_FILTER_KEYS, ...LANGUAGE_FILTER_KEYS])
+
+const encodeFilterValue = (value: FilterValue | FacetValue): string => {
+  if (Array.isArray(value)) {
+    return `__array__:${JSON.stringify(value)}`
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "__bool_true__" : "__bool_false__"
+  }
+
+  return String(value)
+}
+
+const decodeFilterValue = (value: string): FilterValue => {
+  if (value.startsWith("__array__:")) {
+    return JSON.parse(value.slice("__array__:".length)) as string[]
+  }
+
+  if (value === "__bool_true__") {
+    return true
+  }
+
+  if (value === "__bool_false__") {
+    return false
+  }
+
+  return value
+}
+
+const formatFacetValue = (value: FacetValue): string => {
+  if (Array.isArray(value)) {
+    return value.join(", ")
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No"
+  }
+
+  return String(value)
+}
+
+const formatActiveFilterValue = (fieldKey: string, value: FilterValue | FacetValue): string => {
+  if (fieldKey === "period" && Array.isArray(value)) {
+    if (value.length === 0) {
+      return "All periods"
+    }
+
+    if (value.length === 1) {
+      return value[0]
+    }
+
+    return `${value[0]} to ${value[value.length - 1]}`
+  }
+
+  return formatFacetValue(value as FacetValue)
+}
+
+const getScopeParamKeys = (scopeKey: string): string[] => {
+  return LEGACY_SCOPE_PARAM_KEYS[scopeKey] || [`search_${scopeKey}`]
+}
+
+const getPrimaryScopeParamKey = (scopeKey: string): string => {
+  return getScopeParamKeys(scopeKey)[0]
+}
+
+const buildInitialScopeState = (
+  schema: EpigraphSearchSchemaResponse,
+  searchParamEntries: Record<string, string>,
+): SearchScopeState => {
+  const defaultScopeKeys = new Set(schema.defaults.scopeKeys)
+  const scopeState: SearchScopeState = {}
+
+  schema.scopes.forEach((scope) => {
+    const matchingParamKey = getScopeParamKeys(scope.key).find((paramKey) => searchParamEntries[paramKey] !== undefined)
+    if (!matchingParamKey) {
+      scopeState[scope.key] = defaultScopeKeys.has(scope.key)
+      return
+    }
+
+    scopeState[scope.key] = searchParamEntries[matchingParamKey] !== "false"
+  })
+
+  return scopeState
+}
+
+const getSelectedPeriodValues = (filterValue: FilterValue | undefined, periodValues: string[]): string[] => {
+  if (periodValues.length === 0) {
+    return []
+  }
+
+  if (Array.isArray(filterValue)) {
+    const selectedValues = filterValue.filter(
+      (value): value is string => typeof value === "string" && periodValues.includes(value),
+    )
+
+    return selectedValues.length > 0 ? selectedValues : periodValues
+  }
+
+  if (typeof filterValue === "string" && periodValues.includes(filterValue)) {
+    return [filterValue]
+  }
+
+  return periodValues
+}
+
+const getSelectedPeriodRange = (selectedValues: string[], periodValues: string[]): [number, number] => {
+  if (periodValues.length === 0) {
+    return [0, 0]
+  }
+
+  const indices = selectedValues
+    .map((value) => periodValues.indexOf(value))
+    .filter((index) => index >= 0)
+
+  if (indices.length === 0) {
+    return [0, periodValues.length - 1]
+  }
+
+  return [Math.min(...indices), Math.max(...indices)]
 }
 
 const Epigraphs: React.FC = () => {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
+  const initialSearchParamsRef = useRef({
+    page: Number(searchParams.get("page") || 1),
+    pageSize: Number(searchParams.get("pageSize") || 25),
+    sortField: searchParams.get("sort"),
+    sortOrder: searchParams.get("order"),
+    searchTerm: searchParams.get("q") || "",
+    scopeParams: Object.fromEntries(
+      Array.from(searchParams.entries()).filter(([key]) => key.startsWith("search_")),
+    ),
+  })
   const [epigraphs, setEpigraphs] = useState<EpigraphsOut | null>(null)
-  const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page") || 1))
-  const [pageSize, setPageSize] = useState(Number(searchParams.get("pageSize") || 25))
-  const [sortField, setSortField] = useState(searchParams.get("sort") || "dasi_id")
-  const [sortOrder, setSortOrder] = useState(searchParams.get("order") || "asc")
+  const [currentPage, setCurrentPage] = useState(initialSearchParamsRef.current.page)
+  const [pageSize, setPageSize] = useState(initialSearchParamsRef.current.pageSize)
+  const [sortField, setSortField] = useState(initialSearchParamsRef.current.sortField || "dasi_id")
+  const [sortOrder, setSortOrder] = useState(initialSearchParamsRef.current.sortOrder || "asc")
   const [isLoading, setIsLoading] = useState(false)
   const [filters, setFilters] = useState<Filters>({})
   const [showFilters, setShowFilters] = useState(false)
-  const [fieldValues, setFieldValues] = useState<Record<string, any[]>>({})
+  const [fieldValues, setFieldValues] = useState<Record<string, FacetValue[]>>({})
+  const [facetCounts, setFacetCounts] = useState<Record<string, EpigraphFacetBucket[]>>({})
+  const [facetSchema, setFacetSchema] = useState<EpigraphFacetSchemaFieldResponse[]>([])
+  const [searchSchema, setSearchSchema] = useState<EpigraphSearchSchemaResponse | null>(null)
 
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "")
-  const [searchFields, setSearchFields] = useState({
-    epigraphText: searchParams.get("search_epigraph_text") !== "false",
-    translationText: searchParams.get("search_translations") !== "false",
-    notes: searchParams.get("search_notes") !== "false", 
-    bibliography: searchParams.get("search_bibliography") !== "false",
-    title: searchParams.get("search_title") !== "false",
-    physical: searchParams.get("search_physical") !== "false",
-  })
+  const [searchTerm, setSearchTerm] = useState(initialSearchParamsRef.current.searchTerm)
+  const [searchFields, setSearchFields] = useState<SearchScopeState>({})
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const activeTextInputRef = useRef<HTMLInputElement | null>(null)
 
   const [pageInputValue, setPageInputValue] = useState(currentPage.toString())
   const [showKeyboard, setShowKeyboard] = useState(false)
@@ -75,20 +225,107 @@ const Epigraphs: React.FC = () => {
     setPageInputValue(currentPage.toString())
   }, [currentPage])
 
-  const filterLabels = {
-    period: "Period",
-    chronology_conjectural: "Chronology (Conjectural)",
-    language_level_1: "Language (Level 1)",
-    language_level_2: "Language (Level 2)",
-    language_level_3: "Language (Level 3)",
-    alphabet: "Alphabet",
-    script_typology: "Script Typology",
-    script_cursus: "Script Cursus",
-    textual_typology: "Textual Typology",
-    textual_typology_conjectural: "Textual Typology (Conjectural)",
-    writing_techniques: "Writing Techniques",
-    royal_inscription: "Royal Inscription",
+  const getDefaultSort = (hasSearchText: boolean) => {
+    if (!searchSchema) {
+      return hasSearchText
+        ? { sortField: "_score", sortOrder: "desc" }
+        : { sortField: "dasi_id", sortOrder: "asc" }
+    }
+
+    return hasSearchText ? searchSchema.defaults.search : searchSchema.defaults.browse
   }
+
+  const getSortOption = (key: string): EpigraphSearchSortOptionResponse | undefined => {
+    return searchSchema?.sortOptions.find((sortOption) => sortOption.key === key)
+  }
+
+  const getFilterLabel = (fieldKey: string): string => {
+    return facetSchema.find((field) => field.key === fieldKey)?.label || fieldKey
+  }
+
+  const getSelectedScopeKeys = (
+    currentSearchFields: SearchScopeState,
+    currentSearchSchema: EpigraphSearchSchemaResponse,
+  ): string[] => {
+    return currentSearchSchema.scopes
+      .filter((scope) => currentSearchFields[scope.key])
+      .map((scope) => scope.key)
+  }
+
+  const getFilterOptions = (fieldKey: string): FilterOption[] => {
+    const optionsByKey = new Map<string, FilterOption>()
+
+    for (const bucket of facetCounts[fieldKey] || []) {
+      optionsByKey.set(encodeFilterValue(bucket.value), {
+        key: encodeFilterValue(bucket.value),
+        label: formatFacetValue(bucket.value),
+        value: bucket.value,
+        count: bucket.count,
+      })
+    }
+
+    for (const value of fieldValues[fieldKey] || []) {
+      const encodedValue = encodeFilterValue(value)
+      if (!optionsByKey.has(encodedValue)) {
+        optionsByKey.set(encodedValue, {
+          key: encodedValue,
+          label: formatFacetValue(value),
+          value,
+        })
+      }
+    }
+
+    const selectedValue = filters[fieldKey]
+    if (selectedValue !== undefined) {
+      const encodedValue = encodeFilterValue(selectedValue)
+      if (!optionsByKey.has(encodedValue)) {
+        optionsByKey.set(encodedValue, {
+          key: encodedValue,
+          label: formatFacetValue(selectedValue),
+          value: selectedValue,
+          count: 0,
+        })
+      }
+    }
+
+    return Array.from(optionsByKey.values())
+  }
+
+  const activeSearchQuery = searchTerm.trim()
+
+  const hasActiveSearchQuery = Boolean(activeSearchQuery)
+
+  const periodValues = getFilterOptions("period")
+    .map((option) => option.value)
+    .filter((value): value is string => typeof value === "string")
+
+  const selectedPeriodValues = getSelectedPeriodValues(filters.period, periodValues)
+  const [selectedPeriodStartIndex, selectedPeriodEndIndex] = getSelectedPeriodRange(
+    selectedPeriodValues,
+    periodValues,
+  )
+  const selectedPeriodSummary =
+    selectedPeriodValues.length === periodValues.length
+      ? "All periods"
+      : formatActiveFilterValue("period", selectedPeriodValues)
+
+  const languageLevel1Options = getFilterOptions("language_level_1")
+    .map((option) => option.value)
+    .filter((value): value is string => typeof value === "string")
+  const languageLevel2Options = getFilterOptions("language_level_2")
+    .map((option) => option.value)
+    .filter((value): value is string => typeof value === "string")
+  const languageLevel3Options = getFilterOptions("language_level_3")
+    .map((option) => option.value)
+    .filter((value): value is string => typeof value === "string")
+
+  const selectedLanguageLevel1 = typeof filters.language_level_1 === "string" ? filters.language_level_1 : undefined
+  const selectedLanguageLevel2 = typeof filters.language_level_2 === "string" ? filters.language_level_2 : undefined
+  const selectedLanguageLevel3 = typeof filters.language_level_3 === "string" ? filters.language_level_3 : undefined
+  const hasLanguageFilters = LANGUAGE_FILTER_KEYS.some((key) => filters[key] !== undefined)
+
+  const booleanFacetFields = facetSchema.filter((field) => BOOLEAN_FILTER_KEYS.includes(field.key as (typeof BOOLEAN_FILTER_KEYS)[number]))
+  const genericFacetFields = facetSchema.filter((field) => !NON_GENERIC_FILTER_KEYS.has(field.key))
 
   const replaceSearchParams = (params: Record<string, string>) => {
     const nextSearchParams = new URLSearchParams()
@@ -109,10 +346,18 @@ const Epigraphs: React.FC = () => {
     sort: string = sortField, 
     order: string = sortOrder, 
     currentFilters: Filters = filters,
-    searchQuery: string = searchTerm
+    searchQuery: string = searchTerm,
+    currentSearchFields: SearchScopeState = searchFields,
+    currentSearchSchema: EpigraphSearchSchemaResponse | null = searchSchema,
   ) => {
+    if (!currentSearchSchema) {
+      return
+    }
+
     try {
       setIsLoading(true)
+
+      const effectiveSearchQuery = searchQuery.trim()
 
       const urlParams: Record<string, string> = {
         page: page.toString(),
@@ -121,19 +366,16 @@ const Epigraphs: React.FC = () => {
         order: order
       }
 
-      if (searchQuery) {
-        urlParams.q = searchQuery
-        urlParams.search_epigraph_text = searchFields.epigraphText.toString()
-        urlParams.search_translations = searchFields.translationText.toString()
-        urlParams.search_notes = searchFields.notes.toString()
-        urlParams.search_bibliography = searchFields.bibliography.toString()
-        urlParams.search_title = searchFields.title.toString()
-        urlParams.search_physical = searchFields.physical.toString()
+      if (effectiveSearchQuery) {
+        urlParams.q = effectiveSearchQuery
+        currentSearchSchema.scopes.forEach((scope) => {
+          urlParams[getPrimaryScopeParamKey(scope.key)] = String(Boolean(currentSearchFields[scope.key]))
+        })
       }
 
       replaceSearchParams(urlParams)
 
-      const apiFilters = {
+      const apiFilters: Record<string, FilterValue> = {
         dasi_published: true,
         ...currentFilters
       }
@@ -144,41 +386,22 @@ const Epigraphs: React.FC = () => {
         }
       })
 
-      let result: EpigraphsOut
+      const result: EpigraphQueryResponse = await EpigraphsService.epigraphsQueryEpigraphs({
+        requestBody: {
+          search_text: effectiveSearchQuery,
+          scope_keys: effectiveSearchQuery ? getSelectedScopeKeys(currentSearchFields, currentSearchSchema) : undefined,
+          filters: apiFilters,
+          page,
+          page_size: size,
+          sort_field: sort,
+          sort_order: order,
+        },
+      })
 
-      if (searchQuery) {
-        const field_map = {
-          epigraphText: searchFields.epigraphText ? ["epigraph_text"] : [],
-          translationText: searchFields.translationText ? ["translations"] : [],
-          notes: searchFields.notes ? ["general_notes", "apparatus_notes", "cultural_notes", "support_notes", "deposit_notes", "object_cultural_notes", "images", "sites", "deposits"] : [],
-          bibliography: searchFields.bibliography ? ["bibliography"] : [],
-          title: searchFields.title ? ["title"] : [],
-          physical: searchFields.physical ? ["decorations", "materials", "shape"] : [],
-        }
-        const fields = [
-          ...Object.values(field_map).flat()
-        ].filter(Boolean).join(",")
-
-        result = await EpigraphsService.epigraphsFullTextSearchEpigraphs({
-          searchText: searchQuery,
-          fields: fields,
-          sortField: sort,
-          sortOrder: order,
-          skip: (page - 1) * size,
-          limit: size,
-          filters: Object.keys(apiFilters).length > 1 ? JSON.stringify(apiFilters) : undefined,
-        })
-      } else {
-        result = await EpigraphsService.epigraphsReadEpigraphs({
-          skip: (page - 1) * size,
-          limit: size,
-          sortField: sort,
-          sortOrder: order,
-          filters: JSON.stringify(apiFilters),
-        })
-      }
-      
-      setEpigraphs(result)
+      setEpigraphs(result.results)
+      setFieldValues(result.facets)
+      setFacetCounts(result.facet_counts)
+      setFacetSchema(result.facet_schema)
       setCurrentPage(page)
       setPageSize(size)
       setSortField(sort)
@@ -191,40 +414,69 @@ const Epigraphs: React.FC = () => {
   }
 
   useEffect(() => {
-    const page = Number(searchParams.get("page")) || 1
-    const size = Number(searchParams.get("pageSize")) || 25
-    const sort = searchParams.get("sort") || "dasi_id"
-    const order = searchParams.get("order") || "asc"
-    const query = searchParams.get("q") || ""
+    let isMounted = true
 
-    if (query) {
-      setSearchTerm(query)
-      if (searchInputRef.current) {
-        searchInputRef.current.value = query
+    const initialisePage = async () => {
+      try {
+        const schema = await EpigraphsService.epigraphsGetEpigraphSearchSchemaEndpoint()
+        if (!isMounted) {
+          return
+        }
+
+        const initialScopeState = buildInitialScopeState(schema, initialSearchParamsRef.current.scopeParams)
+        const hasSearchText = Boolean(initialSearchParamsRef.current.searchTerm.trim())
+        const defaultSort = hasSearchText ? schema.defaults.search : schema.defaults.browse
+        const initialSortField = initialSearchParamsRef.current.sortField || defaultSort.sortField
+        const initialSortOrder = initialSearchParamsRef.current.sortOrder || defaultSort.sortOrder
+
+        setSearchSchema(schema)
+        setSearchFields(initialScopeState)
+        setSearchTerm(initialSearchParamsRef.current.searchTerm)
+        setSortField(initialSortField)
+        setSortOrder(initialSortOrder)
+
+        if (searchInputRef.current) {
+          searchInputRef.current.value = initialSearchParamsRef.current.searchTerm
+        }
+
+        await fetchEpigraphs(
+          initialSearchParamsRef.current.page,
+          initialSearchParamsRef.current.pageSize,
+          initialSortField,
+          initialSortOrder,
+          {},
+          initialSearchParamsRef.current.searchTerm,
+          initialScopeState,
+          schema,
+        )
+      } catch (error) {
+        console.error("Error loading epigraph search schema:", error)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
-      const searchSort = searchParams.get("sort") ? sort : "_score"
-      const searchOrder = searchParams.get("sort") ? order : "desc"
-      fetchEpigraphs(page, size, searchSort, searchOrder, {}, query)
-    } else {
-      fetchEpigraphs(page, size, sort, order, {}, query)
     }
-  }, [])
+
+    initialisePage()
+
+    return () => {
+      isMounted = false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (term: string) => {
     if (term.trim()) {
       setSearchTerm(term)
-      const newSortField = "_score"
-      const newSortOrder = "desc"
+      const { sortField: newSortField, sortOrder: newSortOrder } = getDefaultSort(true)
       setSortField(newSortField)
       setSortOrder(newSortOrder)
       fetchEpigraphs(1, pageSize, newSortField, newSortOrder, filters, term)
     } else {
       setSearchTerm("")
-      const newSortField = sortField === "_score" ? "dasi_id" : sortField
-      if (sortField === "_score") {
-        setSortField("dasi_id")
-      }
-      fetchEpigraphs(1, pageSize, newSortField, sortOrder, filters, "")
+      const { sortField: newSortField, sortOrder: newSortOrder } = getDefaultSort(false)
+      setSortField(newSortField)
+      setSortOrder(newSortOrder)
+      fetchEpigraphs(1, pageSize, newSortField, newSortOrder, filters, "")
     }
   }
 
@@ -253,10 +505,7 @@ const Epigraphs: React.FC = () => {
   }
 
   const handleSortChange = (newSort: string) => {
-    let newOrder = sortOrder
-    if (newSort === "_score" && sortOrder === "asc") {
-      newOrder = "desc"
-    }
+    const newOrder = getSortOption(newSort)?.defaultOrder || sortOrder
     fetchEpigraphs(1, pageSize, newSort, newOrder, filters, searchTerm)
   }
 
@@ -264,7 +513,12 @@ const Epigraphs: React.FC = () => {
     fetchEpigraphs(1, pageSize, sortField, newOrder, filters, searchTerm)
   }
 
-  const handleFilterChange = (filterKey: keyof Filters, value: string) => {
+  const applyFilters = (nextFilters: Filters) => {
+    setFilters(nextFilters)
+    fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
+  }
+
+  const updateFilter = (filterKey: string, nextValue?: FilterValue) => {
     const newFilters = { ...filters }
 
     if (filterKey === "language_level_1") {
@@ -274,76 +528,77 @@ const Epigraphs: React.FC = () => {
       delete newFilters.language_level_3
     }
 
-    if (value === "" || value === "all") {
+    if (nextValue === undefined || nextValue === "" || (Array.isArray(nextValue) && nextValue.length === 0)) {
       delete newFilters[filterKey]
     } else {
-      newFilters[filterKey] = value
+      newFilters[filterKey] = nextValue
     }
 
-    setFilters(newFilters)
-    fetchEpigraphs(1, pageSize, sortField, sortOrder, newFilters, searchTerm)
-    fetchFieldValues(newFilters)
+    applyFilters(newFilters)
+  }
+
+  const handleFilterChange = (filterKey: string, value: string) => {
+    if (value === "" || value === "all") {
+      updateFilter(filterKey, undefined)
+      return
+    }
+
+    updateFilter(filterKey, decodeFilterValue(value))
+  }
+
+  const handleBooleanFilterChange = (filterKey: string, value: boolean | null) => {
+    updateFilter(filterKey, value === null ? undefined : value)
+  }
+
+  const handlePeriodSliderChange = (nextValue: number | number[]) => {
+    if (!Array.isArray(nextValue) || nextValue.length < 2 || periodValues.length === 0) {
+      return
+    }
+
+    const [rawStart, rawEnd] = nextValue
+    const nextStart = Math.max(0, Math.min(Math.round(rawStart), Math.round(rawEnd)))
+    const nextEnd = Math.min(periodValues.length - 1, Math.max(Math.round(rawStart), Math.round(rawEnd)))
+
+    if (nextStart === selectedPeriodStartIndex && nextEnd === selectedPeriodEndIndex) {
+      return
+    }
+
+    const nextPeriods = periodValues.slice(nextStart, nextEnd + 1)
+    updateFilter("period", nextPeriods.length === periodValues.length ? undefined : nextPeriods)
+  }
+
+  const clearLanguageFilters = () => {
+    const newFilters = { ...filters }
+    LANGUAGE_FILTER_KEYS.forEach((key) => {
+      delete newFilters[key]
+    })
+    applyFilters(newFilters)
+  }
+
+  const getBooleanFilterCount = (fieldKey: string, value: boolean) => {
+    return facetCounts[fieldKey]?.find((bucket) => bucket.value === value)?.count
   }
 
   const clearAllFilters = () => {
-    setFilters({})
-    fetchEpigraphs(1, pageSize, sortField, sortOrder, {}, searchTerm)
-    fetchFieldValues({})
+    applyFilters({})
   }
 
-  const fetchFieldValues = async (currentFilters: Filters = {}) => {
-    try {
-      let result
-
-      if (Object.keys(currentFilters).length > 0) {
-        const apiFilters = {
-          dasi_published: true,
-          ...currentFilters
-        }
-
-        Object.keys(apiFilters).forEach(key => {
-          if (apiFilters[key as keyof typeof apiFilters] === "" || apiFilters[key as keyof typeof apiFilters] === undefined) {
-            delete apiFilters[key as keyof typeof apiFilters]
-          }
-        })
-
-        try {
-          result = await EpigraphsService.epigraphsGetFilteredFieldValues({
-            filters: JSON.stringify(apiFilters)
-          })
-          console.log("Fetched filtered field values for filters:", currentFilters)
-          console.log("API filters sent:", apiFilters)
-          console.log("Field values received:", result)
-        } catch (error) {
-          console.error("Failed to fetch filtered field values, falling back to all values:", error)
-          result = await EpigraphsService.epigraphsGetAllFieldValues()
-        }
-      } else {
-        result = await EpigraphsService.epigraphsGetAllFieldValues()
-        console.log("Fetched all field values (no filters)")
-      }
-
-      setFieldValues(result)
-    } catch (error) {
-      console.error("Error fetching field values:", error)
-      try {
-        const result = await EpigraphsService.epigraphsGetAllFieldValues()
-        setFieldValues(result)
-      } catch (fallbackError) {
-        console.error("Fallback also failed:", fallbackError)
-      }
+  const handleScopeChange = (scopeKey: string, selected: boolean) => {
+    const newSearchFields = {
+      ...searchFields,
+      [scopeKey]: selected,
     }
-  }
 
-  useEffect(() => {
-    fetchFieldValues()
-  }, [searchTerm])
+    setSearchFields(newSearchFields)
 
-  useEffect(() => {
     if (searchTerm) {
-      fetchEpigraphs(1, pageSize, sortField, sortOrder, filters, searchTerm)
+      fetchEpigraphs(1, pageSize, sortField, sortOrder, filters, searchTerm, newSearchFields)
     }
-  }, [searchFields])
+  }
+
+  const handleTextInputFocus = (input: HTMLInputElement) => {
+    activeTextInputRef.current = input
+  }
 
   useEffect(() => {
     if (epigraphs && epigraphs.epigraphs) {
@@ -465,7 +720,7 @@ const Epigraphs: React.FC = () => {
   }
 
   const handleInsertChar = (char: string) => {
-    const input = searchInputRef.current
+    const input = activeTextInputRef.current || searchInputRef.current
     if (!input) return
     const start = input.selectionStart || 0
     const end = input.selectionEnd || 0
@@ -474,6 +729,7 @@ const Epigraphs: React.FC = () => {
     input.focus()
     const cursorPos = start + char.length
     input.setSelectionRange(cursorPos, cursorPos)
+
     handleSearchInputChange(input.value)
   }
 
@@ -551,329 +807,342 @@ const Epigraphs: React.FC = () => {
   return (
     <div className="2xl:max-w-10/12 p-4 mx-auto">
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
-      <div className="mb-1 space-y-4">
-        <div className="flex flex-wrap gap-x-2 gap-y-4 items-start">
-          <div className="flex flex-col flex-1 min-w-[200px]">
-            <div className="flex items-center gap-2">
-              <SearchField className="flex-1">
-                <Label className="block text-sm font-medium mb-1">Search</Label>
-                <div className="relative flex items-center w-full">
-                  <input 
-                    ref={searchInputRef}
-                    defaultValue={searchParams.get("q") || ""}
-                    onChange={(e) => handleSearchInputChange(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        if (debounceRef.current) {
-                          clearTimeout(debounceRef.current)
+      <div className="mb-1 space-y-3">
+        <div className="overflow-hidden rounded-md border border-stone-300 bg-[linear-gradient(135deg,rgba(250,250,249,1),rgba(245,245,244,0.92))] shadow-sm">
+          <div className="px-4 py-3 sm:px-5 sm:py-4">
+            <div className="space-y-3">
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(150px,180px)_auto]">
+                <SearchField className="flex-1">
+                  <Label className="sr-only">Search</Label>
+                  <div className="relative flex items-center w-full">
+                    <input 
+                      ref={searchInputRef}
+                      defaultValue={searchParams.get("q") || ""}
+                      aria-label="Search epigraphs"
+                      onFocus={(event) => handleTextInputFocus(event.currentTarget)}
+                      onChange={(e) => handleSearchInputChange(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          if (debounceRef.current) {
+                            clearTimeout(debounceRef.current)
+                          }
+                          handleSearch(e.currentTarget.value)
                         }
-                        handleSearch(e.currentTarget.value)
-                      }
-                    }}
-                    className="w-full border border-gray-400 p-2 pl-9 pr-40 rounded h-12"
-                    placeholder="Search epigraphs..."
-                  />
-                  <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                    <button
-                      type="button"
-                      className="flex items-center justify-center px-2 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-9 w-9"
-                      onClick={() => setShowKeyboard((v) => !v)}
-                      title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
-                    >
-                      <Keyboard size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center justify-center px-2 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-9 w-9"
-                      onClick={() => {
-                        if (debounceRef.current) {
-                          clearTimeout(debounceRef.current)
-                        }
-                        const inputValue = searchInputRef.current?.value || ""
-                        handleSearch(inputValue)
                       }}
-                      title="Search"
-                    >
-                      <MagnifyingGlass size={16} />
-                    </button>
+                      className="h-11 w-full rounded-md border border-gray-400 bg-white p-2 pl-9 pr-14"
+                      placeholder="Search epigraphs"
+                    />
+                    <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                      <button
+                        type="button"
+                        className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-900 shadow transition-colors hover:border-gray-700 hover:text-gray-700"
+                        onClick={() => {
+                          if (debounceRef.current) {
+                            clearTimeout(debounceRef.current)
+                          }
+                          const inputValue = searchInputRef.current?.value || ""
+                          handleSearch(inputValue)
+                        }}
+                        title="Search"
+                      >
+                        <MagnifyingGlass size={16} />
+                      </button>
+                    </div>
                   </div>
+                </SearchField>
+
+                <div className="relative min-w-[150px] sm:min-w-[180px]">
+                <input
+                  type="number"
+                  placeholder="DASI ID"
+                  value={dasiIdInput}
+                  aria-label="Go to DASI ID"
+                  onChange={(e) => setDasiIdInput(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const val = dasiIdInput.trim()
+                      if (val) router.push(`/epigraphs/${parseInt(val, 10)}`)
+                    }
+                  }}
+                  className="h-10 w-full rounded-md border border-stone-300 bg-white pl-10 pr-10 text-sm text-stone-900 outline-none transition-colors focus:border-stone-500"
+                />
+                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none" size={15} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = dasiIdInput.trim()
+                    if (!val) return
+                    const id = parseInt(val, 10)
+                    if (isNaN(id)) return
+                    router.push(`/epigraphs/${id}`)
+                  }}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-900"
+                  title="Go to epigraph"
+                >
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+
+                <button
+                  type="button"
+                  className="flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 shadow-sm transition-colors hover:border-stone-500 hover:text-stone-900"
+                  onClick={() => setShowKeyboard((value) => !value)}
+                  title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
+                >
+                  <Keyboard size={16} />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {(searchSchema?.scopes || []).map((scope) => (
+                  <ToggleButton
+                    key={scope.key}
+                    isSelected={Boolean(searchFields[scope.key])}
+                    onChange={(selected) => handleScopeChange(scope.key, selected)}
+                    className={({isSelected}) => `
+                      flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
+                      ${isSelected 
+                        ? "border-gray-600 text-gray-800 bg-white"
+                        : "border-gray-900 hover:border-gray-700 hover:text-gray-700 bg-transparent"
+                      }
+                    `}
+                  >
+                    {searchFields[scope.key] ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
+                    <span className="flex items-center gap-1">{scope.label}</span>
+                  </ToggleButton>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((value) => !value)}
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-gray-900 px-3 text-sm font-semibold shadow transition-colors hover:border-gray-700 hover:text-gray-700"
+                >
+                  <Funnel size={14} />
+                  <span>{showFilters ? "Hide Filters" : "Filters"}</span>
+                  {Object.keys(filters).length > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-md bg-white px-1 text-xs font-medium text-zinc-600">
+                      {Object.keys(filters).length}
+                    </span>
+                  )}
+                </button>
+
+                {Object.keys(filters).length > 0 && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="inline-flex h-8 items-center gap-2 rounded-md border border-gray-900 px-3 text-sm font-semibold shadow transition-colors hover:border-gray-700 hover:text-gray-700"
+                  >
+                    Clear Filters
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {showFilters && facetSchema.length > 0 && (
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+                  {periodValues.length > 0 && (
+                    <div className="rounded-md border border-gray-300 bg-white p-3 lg:col-span-2 xl:col-span-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-stone-900">Period</div>
+                        <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700">
+                          {selectedPeriodSummary}
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-stone-500">
+                          <span>
+                            From <span className="normal-case tracking-normal text-stone-700">{periodValues[selectedPeriodStartIndex] ?? "-"}</span>
+                          </span>
+                          <span>
+                            To <span className="normal-case tracking-normal text-stone-700">{periodValues[selectedPeriodEndIndex] ?? "-"}</span>
+                          </span>
+                        </div>
+
+                        <MySlider
+                          label="Period range"
+                          thumbLabels={["Period start", "Period end"]}
+                          minValue={0}
+                          maxValue={Math.max(periodValues.length - 1, 0)}
+                          step={1}
+                          value={[selectedPeriodStartIndex, selectedPeriodEndIndex]}
+                          onChange={handlePeriodSliderChange}
+                        />
+                      </div>
+
+                      <div className="mt-2 flex justify-between text-[10px] font-medium text-stone-500">
+                        <span>{periodValues[0]}</span>
+                        <span>{periodValues[periodValues.length - 1]}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-md border border-gray-300 bg-white p-3 lg:col-span-2">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-stone-900">Language</div>
+                      {hasLanguageFilters && (
+                        <button
+                          type="button"
+                          onClick={clearLanguageFilters}
+                          className="inline-flex h-7 items-center rounded-md border border-gray-300 px-2 text-xs font-semibold text-stone-700 transition-colors hover:border-stone-500 hover:text-stone-900"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <MySelect
+                        label="Family"
+                        selectedKey={selectedLanguageLevel1 || "all"}
+                        onSelectionChange={(value: React.Key | null) => {
+                          if (typeof value === "string") {
+                            handleFilterChange("language_level_1", value)
+                          }
+                        }}
+                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
+                        isDisabled={languageLevel1Options.length === 0}
+                      >
+                        <MyItem key="all" id="all">All families</MyItem>
+                        {languageLevel1Options.map((option) => (
+                          <MyItem key={option} id={option} textValue={option}>
+                            {option}
+                          </MyItem>
+                        ))}
+                      </MySelect>
+
+                      <MySelect
+                        label="Branch"
+                        selectedKey={selectedLanguageLevel2 || "all"}
+                        onSelectionChange={(value: React.Key | null) => {
+                          if (typeof value === "string") {
+                            handleFilterChange("language_level_2", value)
+                          }
+                        }}
+                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
+                        isDisabled={!selectedLanguageLevel1 || languageLevel2Options.length === 0}
+                      >
+                        <MyItem key="all" id="all">All branches</MyItem>
+                        {languageLevel2Options.map((option) => (
+                          <MyItem key={option} id={option} textValue={option}>
+                            {option}
+                          </MyItem>
+                        ))}
+                      </MySelect>
+
+                      <MySelect
+                        label="Leaf"
+                        selectedKey={selectedLanguageLevel3 || "all"}
+                        onSelectionChange={(value: React.Key | null) => {
+                          if (typeof value === "string") {
+                            handleFilterChange("language_level_3", value)
+                          }
+                        }}
+                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
+                        isDisabled={!selectedLanguageLevel2 || languageLevel3Options.length === 0}
+                      >
+                        <MyItem key="all" id="all">All leaves</MyItem>
+                        {languageLevel3Options.map((option) => (
+                          <MyItem key={option} id={option} textValue={option}>
+                            {option}
+                          </MyItem>
+                        ))}
+                      </MySelect>
+                    </div>
+                  </div>
+
+                  {booleanFacetFields.map((field) => {
+                    const selectedValue = typeof filters[field.key] === "boolean" ? filters[field.key] : undefined
+                    const filterChoices = [
+                      { label: "All", value: null, count: undefined },
+                      { label: "No", value: false, count: getBooleanFilterCount(field.key, false) },
+                      { label: "Yes", value: true, count: getBooleanFilterCount(field.key, true) },
+                    ]
+
+                    return (
+                      <div key={field.key} className="rounded-md border border-gray-300 bg-white p-3">
+                        <div className="text-sm font-semibold text-stone-900">{field.label}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {filterChoices.map((choice) => {
+                            const isSelected = choice.value === null ? selectedValue === undefined : selectedValue === choice.value
+
+                            return (
+                              <button
+                                key={`${field.key}-${choice.label}`}
+                                type="button"
+                                onClick={() => handleBooleanFilterChange(field.key, choice.value)}
+                                className={`inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold transition-colors ${
+                                  isSelected
+                                    ? "border-stone-900 bg-stone-900 text-stone-50"
+                                    : "border-stone-300 text-stone-700 hover:border-stone-500 hover:text-stone-900"
+                                }`}
+                              >
+                                {choice.count !== undefined ? `${choice.label} (${choice.count})` : choice.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {genericFacetFields.map((field) => {
+                    const availableValues = getFilterOptions(field.key)
+
+                    return (
+                      <div key={field.key} className="rounded-md border border-gray-300 bg-white p-3">
+                        <MySelect
+                          label={field.label}
+                          selectedKey={filters[field.key] !== undefined ? encodeFilterValue(filters[field.key]) : "all"}
+                          onSelectionChange={(value: React.Key | null) => {
+                            if (typeof value === "string") {
+                              handleFilterChange(field.key, value)
+                            }
+                          }}
+                          buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
+                          isDisabled={availableValues.length === 0}
+                        >
+                          <MyItem key="all" id="all">All</MyItem>
+                          {availableValues.map((option) => (
+                            <MyItem key={option.key} id={option.key} textValue={option.label}>
+                              {option.count !== undefined ? `${option.label} (${option.count})` : option.label}
+                            </MyItem>
+                          ))}
+                        </MySelect>
+                      </div>
+                    )
+                  })}
                 </div>
-              </SearchField>
+              )}
+
+              {Object.keys(filters).length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(filters).map(([key, value]) => {
+                    const displayValue = formatActiveFilterValue(key, value)
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleFilterChange(key, "all")}
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-900 px-2 py-1 text-xs font-semibold shadow-sm transition-colors hover:border-gray-700 hover:text-gray-700"
+                        title="Remove filter"
+                      >
+                        <span className="hidden sm:inline">{getFilterLabel(key)}:</span>
+                        <span className="sm:hidden">{getFilterLabel(key).split(" ")[0]}:</span>
+                        <span className="max-w-16 truncate sm:max-w-24 md:max-w-32">{displayValue}</span>
+                        <X size={10} className="flex-shrink-0" />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
+
         {showKeyboard && (
           <div className="mt-2"><OnScreenKeyboard onInsert={handleInsertChar} /></div>
         )}
-
-        <div className="flex gap-x-1 gap-y-1 items-center flex-wrap">
-          <Label className="text-sm font-medium whitespace-nowrap w-full">Search within:</Label>
-          <ToggleButton
-            isSelected={searchFields.epigraphText}
-            onChange={selected => setSearchFields(prev => ({...prev, epigraphText: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.epigraphText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              <span className="hidden sm:inline">Epigraph Text</span>
-              <span className="sm:hidden">Text</span>
-            </span>
-          </ToggleButton>
-          <ToggleButton
-            isSelected={searchFields.translationText}
-            onChange={selected => setSearchFields(prev => ({...prev, translationText: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.translationText ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              <span className="hidden sm:inline">Translations</span>
-              <span className="sm:hidden">Trans.</span>
-            </span>
-          </ToggleButton>
-          <ToggleButton
-            isSelected={searchFields.notes}
-            onChange={selected => setSearchFields(prev => ({...prev, notes: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.notes ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              Notes
-            </span>
-          </ToggleButton>
-          <ToggleButton
-            isSelected={searchFields.bibliography}
-            onChange={selected => setSearchFields(prev => ({...prev, bibliography: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.bibliography ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              <span className="hidden sm:inline">Bibliography</span>
-              <span className="sm:hidden">Biblio.</span>
-            </span>
-          </ToggleButton>
-          <ToggleButton
-            isSelected={searchFields.title}
-            onChange={selected => setSearchFields(prev => ({...prev, title: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.title ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              Title
-            </span>
-          </ToggleButton>
-          <ToggleButton
-            isSelected={searchFields.physical}
-            onChange={selected => setSearchFields(prev => ({...prev, physical: selected}))}
-            className={({isSelected}) => `
-              flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-              ${isSelected 
-                ? "border-gray-600 text-gray-800"
-                : "border-gray-900 hover:border-gray-700 hover:text-gray-700"
-              }
-            `}
-          >
-            {searchFields.physical ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-            <span className="flex items-center gap-1">
-              <span className="hidden sm:inline">Physical Attributes</span>
-              <span className="sm:hidden">Phys.</span>
-            </span>
-          </ToggleButton>
-        </div>
-        <MyDisclosure title="Search Tips" className="text-sm">
-          <div className="text-sm text-gray-700 border border-gray-400 rounded-sm p-3 mt-2 mb-4">
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-gray-100 rounded-md bg-white text-left text-sm">
-                <thead>
-                  <tr className=" border-b border-gray-200">
-                    <th className="px-3 py-2 font-semibold text-gray-700">Operator</th>
-                    <th className="px-3 py-2 font-semibold text-gray-700">Meaning</th>
-                    <th className="px-3 py-2 font-semibold text-gray-700">Example</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">*</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Matches zero or more characters</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">hud*</span> → "hud", "hudhud", "hudson"</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">?</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Matches any single character</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">hudh?d</span> → "hudhud", "hudhod"</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">+</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Required word or phrase</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">+king</span> → must include "king"</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">-</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Exclude word</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">-war</span> → must not include "war"</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">""</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Exact phrase</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">"south arabia"</span> → must contain the exact phrase</td>
-                  </tr>
-                  <tr>
-                    <td className="px-3 py-2 font-semibold text-gray-700">Combined</td>
-                    <td className="px-3 py-2 text-gray-700 lg:text-nowrap">Mix operators for advanced search</td>
-                    <td className="px-3 py-2 text-gray-700"><span className="font-semibold">+?ound* -pillar temple "south arabia"</span> → must include any word matching "?ound*" (e.g., "found", "foundation", "boundary"), must not include "pillar", should include "temple", and must contain the exact phrase "south arabia"</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </MyDisclosure>
-
-      <SearchField className="max-w-xs mt-4 mb-4">
-        <Label className="block text-sm font-medium mb-1">Go to DASI ID</Label>
-        <div className="relative">
-          <input
-            type="number"
-            placeholder="e.g. 1234"
-            value={dasiIdInput}
-            onChange={(e) => setDasiIdInput(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const val = dasiIdInput.trim()
-                if (val) router.push(`/epigraphs/${parseInt(val, 10)}`)
-              }
-            }}
-            className="w-full border border-gray-400 p-2 pl-9 pr-12 rounded h-8"
-          />
-          <Hash className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            <button
-              type="button"
-              onClick={() => {
-                const val = dasiIdInput.trim()
-                if (!val) return
-                const id = parseInt(val, 10)
-                if (isNaN(id)) return
-                router.push(`/epigraphs/${id}`)
-              }}
-              className="flex items-center justify-center rounded hover:text-gray-700 transition-colors font-semibold h-6 w-6"
-              title="Go to epigraph"
-            >
-              <ArrowRight size={16} />
-            </button>
-          </div>
-        </div>
-      </SearchField>
       </div>
-
-      <div className="">
-        {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg mb-4">
-            {Object.entries(filterLabels).map(([key, label]) => {
-              const availableValues = fieldValues[key] || []
-              return (
-                <div key={key} className="w-full">
-                  <MySelect
-                    label={label}
-                    selectedKey={filters[key as keyof Filters] || "all"}
-                    onSelectionChange={(value: React.Key | null) => {
-                      if (typeof value === "string") {
-                        handleFilterChange(key as keyof Filters, value)
-                      }
-                    }}
-                    buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
-                  >
-                    <MyItem key="all" id="all">All</MyItem>
-                    {availableValues.map((value: any) => {
-                      let displayValue: string
-                      let keyValue: string
-
-                      if (typeof value === "boolean") {
-                        displayValue = value ? "Yes" : "No"
-                        keyValue = String(value)
-                      } else if (Array.isArray(value)) {
-                        displayValue = value.join(", ")
-                        keyValue = JSON.stringify(value)
-                      } else {
-                        displayValue = String(value)
-                        keyValue = String(value)
-                      }
-
-                      return (
-                        <MyItem key={keyValue} id={keyValue}>
-                          {displayValue}
-                        </MyItem>
-                      )
-                    })}
-                  </MySelect>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {Object.keys(filters).length > 0 && (
-        <div className="mb-4">
-          <div className="text-sm text-gray-800">
-            <span className="font-semibold mb-2 block">Active filters:</span>
-            <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-              {Object.entries(filters).map(([key, value]) => {
-                let displayValue: string
-                if (typeof value === "boolean") {
-                  displayValue = value ? "Yes" : "No"
-                } else if (Array.isArray(value)) {
-                  displayValue = value.join(", ")
-                } else {
-                  displayValue = String(value)
-                }
-                return (
-                  <button 
-                    key={key} 
-                    onClick={() => handleFilterChange(key as keyof Filters, "all")}
-                    className="inline-flex items-center gap-1 px-2 py-1 border border-gray-900 rounded text-xs font-semibold shadow-sm flex-shrink-0 hover:border-gray-700 hover:text-gray-700 transition-colors"
-                    title="Remove filter"
-                  >
-                    <span className="hidden sm:inline">{filterLabels[key as keyof typeof filterLabels]}:</span>
-                    <span className="sm:hidden">{filterLabels[key as keyof typeof filterLabels].split(' ')[0]}:</span>
-                    <span className="max-w-16 sm:max-w-24 md:max-w-32 truncate">{displayValue}</span>
-                    <X size={10} className="flex-shrink-0" />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-4 mb-6">
         {epigraphs && (
@@ -886,33 +1155,6 @@ const Epigraphs: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end flex-wrap w-full sm:w-auto sm:justify-end">
           <div className="flex flex-row gap-2 flex-wrap">
-            {Object.keys(filters).length > 0 && (
-              <button
-                onClick={clearAllFilters}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 whitespace-nowrap text-xs sm:text-sm flex-shrink-0"
-              >
-                <span className="hidden sm:inline">Clear All Filters</span>
-                <span className="sm:hidden">Clear</span>
-                <X size={12} />
-              </button>
-            )}
-
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold h-8 text-xs sm:text-sm whitespace-nowrap min-w-fit cursor-pointer"
-            >
-              <Funnel size={14} />
-              <span className="hidden sm:inline">{showFilters ? "Hide Filters" : "Show Filters"}</span>
-              <span className="sm:hidden">Filters</span>
-              {Object.keys(filters).length > 0 && (
-                <span className="bg-white text-zinc-600 text-xs px-1 py-1 rounded-full font-medium min-w-5 h-5 flex items-center justify-center">
-                  {Object.keys(filters).length}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="flex flex-row gap-2 flex-wrap">
             <MySelect
               label="Sort By"
               selectedKey={sortField}
@@ -923,13 +1165,13 @@ const Epigraphs: React.FC = () => {
               }}
               buttonClassName="h-8 max-h-8 min-w-24 sm:min-w-32 text-xs sm:text-sm"
             >
-              {searchTerm && (
-                <MyItem key="_score" id="_score">Relevance</MyItem>
-              )}
-              <MyItem key="dasi_id" id="dasi_id">DASI ID</MyItem>
-              <MyItem key="period" id="period">Period</MyItem>
-              <MyItem key="title" id="title">Title</MyItem>
-              <MyItem key="language_level_1" id="language_level_1">Language</MyItem>
+              {(searchSchema?.sortOptions || [])
+                .filter((sortOption) => hasActiveSearchQuery || !sortOption.searchOnly)
+                .map((sortOption) => (
+                  <MyItem key={sortOption.key} id={sortOption.key} textValue={sortOption.label}>
+                    {sortOption.label}
+                  </MyItem>
+                ))}
             </MySelect>
 
             <MySelect
@@ -950,7 +1192,7 @@ const Epigraphs: React.FC = () => {
       </div>
 
       {epigraphs && !isLoading ? (
-        <div key={`${JSON.stringify(filters)}-${currentPage}-${searchTerm}`}>
+        <div key={`${JSON.stringify(filters)}-${currentPage}-${activeSearchQuery}`}>
           <div className="space-y-4">
             {epigraphs.epigraphs.map((epigraph) => (
               <div
@@ -994,7 +1236,7 @@ const Epigraphs: React.FC = () => {
         <div className="fixed bottom-4 right-4 z-50">
           <button
             onClick={() => setMapVisible(true)}
-            className="bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 focus:outline-none flex items-center justify-center text-gray-700"
+            className="bg-white p-2 rounded-md shadow-lg hover:bg-gray-100 focus:outline-none flex items-center justify-center text-gray-700"
             aria-label="Show map"
           >
             <MapTrifold size={24} weight="regular" />

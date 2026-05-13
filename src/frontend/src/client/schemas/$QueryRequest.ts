@@ -8,5 +8,16 @@ export const $QueryRequest = {
             type: 'string',
             isRequired: true,
         },
+        conversation_history: {
+            type: 'any-of',
+            contains: [{
+                type: 'array',
+                contains: {
+                    type: 'ConversationMessage',
+                },
+            }, {
+                type: 'null',
+            }],
+        },
     },
 } as const;

@@ -2,9 +2,10 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { EpigraphOut } from './EpigraphOut';
-export type QueryResponse = {
-    answer: string;
-    epigraphs?: Array<EpigraphOut>;
+export type EpigraphSearchOperatorResponse = {
+    key: string;
+    token: string;
+    label: string;
+    description: string;
 };
 

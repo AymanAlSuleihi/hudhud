@@ -3,21 +3,21 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { QueryRequest } from '../models/QueryRequest';
-import type { QueryResponse } from '../models/QueryResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class AskService {
     /**
      * Query Hudhud
-     * @returns QueryResponse Successful Response
+     * Stream the AI response in real-time using Server-Sent Events.
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static askQueryHudhud({
         requestBody,
     }: {
         requestBody: QueryRequest,
-    }): CancelablePromise<QueryResponse> {
+    }): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/ask/query',

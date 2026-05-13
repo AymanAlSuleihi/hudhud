@@ -2,17 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $QueryResponse = {
+export const $PipelineRunsOut = {
     properties: {
-        answer: {
-            type: 'string',
-            isRequired: true,
-        },
-        epigraphs: {
+        pipeline_runs: {
             type: 'array',
             contains: {
-                type: 'EpigraphOut',
+                type: 'PipelineRunOut',
             },
+            isRequired: true,
+        },
+        count: {
+            type: 'number',
+            isRequired: true,
         },
     },
 } as const;

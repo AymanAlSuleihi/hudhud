@@ -22,22 +22,37 @@ export function MySlider<T extends number | number[]>(
       >
         {({ state }) => (
           <>
-            <div 
-              className={`absolute bg-gray-500 rounded-full ${
-                orientation === "vertical" 
-                  ? "w-full left-0 bottom-0" 
-                  : "h-full top-0 left-0"
-              }`} 
-              style={
-                orientation === "vertical" 
-                  ? {
-                      height: `${typeof props.value === "number" ? (props.value / (props.maxValue as number)) * 100 : 0}%`
-                    }
-                  : {
-                      width: `${typeof props.value === "number" ? (props.value / (props.maxValue as number)) * 100 : 0}%`
-                    }
-              } 
-            />
+            {(() => {
+              const minValue = Number(props.minValue ?? 0)
+              const maxValue = Number(props.maxValue ?? 100)
+              const range = Math.max(maxValue - minValue, 1)
+              const values = state.values.map((value) => Number(value)).sort((left, right) => left - right)
+              const startValue = values[0] ?? minValue
+              const endValue = values[values.length - 1] ?? startValue
+              const startOffset = ((startValue - minValue) / range) * 100
+              const endOffset = ((endValue - minValue) / range) * 100
+
+              return (
+                <div 
+                  className={`absolute bg-gray-500 rounded-full ${
+                    orientation === "vertical" 
+                      ? "w-full left-0" 
+                      : "h-full top-0"
+                  }`}
+                  style={
+                    orientation === "vertical"
+                      ? {
+                          bottom: `${startOffset}%`,
+                          height: `${Math.max(endOffset - startOffset, 0)}%`,
+                        }
+                      : {
+                          left: `${startOffset}%`,
+                          width: `${Math.max(endOffset - startOffset, 0)}%`,
+                        }
+                  }
+                />
+              )
+            })()}
             {state.values.map((_, i) => (
               <SliderThumb 
                 key={i} 

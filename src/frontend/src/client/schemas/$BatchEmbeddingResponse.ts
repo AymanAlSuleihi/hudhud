@@ -2,35 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $TaskProgressOut = {
+export const $BatchEmbeddingResponse = {
+    description: `Response model for batch embedding operations.`,
     properties: {
-        task_type: {
+        status: {
             type: 'string',
             isRequired: true,
         },
-        total_items: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
-        },
-        processed_items: {
-            type: 'number',
-        },
-        skipped_items: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
-        },
-        status: {
-            type: 'string',
-        },
-        error: {
+        batch_id: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -38,9 +17,25 @@ export const $TaskProgressOut = {
                 type: 'null',
             }],
         },
-        id: {
+        chunk_count: {
             type: 'number',
             isRequired: true,
+        },
+        message: {
+            type: 'string',
+            isRequired: true,
+        },
+        estimated_cost: {
+            type: 'any-of',
+            contains: [{
+                type: 'dictionary',
+                contains: {
+                    properties: {
+                    },
+                },
+            }, {
+                type: 'null',
+            }],
         },
     },
 } as const;

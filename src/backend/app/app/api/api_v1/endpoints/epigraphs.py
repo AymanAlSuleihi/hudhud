@@ -6,6 +6,7 @@ import shutil
 from typing import Any, Dict, List, Optional, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import text as sql_text
 from sqlmodel import asc, desc, func, select
 
@@ -39,6 +40,13 @@ from app.models.pipeline_run import PipelineRun, PipelineRunOut
 from app.services.enrichment.embeddings import EmbeddingsService
 from app.services.importers.epigraph import EpigraphImportService
 from app.services.pipeline.dispatch import dispatch_dasi_pipeline
+from app.services.search.epigraph_fields import get_epigraph_facet_schema, get_epigraph_facet_values
+from app.services.search.epigraph_search_schema import (
+    expand_epigraph_search_scope_keys,
+    get_epigraph_default_sort,
+    get_epigraph_search_schema,
+    validate_epigraph_search_field_keys,
+)
 from app.services.search.service import SearchService
 from app.services.text.word_parser import WordParser
 from app.utils import parse_period
@@ -53,6 +61,95 @@ logging.basicConfig(
 
 
 router = APIRouter(prefix="/epigraphs", tags=["epigraphs"])
+
+FacetBucketPrimitive = str | bool | int | float
+FacetValue = FacetBucketPrimitive | list[str]
+
+
+class EpigraphFacetSchemaFieldResponse(BaseModel):
+    key: str
+    label: str
+    dependsOn: list[str]
+    sortMode: str
+    multiValue: bool
+
+
+class EpigraphSearchFieldResponse(BaseModel):
+    key: str
+    label: str
+    description: str
+    category: str
+    source: str
+    subfields: list[str]
+
+
+class EpigraphSearchScopeResponse(BaseModel):
+    key: str
+    label: str
+    description: str
+    fieldKeys: list[str]
+
+
+class EpigraphSearchSortDefaultResponse(BaseModel):
+    sortField: str
+    sortOrder: str
+
+
+class EpigraphSearchDefaultsResponse(BaseModel):
+    browse: EpigraphSearchSortDefaultResponse
+    search: EpigraphSearchSortDefaultResponse
+    scopeKeys: list[str]
+
+
+class EpigraphSearchSortOptionResponse(BaseModel):
+    key: str
+    label: str
+    defaultOrder: str
+    searchOnly: bool
+
+
+class EpigraphSearchOperatorResponse(BaseModel):
+    key: str
+    token: str
+    label: str
+    description: str
+
+
+class EpigraphSearchSchemaResponse(BaseModel):
+    fields: list[EpigraphSearchFieldResponse]
+    scopes: list[EpigraphSearchScopeResponse]
+    sortOptions: list[EpigraphSearchSortOptionResponse]
+    defaults: EpigraphSearchDefaultsResponse
+    operators: list[EpigraphSearchOperatorResponse]
+
+
+class EpigraphQueryRequest(BaseModel):
+    search_text: str = ""
+    fields: list[str] = Field(default_factory=list)
+    scope_keys: list[str] | None = None
+    include_objects: bool = False
+    object_fields: list[str] = Field(default_factory=list)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=25, ge=1, le=250)
+    sort_field: str | None = None
+    sort_order: str | None = None
+
+
+class EpigraphFacetBucket(BaseModel):
+    value: FacetBucketPrimitive
+    count: int
+
+
+class EpigraphQueryResponse(BaseModel):
+    results: EpigraphsOut
+    facets: Dict[str, List[FacetValue]]
+    facet_counts: Dict[str, List[EpigraphFacetBucket]]
+    facet_schema: list[EpigraphFacetSchemaFieldResponse]
+    page: int
+    page_size: int
+    sort_field: str | None = None
+    sort_order: str
 
 
 def _build_epigraphs_out(epigraphs: Sequence[Epigraph], count: int) -> EpigraphsOut:
@@ -267,6 +364,78 @@ def semantic_search_epigraphs(
     return epigraphs
 
 
+@router.post(
+    "/query",
+    response_model=EpigraphQueryResponse,
+)
+def query_epigraphs(
+    request: EpigraphQueryRequest,
+    session: SessionDep,
+) -> EpigraphQueryResponse:
+    """Run the new canonical epigraph query contract backed by OpenSearch plus canonical facet values."""
+    search_service = SearchService(session)
+
+    published_filters = {"dasi_published": True, **request.filters}
+    has_search_text = bool(request.search_text.strip())
+    default_sort = get_epigraph_default_sort(has_search_text)
+    sort_field = request.sort_field or default_sort["sortField"]
+    sort_order = request.sort_order or default_sort["sortOrder"]
+    resolved_fields = validate_epigraph_search_field_keys(request.fields)
+
+    if request.scope_keys is not None:
+        resolved_fields = expand_epigraph_search_scope_keys(request.scope_keys)
+
+    try:
+        query_result = search_service.opensearch_query_epigraphs(
+            search_text=request.search_text,
+            fields=",".join(resolved_fields) if resolved_fields else None,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            filters=published_filters,
+            skip=(request.page - 1) * request.page_size,
+            limit=request.page_size,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    return EpigraphQueryResponse(
+        results=_build_epigraphs_out(query_result["epigraphs"], query_result["count"]),
+        facets=get_epigraph_facet_values(session, filters=published_filters),
+        facet_counts=query_result["facet_counts"],
+        facet_schema=get_epigraph_facet_schema(),
+        page=request.page,
+        page_size=request.page_size,
+        sort_field=sort_field,
+        sort_order=sort_order,
+    )
+
+
+@router.get(
+    "/schema/search",
+    response_model=EpigraphSearchSchemaResponse,
+)
+def get_epigraph_search_schema_endpoint() -> EpigraphSearchSchemaResponse:
+    """Return the canonical epigraph search schema for search scopes, advanced fields, and sort options."""
+    return EpigraphSearchSchemaResponse.model_validate(get_epigraph_search_schema())
+
+
+@router.get(
+    "/schema/filters",
+    response_model=Dict[str, list[EpigraphFacetSchemaFieldResponse]],
+)
+def get_epigraph_filter_schema() -> Dict[str, list[EpigraphFacetSchemaFieldResponse]]:
+    """Return the canonical epigraph facet metadata for the rebuilt search UI."""
+    return {
+        "fields": [
+            EpigraphFacetSchemaFieldResponse.model_validate(field)
+            for field in get_epigraph_facet_schema()
+        ]
+    }
+
+
 @router.get(
     "/{epigraph_id}",
     response_model=EpigraphOut,
@@ -351,33 +520,7 @@ def get_all_field_values(
     """
     Get all possible values for all fields.
     """
-    field_values = {}
-    for field in [
-        "period",
-        "chronology_conjectural",
-        # "mentioned_date",
-        "language_level_1",
-        "language_level_2",
-        "language_level_3",
-        "alphabet",
-        "script_typology",
-        "script_cursus",
-        "textual_typology",
-        "textual_typology_conjectural",
-        "writing_techniques",
-        "royal_inscription",
-    ]:
-        statement = select(func.distinct(getattr(Epigraph, field))).where(
-            getattr(Epigraph, field).is_not(None)
-        ).order_by(asc(getattr(Epigraph, field)))
-        values = session.exec(statement).all()
-        values = [v for v in values if v]
-
-        if field == "period":
-            values = sorted(values, key=parse_period)
-            
-        field_values[field] = values
-    return field_values
+    return get_epigraph_facet_values(session)
 
 
 @router.get(
@@ -391,84 +534,8 @@ def get_filtered_field_values(
     """
     Get field values based on current filters.
     """
-    base_query = select(Epigraph)
-
-    if filters:
-        filters_dict = json.loads(filters)
-        for key, value in filters_dict.items():
-            if isinstance(value, bool):
-                base_query = base_query.where(
-                    getattr(Epigraph, key).is_(value)
-                )
-            elif isinstance(value, dict) and "not" in value and value["not"] is False:
-                base_query = base_query.where(
-                    getattr(Epigraph, key).isnot(False)
-                )
-            else:
-                base_query = base_query.where(
-                    getattr(Epigraph, key) == value
-                )
-
-    field_values = {}
-    for field in [
-        "period",
-        "chronology_conjectural",
-        "language_level_1",
-        "language_level_2",
-        "language_level_3",
-        "alphabet",
-        "script_typology",
-        "script_cursus",
-        "textual_typology",
-        "textual_typology_conjectural",
-        "writing_techniques",
-        "royal_inscription",
-    ]:
-        field_specific_query = select(Epigraph)
-
-        if filters:
-            filters_dict = json.loads(filters)
-            for key, value in filters_dict.items():
-                should_apply_filter = False
-
-                if field == "language_level_1":
-                    should_apply_filter = key == "dasi_published"
-                elif field == "language_level_2":
-                    should_apply_filter = key in ["dasi_published", "language_level_1"]
-                elif field == "language_level_3":
-                    should_apply_filter = key in ["dasi_published", "language_level_1", "language_level_2"]
-                else:
-                    should_apply_filter = True
-
-                if should_apply_filter:
-                    if isinstance(value, bool):
-                        field_specific_query = field_specific_query.where(
-                            getattr(Epigraph, key).is_(value)
-                        )
-                    elif isinstance(value, dict) and "not" in value and value["not"] is False:
-                        field_specific_query = field_specific_query.where(
-                            getattr(Epigraph, key).isnot(False)
-                        )
-                    else:
-                        field_specific_query = field_specific_query.where(
-                            getattr(Epigraph, key) == value
-                        )
-
-        field_query = field_specific_query.with_only_columns(
-            func.distinct(getattr(Epigraph, field))
-        ).where(
-            getattr(Epigraph, field).is_not(None)
-        ).order_by(asc(getattr(Epigraph, field)))
-
-        values = session.exec(cast(Any, field_query)).all()
-        values = [v for v in values if v]
-
-        if field == "period":
-            values = sorted(values, key=parse_period)
-            
-        field_values[field] = values
-
-    return field_values
+    filters_dict = json.loads(filters) if filters else None
+    return get_epigraph_facet_values(session, filters=filters_dict)
 
 
 @router.post(

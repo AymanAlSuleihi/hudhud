@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { PipelineRunOut } from '../models/PipelineRunOut';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -9,10 +10,10 @@ export class OpensearchService {
     /**
      * Reindex All Epigraphs
      * Reindex all epigraphs to OpenSearch.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
-    public static opensearchReindexAllEpigraphs(): CancelablePromise<any> {
+    public static opensearchReindexAllEpigraphs(): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/opensearch/reindex',
@@ -39,6 +40,9 @@ export class OpensearchService {
     public static opensearchIndexEpigraph({
         epigraphId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         epigraphId: number,
     }): CancelablePromise<any> {
         return __request(OpenAPI, {

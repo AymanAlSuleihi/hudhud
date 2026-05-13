@@ -3,9 +3,14 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { EpigraphCreate } from '../models/EpigraphCreate';
+import type { EpigraphFacetSchemaFieldResponse } from '../models/EpigraphFacetSchemaFieldResponse';
 import type { EpigraphOut } from '../models/EpigraphOut';
+import type { EpigraphQueryRequest } from '../models/EpigraphQueryRequest';
+import type { EpigraphQueryResponse } from '../models/EpigraphQueryResponse';
+import type { EpigraphSearchSchemaResponse } from '../models/EpigraphSearchSchemaResponse';
 import type { EpigraphsOut } from '../models/EpigraphsOut';
 import type { EpigraphUpdate } from '../models/EpigraphUpdate';
+import type { PipelineRunOut } from '../models/PipelineRunOut';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -23,15 +28,30 @@ export class EpigraphsService {
         sortOrder,
         filters,
     }: {
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
     }): CancelablePromise<EpigraphsOut> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/epigraphs/',
+            url: '/api/v1/epigraphs',
             query: {
                 'skip': skip,
                 'limit': limit,
@@ -57,7 +77,7 @@ export class EpigraphsService {
     }): CancelablePromise<EpigraphOut> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/epigraphs/',
+            url: '/api/v1/epigraphs',
             body: requestBody,
             mediaType: 'application/json',
             errors: {
@@ -77,9 +97,21 @@ export class EpigraphsService {
         sortOrder,
         filters,
     }: {
+        /**
+         * Translation text to search for
+         */
         translationText: string,
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
     }): CancelablePromise<EpigraphsOut> {
         return __request(OpenAPI, {
@@ -134,14 +166,35 @@ export class EpigraphsService {
         includeObjects = false,
         objectFields,
     }: {
+        /**
+         * Search text to execute against the corpus
+         */
         searchText: string,
         fields?: (string | null),
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
         includeObjects?: boolean,
+        /**
+         * Comma-separated object fields to search
+         */
         objectFields?: (string | null),
     }): CancelablePromise<EpigraphsOut> {
         return __request(OpenAPI, {
@@ -185,6 +238,51 @@ export class EpigraphsService {
         });
     }
     /**
+     * Query Epigraphs
+     * Run the new canonical epigraph query contract backed by OpenSearch plus canonical facet values.
+     * @returns EpigraphQueryResponse Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsQueryEpigraphs({
+        requestBody,
+    }: {
+        requestBody: EpigraphQueryRequest,
+    }): CancelablePromise<EpigraphQueryResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/epigraphs/query',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Epigraph Search Schema Endpoint
+     * Return the canonical epigraph search schema for search scopes, advanced fields, and sort options.
+     * @returns EpigraphSearchSchemaResponse Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetEpigraphSearchSchemaEndpoint(): CancelablePromise<EpigraphSearchSchemaResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/schema/search',
+        });
+    }
+    /**
+     * Get Epigraph Filter Schema
+     * Return the canonical epigraph facet metadata for the rebuilt search UI.
+     * @returns EpigraphFacetSchemaFieldResponse Successful Response
+     * @throws ApiError
+     */
+    public static epigraphsGetEpigraphFilterSchema(): CancelablePromise<Record<string, Array<EpigraphFacetSchemaFieldResponse>>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/epigraphs/schema/filters',
+        });
+    }
+    /**
      * Read Epigraph By Id
      * Retrieve epigraph by ID.
      * @returns EpigraphOut Successful Response
@@ -193,6 +291,9 @@ export class EpigraphsService {
     public static epigraphsReadEpigraphById({
         epigraphId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         epigraphId: number,
     }): CancelablePromise<EpigraphOut> {
         return __request(OpenAPI, {
@@ -216,6 +317,9 @@ export class EpigraphsService {
         epigraphId,
         requestBody,
     }: {
+        /**
+         * Internal resource identifier
+         */
         epigraphId: number,
         requestBody: EpigraphUpdate,
     }): CancelablePromise<EpigraphOut> {
@@ -241,6 +345,9 @@ export class EpigraphsService {
     public static epigraphsDeleteEpigraph({
         epigraphId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         epigraphId: number,
     }): CancelablePromise<any> {
         return __request(OpenAPI, {
@@ -263,6 +370,9 @@ export class EpigraphsService {
     public static epigraphsReadEpigraphByDasiId({
         dasiId,
     }: {
+        /**
+         * DASI identifier
+         */
         dasiId: number,
     }): CancelablePromise<EpigraphOut> {
         return __request(OpenAPI, {
@@ -285,6 +395,9 @@ export class EpigraphsService {
     public static epigraphsReadEpigraphTextById({
         epigraphId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         epigraphId: number,
     }): CancelablePromise<Record<string, string>> {
         return __request(OpenAPI, {
@@ -319,6 +432,9 @@ export class EpigraphsService {
     public static epigraphsGetFilteredFieldValues({
         filters,
     }: {
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
     }): CancelablePromise<Record<string, Array<any>>> {
         return __request(OpenAPI, {
@@ -335,10 +451,10 @@ export class EpigraphsService {
     /**
      * Import Epigraphs
      * Import epigraphs from external api.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
-    public static epigraphsImportEpigraphs(): CancelablePromise<Record<string, any>> {
+    public static epigraphsImportEpigraphs(): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/epigraphs/import',
@@ -347,7 +463,7 @@ export class EpigraphsService {
     /**
      * Import Epigraphs Range
      * Import epigraphs from external api in a range.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
     public static epigraphsImportEpigraphsRange({
@@ -358,9 +474,9 @@ export class EpigraphsService {
     }: {
         startId: number,
         endId: number,
-        dasiPublished?: boolean,
+        dasiPublished?: (boolean | null),
         updateExisting?: boolean,
-    }): CancelablePromise<Record<string, any>> {
+    }): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/epigraphs/import_range',
@@ -369,50 +485,6 @@ export class EpigraphsService {
                 'end_id': endId,
                 'dasi_published': dasiPublished,
                 'update_existing': updateExisting,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Import Epigraphs Metrics
-     * Get import epigraphs task metrics.
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static epigraphsImportEpigraphsMetrics({
-        taskId,
-    }: {
-        taskId: string,
-    }): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/epigraphs/import_metrics/{task_id}',
-            path: {
-                'task_id': taskId,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Import Images Metrics
-     * Get import images task metrics and progress.
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static epigraphsImportImagesMetrics({
-        taskId,
-    }: {
-        taskId: string,
-    }): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/epigraphs/import_images/metrics/{task_id}',
-            path: {
-                'task_id': taskId,
             },
             errors: {
                 422: `Validation Error`,
@@ -446,10 +518,10 @@ export class EpigraphsService {
     /**
      * Transfer Fields
      * Transfer fields for every epigraph object that's already in the db.
-     * @returns any Successful Response
+     * @returns string Successful Response
      * @throws ApiError
      */
-    public static epigraphsTransferFields(): CancelablePromise<any> {
+    public static epigraphsTransferFields(): CancelablePromise<Record<string, string>> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/epigraphs/transfer_fields',
@@ -485,10 +557,20 @@ export class EpigraphsService {
      * @returns any Successful Response
      * @throws ApiError
      */
-    public static epigraphsGenerateEmbeddingsAll(): CancelablePromise<Record<string, any>> {
+    public static epigraphsGenerateEmbeddingsAll({
+        skipExisting = true,
+    }: {
+        skipExisting?: boolean,
+    }): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/epigraphs/generate_embeddings/all',
+            query: {
+                'skip_existing': skipExisting,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
         });
     }
     /**

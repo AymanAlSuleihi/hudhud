@@ -36,13 +36,11 @@ export const $WordOut = {
             type: 'number',
             isRequired: true,
         },
-        epigraph_count: {
-            type: 'number',
-            isRequired: true,
-        },
-        word_count: {
-            type: 'number',
-            isRequired: true,
+        words: {
+            type: 'array',
+            contains: {
+                type: 'WordConnection',
+            },
         },
     },
 } as const;

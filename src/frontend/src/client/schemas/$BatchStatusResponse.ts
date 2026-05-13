@@ -2,41 +2,45 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $TaskProgressUpdate = {
+export const $BatchStatusResponse = {
+    description: `Response model for batch job status.`,
     properties: {
-        task_type: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
-            }, {
-                type: 'null',
-            }],
-        },
-        total_items: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
-        },
-        processed_items: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
-        },
-        skipped_items: {
-            type: 'any-of',
-            contains: [{
-                type: 'number',
-            }, {
-                type: 'null',
-            }],
+        id: {
+            type: 'string',
+            isRequired: true,
         },
         status: {
+            type: 'string',
+            isRequired: true,
+        },
+        created_at: {
+            type: 'number',
+            isRequired: true,
+        },
+        completed_at: {
+            type: 'any-of',
+            contains: [{
+                type: 'number',
+            }, {
+                type: 'null',
+            }],
+        },
+        failed_at: {
+            type: 'any-of',
+            contains: [{
+                type: 'number',
+            }, {
+                type: 'null',
+            }],
+        },
+        request_counts: {
+            type: 'dictionary',
+            contains: {
+                type: 'number',
+            },
+            isRequired: true,
+        },
+        output_file_id: {
             type: 'any-of',
             contains: [{
                 type: 'string',
@@ -44,7 +48,7 @@ export const $TaskProgressUpdate = {
                 type: 'null',
             }],
         },
-        error: {
+        error_file_id: {
             type: 'any-of',
             contains: [{
                 type: 'string',

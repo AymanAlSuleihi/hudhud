@@ -24,5 +24,16 @@ export const $ValidationError = {
             type: 'string',
             isRequired: true,
         },
+        input: {
+            properties: {
+            },
+        },
+        ctx: {
+            type: 'dictionary',
+            contains: {
+                properties: {
+                },
+            },
+        },
     },
 } as const;

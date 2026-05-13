@@ -2,38 +2,27 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export const $TaskProgressCreate = {
+export const $MultiBatchRequest = {
+    description: `Request model for creating multiple batch jobs.`,
     properties: {
-        task_type: {
-            type: 'string',
-            isRequired: true,
-        },
-        total_items: {
+        chunk_ids: {
             type: 'any-of',
             contains: [{
-                type: 'number',
+                type: 'array',
+                contains: {
+                    type: 'number',
+                },
             }, {
                 type: 'null',
             }],
         },
-        processed_items: {
+        chunks_per_batch: {
             type: 'number',
         },
-        skipped_items: {
+        max_batches: {
             type: 'any-of',
             contains: [{
                 type: 'number',
-            }, {
-                type: 'null',
-            }],
-        },
-        status: {
-            type: 'string',
-        },
-        error: {
-            type: 'any-of',
-            contains: [{
-                type: 'string',
             }, {
                 type: 'null',
             }],

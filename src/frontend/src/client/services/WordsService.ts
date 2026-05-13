@@ -23,10 +23,25 @@ export class WordsService {
         sortOrder,
         filters,
     }: {
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
     }): CancelablePromise<WordsOut> {
         return __request(OpenAPI, {
@@ -74,6 +89,9 @@ export class WordsService {
     public static wordsReadWord({
         wordId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         wordId: number,
     }): CancelablePromise<WordOut> {
         return __request(OpenAPI, {
@@ -97,6 +115,9 @@ export class WordsService {
         wordId,
         requestBody,
     }: {
+        /**
+         * Internal resource identifier
+         */
         wordId: number,
         requestBody: WordUpdate,
     }): CancelablePromise<WordOut> {
@@ -122,6 +143,9 @@ export class WordsService {
     public static wordsDeleteWord({
         wordId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         wordId: number,
     }): CancelablePromise<WordOut> {
         return __request(OpenAPI, {

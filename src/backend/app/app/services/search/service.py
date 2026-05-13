@@ -14,9 +14,19 @@ from app.models.epigraph_chunk import EpigraphChunk
 from app.models.links import EpigraphObjectLink
 from app.models.object import Object
 from app.services.enrichment.embeddings import EmbeddingsService
+from app.services.search.epigraph_fields import (
+    BOOLEAN_FACET_FIELD_KEYS,
+    EPIGRAPH_FACET_FIELDS,
+    get_epigraph_facet_values,
+    sort_epigraph_facet_buckets,
+)
+from app.services.search.epigraph_search_schema import (
+    get_epigraph_legacy_object_query_field_keys,
+    get_epigraph_search_field_keys,
+    validate_epigraph_search_field_keys,
+)
 from app.services.search.ai import AIService
 from app.services.search.opensearch import OpenSearchService
-from app.utils import parse_period
 
 
 logging.basicConfig(
@@ -61,32 +71,7 @@ class SearchService:
 
     def get_filter_options(self) -> Dict[str, List[str]]:
         """Get filter options for epigraphs."""
-        field_values = {}
-        for field in [
-            "period",
-            "chronology_conjectural",
-            "language_level_1",
-            "language_level_2",
-            "language_level_3",
-            "alphabet",
-            "script_typology",
-            "script_cursus",
-            "textual_typology",
-            "textual_typology_conjectural",
-            "writing_techniques",
-            "royal_inscription",
-        ]:
-            statement = select(func.distinct(getattr(Epigraph, field))).where(
-                getattr(Epigraph, field).is_not(None)
-            ).order_by(asc(getattr(Epigraph, field)))
-            values = self.session.exec(statement).all()
-            values = [value for value in values if value]
-
-            if field == "period":
-                values = sorted(values, key=parse_period)
-
-            field_values[field] = values
-        return field_values
+        return get_epigraph_facet_values(self.session)
 
     def transform_query(self, user_query: str) -> Dict[str, Any]:
         """Transform a natural language query into search parameters using AI."""
@@ -165,15 +150,18 @@ class SearchService:
     def _validate_query_fields(self, query_params: Dict[str, Any], filter_options: Dict[str, List[str]]):
         """Helper method to validate query fields and filters."""
         if "fields" in query_params:
-            valid_fields = ["translations", "general_notes", "apparatus_notes", "cultural_notes", "bibliography", "title"]
             fields_list = query_params["fields"].split(",") if query_params["fields"] else []
-            valid_fields_list = [field for field in fields_list if field.strip() in valid_fields]
+            valid_fields_list = validate_epigraph_search_field_keys([field.strip() for field in fields_list if field.strip()])
             query_params["fields"] = ",".join(valid_fields_list) if valid_fields_list else None
 
         if "object_fields" in query_params:
-            valid_object_fields = ["support_notes", "deposit_notes", "cultural_notes", "bibliography", "deposits", "title"]
             object_fields_list = query_params["object_fields"].split(",") if query_params["object_fields"] else []
-            valid_object_fields_list = [field for field in object_fields_list if field.strip() in valid_object_fields]
+            valid_object_fields = set(get_epigraph_legacy_object_query_field_keys())
+            valid_object_fields_list = [
+                field.strip()
+                for field in object_fields_list
+                if field.strip() in valid_object_fields
+            ]
             query_params["object_fields"] = ",".join(valid_object_fields_list) if valid_object_fields_list else None
 
         if "filters" in query_params and query_params["filters"]:
@@ -197,7 +185,7 @@ class SearchService:
         fields: Optional[str] = None,
         sort_field: Optional[str] = None,
         sort_order: Optional[str] = None,
-        filters: Optional[str] = None,
+        filters: Optional[str | Dict[str, Any]] = None,
         skip: int = 0,
         limit: int = 100,
         include_objects: bool = False,
@@ -322,6 +310,10 @@ class SearchService:
                     base_query = base_query.where(
                         getattr(Epigraph, key).is_(value)
                     )
+                elif isinstance(value, list):
+                    base_query = base_query.where(
+                        getattr(Epigraph, key).in_(value)
+                    )
                 else:
                     base_query = base_query.where(
                         getattr(Epigraph, key) == value
@@ -382,7 +374,7 @@ class SearchService:
     def _execute_search(self, search_params: Dict[str, Any]) -> Tuple[List[Epigraph], int]:
         """Execute a search with the given parameters."""
         search_text = search_params.get("search_text", "")
-        fields = "epigraph_text,translations,general_notes,apparatus_notes,cultural_notes,support_notes,deposit_notes,object_cultural_notes,images,sites,deposits,bibliography,title,decorations,materials,shape"
+        fields = ",".join(get_epigraph_search_field_keys())
         sort_field = search_params.get("sort_field")
         sort_order = search_params.get("sort_order")
         filters = search_params.get("filters")
@@ -496,7 +488,7 @@ class SearchService:
         fields: Optional[str] = None,
         sort_field: Optional[str] = None,
         sort_order: Optional[str] = None,
-        filters: Optional[str] = None,
+        filters: Optional[str | Dict[str, Any]] = None,
         skip: int = 0,
         limit: int = 100,
         include_objects: bool = False,
@@ -589,6 +581,97 @@ class SearchService:
                 return result
             else:
                 return [], 0
+
+    def _normalise_opensearch_facet_counts(
+        self,
+        aggregations: Dict[str, Any],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        facet_counts: Dict[str, List[Dict[str, Any]]] = {}
+
+        for field in EPIGRAPH_FACET_FIELDS:
+            buckets = aggregations.get(field.key, {}).get("values", {}).get("buckets", [])
+            facet_counts[field.key] = sort_epigraph_facet_buckets(
+                field.key,
+                [
+                    {
+                        "value": self._normalise_facet_bucket_value(field.key, bucket["key"]),
+                        "count": bucket["doc_count"],
+                    }
+                    for bucket in buckets
+                    if bucket.get("key") is not None and bucket.get("key") != ""
+                ],
+            )
+
+        return facet_counts
+
+    def _normalise_facet_bucket_value(self, field_key: str, value: Any) -> Any:
+        if field_key in BOOLEAN_FACET_FIELD_KEYS:
+            if isinstance(value, bool):
+                return value
+            if value in (1, "1", "true", "True"):
+                return True
+            if value in (0, "0", "false", "False"):
+                return False
+
+        return value
+
+    def opensearch_query_epigraphs(
+        self,
+        search_text: str,
+        fields: Optional[str] = None,
+        sort_field: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        filters: Optional[str | Dict[str, Any]] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        if not self.opensearch:
+            raise RuntimeError("OpenSearch is required for the canonical epigraph query endpoint")
+
+        search_fields: Optional[List[str]] = None
+        if fields:
+            search_fields = [field.strip() for field in fields.split(",")]
+
+        search_filters: Dict[str, Any] = {}
+        if filters:
+            filters_dict = json.loads(filters) if isinstance(filters, str) else filters
+            search_filters.update(filters_dict)
+
+        search_filters.pop("dasi_published", None)
+
+        opensearch_results = self.opensearch.search_epigraphs(
+            query=search_text,
+            fields=search_fields,
+            filters=search_filters,
+            facet_fields=[field.key for field in EPIGRAPH_FACET_FIELDS],
+            sort_field=sort_field,
+            sort_order=sort_order or "asc",
+            skip=skip,
+            limit=limit,
+        )
+
+        epigraph_ids = [int(hit["_source"]["id"]) for hit in opensearch_results["hits"]]
+        total_count = int(opensearch_results["total"])
+
+        ordered_epigraphs: List[Epigraph] = []
+        if epigraph_ids:
+            epigraph_id_column = cast(Any, Epigraph.id)
+            query = select(Epigraph).where(epigraph_id_column.in_(epigraph_ids))
+
+            epigraphs_dict = {epigraph.id: epigraph for epigraph in list(self.session.exec(query).all())}
+            ordered_epigraphs = [
+                epigraphs_dict[eid]
+                for eid in epigraph_ids
+                if eid in epigraphs_dict
+            ]
+
+        return {
+            "epigraphs": ordered_epigraphs,
+            "count": total_count,
+            "facet_counts": self._normalise_opensearch_facet_counts(
+                opensearch_results.get("aggregations", {})
+            ),
+        }
 
     def index_epigraph_to_opensearch(self, epigraph: Epigraph):
         """Index a single epigraph to OpenSearch."""

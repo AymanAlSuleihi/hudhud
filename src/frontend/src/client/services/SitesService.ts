@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { PipelineRunOut } from '../models/PipelineRunOut';
 import type { SiteCreate } from '../models/SiteCreate';
 import type { SiteOut } from '../models/SiteOut';
 import type { SitesOut } from '../models/SitesOut';
@@ -23,10 +24,25 @@ export class SitesService {
         sortOrder,
         filters,
     }: {
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
+        /**
+         * Field name to use for sorting
+         */
         sortField?: (string | null),
-        sortOrder?: (string | null),
+        /**
+         * Sort direction
+         */
+        sortOrder?: ('asc' | 'desc' | null),
+        /**
+         * JSON-encoded filters
+         */
         filters?: (string | null),
     }): CancelablePromise<SitesOut> {
         return __request(OpenAPI, {
@@ -74,6 +90,9 @@ export class SitesService {
     public static sitesReadSite({
         siteId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         siteId: number,
     }): CancelablePromise<SiteOut> {
         return __request(OpenAPI, {
@@ -97,6 +116,9 @@ export class SitesService {
         siteId,
         requestBody,
     }: {
+        /**
+         * Internal resource identifier
+         */
         siteId: number,
         requestBody: SiteUpdate,
     }): CancelablePromise<SiteOut> {
@@ -122,6 +144,9 @@ export class SitesService {
     public static sitesDeleteSite({
         siteId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         siteId: number,
     }): CancelablePromise<SiteOut> {
         return __request(OpenAPI, {
@@ -144,6 +169,9 @@ export class SitesService {
     public static sitesReadSiteByDasiId({
         dasiId,
     }: {
+        /**
+         * DASI identifier
+         */
         dasiId: number,
     }): CancelablePromise<SiteOut> {
         return __request(OpenAPI, {
@@ -165,14 +193,17 @@ export class SitesService {
      */
     public static sitesImportSites({
         dasiId,
+        updateExisting = false,
     }: {
         dasiId?: (number | null),
+        updateExisting?: boolean,
     }): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/sites/import',
             query: {
                 'dasi_id': dasiId,
+                'update_existing': updateExisting,
             },
             errors: {
                 422: `Validation Error`,
@@ -182,7 +213,7 @@ export class SitesService {
     /**
      * Import Sites Range
      * Import sites from external api in a range.
-     * @returns any Successful Response
+     * @returns PipelineRunOut Successful Response
      * @throws ApiError
      */
     public static sitesImportSitesRange({
@@ -193,7 +224,7 @@ export class SitesService {
         startId: number,
         endId: number,
         updateExisting?: boolean,
-    }): CancelablePromise<any> {
+    }): CancelablePromise<PipelineRunOut> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/sites/import_range',
@@ -234,10 +265,10 @@ export class SitesService {
     /**
      * Transfer Fields
      * Transfer fields for every site object that's already in the db.
-     * @returns any Successful Response
+     * @returns string Successful Response
      * @throws ApiError
      */
-    public static sitesTransferFields(): CancelablePromise<any> {
+    public static sitesTransferFields(): CancelablePromise<Record<string, string>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/sites/transfer_fields',
@@ -276,6 +307,9 @@ export class SitesService {
     public static sitesScrapeSite({
         siteId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         siteId: number,
     }): CancelablePromise<any> {
         return __request(OpenAPI, {

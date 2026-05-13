@@ -2,7 +2,9 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ConversationMessage } from './ConversationMessage';
 export type QueryRequest = {
     query: string;
+    conversation_history?: (Array<ConversationMessage> | null);
 };
 

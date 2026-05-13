@@ -21,7 +21,13 @@ export class UsersService {
         skip,
         limit = 100,
     }: {
+        /**
+         * Number of records to skip before returning results
+         */
         skip?: number,
+        /**
+         * Maximum number of records to return
+         */
         limit?: number,
     }): CancelablePromise<Array<UserOut>> {
         return __request(OpenAPI, {
@@ -120,6 +126,9 @@ export class UsersService {
     public static usersReadUserById({
         userId,
     }: {
+        /**
+         * Internal resource identifier
+         */
         userId: number,
     }): CancelablePromise<UserOut> {
         return __request(OpenAPI, {
@@ -143,6 +152,9 @@ export class UsersService {
         userId,
         requestBody,
     }: {
+        /**
+         * Internal resource identifier
+         */
         userId: number,
         requestBody: UserUpdate,
     }): CancelablePromise<UserOut> {

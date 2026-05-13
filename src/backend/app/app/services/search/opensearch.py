@@ -7,6 +7,7 @@ from opensearchpy.exceptions import NotFoundError
 
 from app.core.config import settings
 from app.models.epigraph import Epigraph
+from app.services.search.epigraph_search_schema import get_epigraph_searchable_field_map
 
 logger = logging.getLogger(__name__)
 
@@ -407,6 +408,52 @@ class OpenSearchService:
             logger.error(f"Error creating index: {e}")
             raise
 
+    def _build_filter_clause(self, field: str, value: Any) -> Dict[str, Any]:
+        if isinstance(value, bool):
+            return {"term": {field: value}}
+
+        if isinstance(value, list):
+            return {"terms": {field: value}}
+
+        return {"term": {field: value}}
+
+    def _build_filter_clauses(self, filters: Optional[Dict[str, Any]] = None) -> List[tuple[str, Dict[str, Any]]]:
+        if not filters:
+            return []
+
+        return [
+            (field, self._build_filter_clause(field, value))
+            for field, value in filters.items()
+        ]
+
+    def _build_facet_aggregations(
+        self,
+        filter_clauses: List[tuple[str, Dict[str, Any]]],
+        facet_fields: List[str],
+    ) -> Dict[str, Any]:
+        aggregations: Dict[str, Any] = {}
+
+        for field in facet_fields:
+            other_filter_clauses = [
+                clause
+                for filter_field, clause in filter_clauses
+                if filter_field != field
+            ]
+
+            aggregations[field] = {
+                "filter": {"bool": {"filter": other_filter_clauses}} if other_filter_clauses else {"match_all": {}},
+                "aggs": {
+                    "values": {
+                        "terms": {
+                            "field": field,
+                            "size": 1000,
+                        }
+                    }
+                },
+            }
+
+        return aggregations
+
     def index_epigraph(self, epigraph: Epigraph):
         """Index a single epigraph."""
         try:
@@ -449,6 +496,7 @@ class OpenSearchService:
         query: str,
         fields: Optional[List[str]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        facet_fields: Optional[List[str]] = None,
         sort_field: Optional[str] = None,
         sort_order: str = "asc",
         skip: int = 0,
@@ -456,50 +504,7 @@ class OpenSearchService:
     ) -> Dict[str, Any]:
         """Searches epigraphs in the OpenSearch index"""
 
-        searchable_fields: Dict[str, Optional[List[str]]] = {
-            "title": None,
-            "epigraph_text": None,
-            "general_notes": None,
-            "support_notes": None,
-            "deposit_notes": None,
-            "decorations": [
-                "typeLevel1",
-                "type",
-                "typeLevel2",
-                "subjectLevel1",
-                "partOfHumanBody",
-                "subjectLevel2",
-                "view",
-                "humanGender",
-                "humanClothes",
-                "humanWeapons",
-                "humanGestures",
-                "humanJewellery",
-                "partOfAnimalBody",
-                "symbolShape",
-                "symbolReference",
-                "symbolReferenceText",
-                "monogramName",
-                "animalGestures"
-            ],
-            "translations": [
-                "text",
-                "notes.note",
-                "bibliography.reference",
-                "bibliography.reference_short",
-                "editors.name"
-            ],
-            "cultural_notes": ["note"],
-            "apparatus_notes": ["note"],
-            "bibliography": ["text", "reference", "title", "reference_short"],
-            "sites": ["name"],
-            "editors": ["name"],
-            "images": ["caption"],
-            "object_cultural_notes": ["note"],
-            "deposits": ["settlement", "institution", "repository"],
-            "materials": None,
-            "shape": None
-        }
+        searchable_fields = get_epigraph_searchable_field_map()
 
         if not fields:
             search_fields: List[str] = []
@@ -987,14 +992,16 @@ class OpenSearchService:
             }
         }
 
-        if filters:
-            for field, value in filters.items():
-                if isinstance(value, bool):
-                    search_body["query"]["bool"]["filter"].append({"term": {field: value}})
-                elif isinstance(value, list):
-                    search_body["query"]["bool"]["filter"].append({"terms": {field: value}})
-                else:
-                    search_body["query"]["bool"]["filter"].append({"term": {field: value}})
+        filter_clauses = self._build_filter_clauses(filters)
+        if filter_clauses:
+            search_body["post_filter"] = {
+                "bool": {
+                    "filter": [clause for _, clause in filter_clauses]
+                }
+            }
+
+        if facet_fields:
+            search_body["aggs"] = self._build_facet_aggregations(filter_clauses, facet_fields)
 
         if sort_field and sort_field != "_score":
             search_body["sort"] = [{sort_field: {"order": sort_order}}]
@@ -1009,7 +1016,8 @@ class OpenSearchService:
             return {
                 "hits": response["hits"]["hits"],
                 "total": response["hits"]["total"]["value"],
-                "max_score": response["hits"]["max_score"]
+                "max_score": response["hits"]["max_score"],
+                "aggregations": response.get("aggregations", {}),
             }
         except Exception as e:
             logger.error(f"Error searching epigraphs: {e}")
