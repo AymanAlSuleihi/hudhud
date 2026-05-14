@@ -1,11 +1,11 @@
 # Stage 0, "build-stage", based on Node.js, to build and compile the frontend
-FROM node:22 AS build-stage
+FROM node:22.13.1-alpine AS build-stage
 
 WORKDIR /app
 
 COPY package*.json /app/
 
-RUN npm install
+RUN npm ci
 
 COPY ./ /app/
 
@@ -13,7 +13,7 @@ RUN npm run build
 
 
 # Stage 1, based on Node.js, to run the standalone Next.js app
-FROM node:22-alpine
+FROM node:22.13.1-alpine
 
 WORKDIR /app
 
