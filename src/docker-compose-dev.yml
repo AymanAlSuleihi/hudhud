@@ -49,6 +49,7 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
+      - frontend-next-data:/app/.next
     ports:
       - 5002:5002
     labels:
@@ -190,6 +191,7 @@ services:
 volumes:
   app-db-data:
   frontend-node-modules:
+  frontend-next-data:
   opensearch-data:
 
 networks:
