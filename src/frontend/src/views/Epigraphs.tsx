@@ -536,10 +536,10 @@ const Epigraphs: React.FC = () => {
 
     if (debounceMs) {
       filterDebounceRef.current = setTimeout(() => {
-    fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
+        fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
       }, debounceMs)
       return
-  }
+    }
 
     fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
   }
@@ -979,7 +979,7 @@ const Epigraphs: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="mt-3">
+                      <div className="mt-3 px-3 sm:px-4">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-stone-500">
                           <span>
                             From <span className="normal-case tracking-normal text-stone-700">{periodValues[selectedPeriodStartIndex] ?? "-"}</span>
@@ -998,11 +998,35 @@ const Epigraphs: React.FC = () => {
                           value={[selectedPeriodStartIndex, selectedPeriodEndIndex]}
                           onChange={handlePeriodSliderChange}
                         />
-                      </div>
 
-                      <div className="mt-2 flex justify-between text-[10px] font-medium text-stone-500">
-                        <span>{periodValues[0]}</span>
-                        <span>{periodValues[periodValues.length - 1]}</span>
+                        <div className="relative mt-3 min-h-14 text-[10px] font-medium text-stone-500">
+                          {periodValues.map((period, index) => {
+                            const positionPercentage =
+                              periodValues.length === 1 ? 50 : (index / (periodValues.length - 1)) * 100
+                            const alignmentClassName =
+                              periodValues.length === 1
+                                ? "-translate-x-1/2 items-center text-center"
+                                : index === 0
+                                  ? "items-start text-left"
+                                  : index === periodValues.length - 1
+                                    ? "-translate-x-full items-end text-right"
+                                    : "-translate-x-1/2 items-center text-center"
+
+                            return (
+                              <div
+                                key={`${period}-${index}`}
+                                className={`absolute top-0 flex min-w-0 flex-col gap-1 leading-tight ${alignmentClassName}`}
+                                style={{
+                                  left: `${positionPercentage}%`,
+                                  width: `${periodValues.length === 1 ? 100 : 100 / periodValues.length}%`,
+                                }}
+                              >
+                                <span aria-hidden className="h-2 w-px bg-stone-300" />
+                                <span className="break-words">{period}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
