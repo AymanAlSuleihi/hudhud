@@ -81,6 +81,8 @@ services:
       start_period: 10s
     networks:
       - traefik-public
+    ports:
+      - 5432:5432
 
   redis:
     container_name: hudhud-dev-redis
