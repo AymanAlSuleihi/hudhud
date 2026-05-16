@@ -54,6 +54,9 @@ const LANGUAGE_FILTER_KEYS = ["language_level_1", "language_level_2", "language_
 
 const NON_GENERIC_FILTER_KEYS = new Set<string>(["period", ...BOOLEAN_FILTER_KEYS, ...LANGUAGE_FILTER_KEYS])
 
+const SEARCH_DEBOUNCE_MS = 1000
+const FILTER_DEBOUNCE_MS = 1000
+
 const encodeFilterValue = (value: FilterValue | FacetValue): string => {
   if (Array.isArray(value)) {
     return `__array__:${JSON.stringify(value)}`
@@ -204,6 +207,7 @@ const Epigraphs: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState(initialSearchParamsRef.current.searchTerm)
   const [searchFields, setSearchFields] = useState<SearchScopeState>({})
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const filterDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const activeTextInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -327,6 +331,13 @@ const Epigraphs: React.FC = () => {
   const booleanFacetFields = facetSchema.filter((field) => BOOLEAN_FILTER_KEYS.includes(field.key as (typeof BOOLEAN_FILTER_KEYS)[number]))
   const genericFacetFields = facetSchema.filter((field) => !NON_GENERIC_FILTER_KEYS.has(field.key))
 
+  const clearFilterDebounce = () => {
+    if (filterDebounceRef.current) {
+      clearTimeout(filterDebounceRef.current)
+      filterDebounceRef.current = null
+    }
+  }
+
   const replaceSearchParams = (params: Record<string, string>) => {
     const nextSearchParams = new URLSearchParams()
 
@@ -355,6 +366,7 @@ const Epigraphs: React.FC = () => {
     }
 
     try {
+      clearFilterDebounce()
       setIsLoading(true)
 
       const effectiveSearchQuery = searchQuery.trim()
@@ -481,13 +493,15 @@ const Epigraphs: React.FC = () => {
   }
 
   const handleSearchInputChange = (value: string) => {
+    clearFilterDebounce()
+
     if (debounceRef.current) {
       clearTimeout(debounceRef.current)
     }
 
     debounceRef.current = setTimeout(() => {
       handleSearch(value)
-    }, 300)
+    }, SEARCH_DEBOUNCE_MS)
   }
 
   useEffect(() => {
@@ -495,6 +509,8 @@ const Epigraphs: React.FC = () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
       }
+
+      clearFilterDebounce()
     }
   }, [])
 
@@ -513,12 +529,22 @@ const Epigraphs: React.FC = () => {
     fetchEpigraphs(1, pageSize, sortField, newOrder, filters, searchTerm)
   }
 
-  const applyFilters = (nextFilters: Filters) => {
+  const applyFilters = (nextFilters: Filters, debounceMs?: number) => {
     setFilters(nextFilters)
+
+    clearFilterDebounce()
+
+    if (debounceMs) {
+      filterDebounceRef.current = setTimeout(() => {
+    fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
+      }, debounceMs)
+      return
+  }
+
     fetchEpigraphs(1, pageSize, sortField, sortOrder, nextFilters, searchTerm)
   }
 
-  const updateFilter = (filterKey: string, nextValue?: FilterValue) => {
+  const updateFilter = (filterKey: string, nextValue?: FilterValue, debounceMs?: number) => {
     const newFilters = { ...filters }
 
     if (filterKey === "language_level_1") {
@@ -534,7 +560,7 @@ const Epigraphs: React.FC = () => {
       newFilters[filterKey] = nextValue
     }
 
-    applyFilters(newFilters)
+    applyFilters(newFilters, debounceMs)
   }
 
   const handleFilterChange = (filterKey: string, value: string) => {
@@ -564,7 +590,11 @@ const Epigraphs: React.FC = () => {
     }
 
     const nextPeriods = periodValues.slice(nextStart, nextEnd + 1)
-    updateFilter("period", nextPeriods.length === periodValues.length ? undefined : nextPeriods)
+    updateFilter(
+      "period",
+      nextPeriods.length === periodValues.length ? undefined : nextPeriods,
+      FILTER_DEBOUNCE_MS,
+    )
   }
 
   const clearLanguageFilters = () => {
