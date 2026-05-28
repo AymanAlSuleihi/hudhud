@@ -714,6 +714,19 @@ def transfer_fields(
 
 
 @router.put(
+    "/cleanup_unreliable_links/all",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def cleanup_unreliable_links(
+    session: SessionDep,
+) -> dict[str, Any]:
+    """
+    Remove epigraph links for rows whose DASI relationship payload exceeds the reliability threshold.
+    """
+    return EpigraphImportService(session).cleanup_unreliable_related_links()
+
+
+@router.put(
     "/link_to_sites/all",
     dependencies=[Depends(get_current_active_superuser)],
 )

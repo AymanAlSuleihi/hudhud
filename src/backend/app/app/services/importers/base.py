@@ -21,6 +21,8 @@ UpdateSchemaType = TypeVar("UpdateSchemaType")
 
 
 class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    MAX_RELATED_ENTITY_LINKS = 5
+
     def __init__(
         self,
         session: Session,
@@ -104,6 +106,200 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             return "object"
         raise ValueError("Unknown entity type")
 
+    def _extract_related_dasi_ids(
+        self,
+        detail_data: dict[str, Any],
+        relation_key: str,
+    ) -> list[int]:
+        related_dasi_ids: list[int] = []
+        for related_item in detail_data.get(relation_key, []):
+            if "@id" not in related_item:
+                continue
+
+            try:
+                related_dasi_ids.append(int(str(related_item["@id"]).split("/")[-1]))
+            except (TypeError, ValueError):
+                continue
+
+        return related_dasi_ids
+
+    def _get_related_link_config(self, relation_key: str) -> tuple[type[Any], str, str]:
+        from app.models.links import EpigraphObjectLink, EpigraphSiteLink, ObjectSiteLink
+
+        entity_type = self._determine_entity_type()
+        link_map: dict[tuple[str, str], tuple[type[Any], str, str]] = {
+            ("site", "epigraphs"): (EpigraphSiteLink, "site_id", "epigraph_id"),
+            ("site", "objects"): (ObjectSiteLink, "site_id", "object_id"),
+            ("epigraph", "sites"): (EpigraphSiteLink, "epigraph_id", "site_id"),
+            ("epigraph", "objects"): (EpigraphObjectLink, "epigraph_id", "object_id"),
+            ("object", "sites"): (ObjectSiteLink, "object_id", "site_id"),
+            ("object", "epigraphs"): (EpigraphObjectLink, "object_id", "epigraph_id"),
+        }
+
+        return link_map[(entity_type, relation_key)]
+
+    def _get_current_entity_relation_key(self) -> str:
+        relation_keys = {
+            "site": "sites",
+            "epigraph": "epigraphs",
+            "object": "objects",
+        }
+        return relation_keys[self._determine_entity_type()]
+
+    def _get_related_crud(self, relation_key: str) -> Any:
+        from app.crud.crud_epigraph import epigraph as crud_epigraph
+        from app.crud.crud_object import obj as crud_object
+        from app.crud.crud_site import site as crud_site
+
+        crud_map = {
+            "epigraphs": crud_epigraph,
+            "objects": crud_object,
+            "sites": crud_site,
+        }
+        return crud_map[relation_key]
+
+    def _resolve_related_local_ids(
+        self,
+        relation_key: str,
+        related_dasi_ids: list[int],
+    ) -> set[int]:
+        resolved_local_ids: set[int] = set()
+        for dasi_id in related_dasi_ids:
+            local_id = self._get_entity_local_id(relation_key, dasi_id)
+            if local_id is not None:
+                resolved_local_ids.add(local_id)
+
+        return resolved_local_ids
+
+    def _get_supported_related_local_ids(
+        self,
+        detail_data: dict[str, Any],
+        relation_key: str,
+    ) -> set[int]:
+        related_dasi_ids = self._extract_related_dasi_ids(detail_data, relation_key)
+        if len(related_dasi_ids) > self.MAX_RELATED_ENTITY_LINKS:
+            return set()
+
+        return self._resolve_related_local_ids(relation_key, related_dasi_ids)
+
+    def _reverse_payload_supports_link(
+        self,
+        relation_key: str,
+        related_local_id: int,
+        current_dasi_id: int,
+    ) -> bool:
+        related_entity = self._get_related_crud(relation_key).get(self.session, id=related_local_id)
+        if not related_entity:
+            return False
+
+        reverse_detail_data = cast(dict[str, Any], getattr(related_entity, "dasi_object", {}) or {})
+        reverse_relation_key = self._get_current_entity_relation_key()
+        reverse_related_dasi_ids = self._extract_related_dasi_ids(
+            reverse_detail_data,
+            reverse_relation_key,
+        )
+        if len(reverse_related_dasi_ids) > self.MAX_RELATED_ENTITY_LINKS:
+            return False
+
+        return current_dasi_id in reverse_related_dasi_ids
+
+    def _cleanup_related_links(
+        self,
+        db_item: ModelType,
+        detail_data: dict[str, Any],
+        relation_key: str,
+    ) -> int:
+        db_item_id = cast(int | None, getattr(db_item, "id", None))
+        current_dasi_id = cast(int | None, getattr(db_item, "dasi_id", None))
+        if db_item_id is None or current_dasi_id is None:
+            return 0
+
+        supported_local_ids = self._get_supported_related_local_ids(detail_data, relation_key)
+
+        link_model, source_column_name, target_column_name = self._get_related_link_config(relation_key)
+        source_column = getattr(link_model, source_column_name)
+        links = self.session.query(link_model).filter(source_column == db_item_id).all()
+
+        removed_links = 0
+
+        for link in links:
+            target_id = cast(int | None, getattr(link, target_column_name, None))
+            if target_id is None:
+                continue
+            if target_id in supported_local_ids:
+                continue
+            if self._reverse_payload_supports_link(relation_key, target_id, current_dasi_id):
+                continue
+
+            self.session.delete(link)
+            removed_links += 1
+
+        if removed_links:
+            self.session.commit()
+
+        return removed_links
+
+    def cleanup_unreliable_related_links(
+        self,
+        batch_size: int = 100,
+    ) -> dict[str, Any]:
+        entity_type = self._determine_entity_type()
+        relation_keys_by_entity = {
+            "site": ("epigraphs", "objects"),
+            "epigraph": ("sites", "objects"),
+            "object": ("sites", "epigraphs"),
+        }
+        processed_items = 0
+        cleaned_items = 0
+        removed_links = 0
+        skip = 0
+
+        try:
+            while True:
+                items = self.crud.get_multi(self.session, skip=skip, limit=batch_size)
+                if not items:
+                    break
+
+                for db_item in items:
+                    processed_items += 1
+                    detail_data = cast(dict[str, Any], getattr(db_item, "dasi_object", {}) or {})
+                    removed_for_item = 0
+                    for relation_key in relation_keys_by_entity[entity_type]:
+                        removed_for_relation = self._cleanup_related_links(
+                            db_item,
+                            detail_data,
+                            relation_key,
+                        )
+                        removed_for_item += removed_for_relation
+
+                    if removed_for_item > 0:
+                        cleaned_items += 1
+
+                    removed_links += removed_for_item
+
+                if len(items) < batch_size:
+                    break
+
+                skip += batch_size
+
+            return {
+                "status": "success",
+                "entity_type": self.entity_type,
+                "processed_items": processed_items,
+                "cleaned_items": cleaned_items,
+                "removed_links": removed_links,
+            }
+        except Exception as exc:
+            self.session.rollback()
+            return {
+                "status": "error",
+                "error": str(exc),
+                "entity_type": self.entity_type,
+                "processed_items": processed_items,
+                "cleaned_items": cleaned_items,
+                "removed_links": removed_links,
+            }
+
     def _link_to_related_entities(self, db_item: ModelType, detail_data: dict[str, Any]) -> ModelType:
         from app.crud.crud_epigraph import epigraph as crud_epigraph
         from app.crud.crud_object import obj as crud_object
@@ -113,69 +309,51 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
         if entity_type == "site":
             site_item = cast(Any, db_item)
-            epigraph_dasi_ids = [
-                int(epigraph["@id"].split("/")[-1])
-                for epigraph in detail_data.get("epigraphs", [])
-                if "@id" in epigraph
-            ]
-            for epigraph_dasi_id in epigraph_dasi_ids:
-                epigraph = crud_epigraph.get_by_dasi_id(self.session, dasi_id=epigraph_dasi_id)
-                if epigraph and epigraph.id is not None:
-                    crud_site.link_to_epigraph(self.session, site=site_item, epigraph_id=epigraph.id)
+            epigraph_dasi_ids = self._extract_related_dasi_ids(detail_data, "epigraphs")
+            if len(epigraph_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for epigraph_dasi_id in epigraph_dasi_ids:
+                    epigraph = crud_epigraph.get_by_dasi_id(self.session, dasi_id=epigraph_dasi_id)
+                    if epigraph and epigraph.id is not None:
+                        crud_site.link_to_epigraph(self.session, site=site_item, epigraph_id=epigraph.id)
 
-            object_dasi_ids = [
-                int(obj["@id"].split("/")[-1])
-                for obj in detail_data.get("objects", [])
-                if "@id" in obj
-            ]
-            for object_dasi_id in object_dasi_ids:
-                obj = crud_object.get_by_dasi_id(self.session, dasi_id=object_dasi_id)
-                if obj and obj.id is not None:
-                    crud_site.link_to_object(self.session, site=site_item, object_id=obj.id)
+            object_dasi_ids = self._extract_related_dasi_ids(detail_data, "objects")
+            if len(object_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for object_dasi_id in object_dasi_ids:
+                    obj = crud_object.get_by_dasi_id(self.session, dasi_id=object_dasi_id)
+                    if obj and obj.id is not None:
+                        crud_site.link_to_object(self.session, site=site_item, object_id=obj.id)
 
         elif entity_type == "epigraph":
             epigraph_item = cast(Any, db_item)
-            site_dasi_ids = [
-                int(site["@id"].split("/")[-1])
-                for site in detail_data.get("sites", [])
-                if "@id" in site
-            ]
-            for site_dasi_id in site_dasi_ids:
-                site = crud_site.get_by_dasi_id(self.session, dasi_id=site_dasi_id)
-                if site and site.id is not None:
-                    crud_epigraph.link_to_site(self.session, epigraph=epigraph_item, site_id=site.id)
+            site_dasi_ids = self._extract_related_dasi_ids(detail_data, "sites")
+            if len(site_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for site_dasi_id in site_dasi_ids:
+                    site = crud_site.get_by_dasi_id(self.session, dasi_id=site_dasi_id)
+                    if site and site.id is not None:
+                        crud_epigraph.link_to_site(self.session, epigraph=epigraph_item, site_id=site.id)
 
-            object_dasi_ids = [
-                int(obj["@id"].split("/")[-1])
-                for obj in detail_data.get("objects", [])
-                if "@id" in obj
-            ]
-            for object_dasi_id in object_dasi_ids:
-                obj = crud_object.get_by_dasi_id(self.session, dasi_id=object_dasi_id)
-                if obj and obj.id is not None:
-                    crud_epigraph.link_to_object(self.session, epigraph=epigraph_item, object_id=obj.id)
+            object_dasi_ids = self._extract_related_dasi_ids(detail_data, "objects")
+            if len(object_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for object_dasi_id in object_dasi_ids:
+                    obj = crud_object.get_by_dasi_id(self.session, dasi_id=object_dasi_id)
+                    if obj and obj.id is not None:
+                        crud_epigraph.link_to_object(self.session, epigraph=epigraph_item, object_id=obj.id)
 
         elif entity_type == "object":
             object_item = cast(Any, db_item)
-            site_dasi_ids = [
-                int(site["@id"].split("/")[-1])
-                for site in detail_data.get("sites", [])
-                if "@id" in site
-            ]
-            for site_dasi_id in site_dasi_ids:
-                site = crud_site.get_by_dasi_id(self.session, dasi_id=site_dasi_id)
-                if site and site.id is not None:
-                    crud_object.link_to_site(self.session, obj=object_item, site_id=site.id)
+            site_dasi_ids = self._extract_related_dasi_ids(detail_data, "sites")
+            if len(site_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for site_dasi_id in site_dasi_ids:
+                    site = crud_site.get_by_dasi_id(self.session, dasi_id=site_dasi_id)
+                    if site and site.id is not None:
+                        crud_object.link_to_site(self.session, obj=object_item, site_id=site.id)
 
-            epigraph_dasi_ids = [
-                int(epigraph["@id"].split("/")[-1])
-                for epigraph in detail_data.get("epigraphs", [])
-                if "@id" in epigraph
-            ]
-            for epigraph_dasi_id in epigraph_dasi_ids:
-                epigraph = crud_epigraph.get_by_dasi_id(self.session, dasi_id=epigraph_dasi_id)
-                if epigraph and epigraph.id is not None:
-                    crud_object.link_to_epigraph(self.session, obj=object_item, epigraph_id=epigraph.id)
+            epigraph_dasi_ids = self._extract_related_dasi_ids(detail_data, "epigraphs")
+            if len(epigraph_dasi_ids) <= self.MAX_RELATED_ENTITY_LINKS:
+                for epigraph_dasi_id in epigraph_dasi_ids:
+                    epigraph = crud_epigraph.get_by_dasi_id(self.session, dasi_id=epigraph_dasi_id)
+                    if epigraph and epigraph.id is not None:
+                        crud_object.link_to_epigraph(self.session, obj=object_item, epigraph_id=epigraph.id)
 
         return db_item
 

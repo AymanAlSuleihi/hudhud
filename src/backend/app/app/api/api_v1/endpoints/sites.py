@@ -1,5 +1,5 @@
 import json
-from typing import Annotated
+from typing import Any, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select, func, asc, desc
@@ -315,6 +315,19 @@ def transfer_fields(
         crud_site.update(session, db_obj=site, obj_in=site_update)
 
     return {"status": "success", "message": "Fields transferred for all sites."}
+
+
+@router.put(
+    "/cleanup_unreliable_links/all",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def cleanup_unreliable_links(
+    session: SessionDep,
+) -> dict[str, Any]:
+    """
+    Remove site links for rows whose DASI relationship payload exceeds the reliability threshold.
+    """
+    return SiteImportService(session).cleanup_unreliable_related_links()
 
 
 @router.put(

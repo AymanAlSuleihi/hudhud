@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Any, Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select, func
@@ -277,6 +277,19 @@ def transfer_fields(
         crud_object.update(session, db_obj=obj, obj_in=object_update)
 
     return {"status": "success", "message": "Fields transferred for all objects"}
+
+
+@router.put(
+    "/cleanup_unreliable_links/all",
+    dependencies=[Depends(get_current_active_superuser)],
+)
+def cleanup_unreliable_links(
+    session: SessionDep,
+) -> dict[str, Any]:
+    """
+    Remove object links for rows whose DASI relationship payload exceeds the reliability threshold.
+    """
+    return ObjectImportService(session).cleanup_unreliable_related_links()
 
 
 @router.put(
