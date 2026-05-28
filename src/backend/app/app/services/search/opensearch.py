@@ -78,7 +78,7 @@ class OpenSearchService:
             logger.error(f"Failed to connect to OpenSearch: {exc}")
             raise
 
-    def create_index(self):
+    def create_index(self, *, recreate: bool = False):
         """Create the epigraphs index with mapping."""
         mapping = {
             "settings": {
@@ -197,18 +197,25 @@ class OpenSearchService:
                         },
                     },
                     "period": {"type": "keyword"},
+                    "site_modern_name": {"type": "keyword"},
+                    "site_ancient_name": {"type": "keyword"},
+                    "site_geographical_area": {"type": "keyword"},
+                    "site_country": {"type": "keyword"},
                     "chronology_conjectural": {"type": "boolean"},
                     "mentioned_date": {"type": "text"},
                     "sites": {
                         "type": "nested",
                         "properties": {
                             "name": {"type": "keyword"},
+                            "modern_name": {"type": "keyword"},
+                            "ancient_name": {"type": "keyword"},
                             "id": {"type": "integer"},
                             "uri": {"type": "keyword"},
                             "coordinates": {"type": "geo_point"},
                             "latitude": {"type": "float"},
                             "longitude": {"type": "float"},
                             "region": {"type": "keyword"},
+                            "geographical_area": {"type": "keyword"},
                             "country": {"type": "keyword"},
                         },
                     },
@@ -399,8 +406,12 @@ class OpenSearchService:
 
         try:
             if self.client.indices.exists(index=self.index_name):
-                logger.info(f"Index '{self.index_name}' already exists")
-                return
+                if not recreate:
+                    logger.info(f"Index '{self.index_name}' already exists")
+                    return
+
+                logger.info(f"Recreating index '{self.index_name}'")
+                self.delete_index()
 
             response = self.client.indices.create(index=self.index_name, body=mapping)
             logger.info(f"Created index '{self.index_name}': {response}")
@@ -1096,6 +1107,22 @@ class OpenSearchService:
 
     def _epigraph_to_document(self, epigraph: Epigraph) -> Dict[str, Any]:
         """Convert an Epigraph object to an OpenSearch document."""
+        def unique_non_empty(values: List[Any]) -> List[Any]:
+            seen: set[Any] = set()
+            unique_values: List[Any] = []
+
+            for value in values:
+                if value is None or value == "":
+                    continue
+
+                if value in seen:
+                    continue
+
+                seen.add(value)
+                unique_values.append(value)
+
+            return unique_values
+
         doc: Dict[str, Any] = {
             "id": epigraph.id,
             "dasi_id": epigraph.dasi_id,
@@ -1135,8 +1162,82 @@ class OpenSearchService:
                     t["editors"] = self._clean_editors_dates(t["editors"])
             doc["translations"] = translations
 
-        if epigraph.sites:
-            doc["sites"] = epigraph.sites
+        site_documents: List[Dict[str, Any]] = []
+
+        if getattr(epigraph, "sites_objs", None):
+            for site in epigraph.sites_objs:
+                coordinates = site.coordinates if site.coordinates else None
+                latitude = None
+                longitude = None
+                if isinstance(coordinates, (list, tuple)) and len(coordinates) == 2:
+                    latitude = coordinates[0]
+                    longitude = coordinates[1]
+
+                site_documents.append(
+                    {
+                        "name": site.modern_name,
+                        "modern_name": site.modern_name,
+                        "ancient_name": site.ancient_name,
+                        "id": site.dasi_id or site.id,
+                        "uri": site.uri,
+                        "coordinates": coordinates,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "region": site.geographical_area,
+                        "geographical_area": site.geographical_area,
+                        "country": site.country,
+                    }
+                )
+        elif epigraph.sites:
+            for site in epigraph.sites:
+                if not isinstance(site, dict):
+                    continue
+
+                coordinates = site.get("coordinates")
+                latitude = None
+                longitude = None
+                if isinstance(coordinates, (list, tuple)) and len(coordinates) == 2:
+                    latitude = coordinates[0]
+                    longitude = coordinates[1]
+
+                site_documents.append(
+                    {
+                        "name": site.get("modern_name") or site.get("name"),
+                        "modern_name": site.get("modern_name") or site.get("name"),
+                        "ancient_name": site.get("ancient_name"),
+                        "id": site.get("id"),
+                        "uri": site.get("uri"),
+                        "coordinates": coordinates,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "region": site.get("geographical_area") or site.get("region"),
+                        "geographical_area": site.get("geographical_area") or site.get("region"),
+                        "country": site.get("country"),
+                    }
+                )
+
+        if site_documents:
+            doc["sites"] = site_documents
+
+            site_modern_names = unique_non_empty([
+                site.get("modern_name") or site.get("name")
+                for site in site_documents
+            ])
+            site_ancient_names = unique_non_empty([site.get("ancient_name") for site in site_documents])
+            site_geographical_areas = unique_non_empty([
+                site.get("geographical_area") or site.get("region")
+                for site in site_documents
+            ])
+            site_countries = unique_non_empty([site.get("country") for site in site_documents])
+
+            if site_modern_names:
+                doc["site_modern_name"] = site_modern_names
+            if site_ancient_names:
+                doc["site_ancient_name"] = site_ancient_names
+            if site_geographical_areas:
+                doc["site_geographical_area"] = site_geographical_areas
+            if site_countries:
+                doc["site_country"] = site_countries
 
         if epigraph.script_cursus:
             doc["script_cursus"] = epigraph.script_cursus

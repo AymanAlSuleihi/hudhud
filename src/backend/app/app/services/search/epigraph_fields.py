@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlmodel import Session, asc, func, select
+from sqlmodel import Session, asc, select
 
 from app.models.epigraph import Epigraph
+from app.models.links import EpigraphSiteLink
+from app.models.site import Site
 from app.utils import parse_period
 
 
@@ -17,12 +19,44 @@ class EpigraphFacetField:
     depends_on: tuple[str, ...] = ()
     facet_filter_keys: tuple[str, ...] | None = None
     multi_value: bool = False
+    site_attribute: str | None = None
+
+
+PUBLISHED_FACET_FILTER_KEYS = ("dasi_published",)
 
 
 EPIGRAPH_FACET_FIELDS: tuple[EpigraphFacetField, ...] = (
-    EpigraphFacetField("period", "Period", sort_mode="period"),
-    EpigraphFacetField("chronology_conjectural", "Chronology (Conjectural)"),
-    EpigraphFacetField("language_level_1", "Language (Level 1)", facet_filter_keys=("dasi_published",)),
+    EpigraphFacetField("period", "Period", sort_mode="period", facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS),
+    EpigraphFacetField(
+        "site_modern_name",
+        "Modern Name",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        site_attribute="modern_name",
+    ),
+    EpigraphFacetField(
+        "site_ancient_name",
+        "Ancient Name",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        site_attribute="ancient_name",
+    ),
+    EpigraphFacetField(
+        "site_geographical_area",
+        "Geographical Area",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        site_attribute="geographical_area",
+    ),
+    EpigraphFacetField(
+        "site_country",
+        "Country",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        site_attribute="country",
+    ),
+    EpigraphFacetField(
+        "chronology_conjectural",
+        "Chronology (Conjectural)",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+    ),
+    EpigraphFacetField("language_level_1", "Language (Level 1)", facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS),
     EpigraphFacetField(
         "language_level_2",
         "Language (Level 2)",
@@ -35,13 +69,31 @@ EPIGRAPH_FACET_FIELDS: tuple[EpigraphFacetField, ...] = (
         depends_on=("language_level_1", "language_level_2"),
         facet_filter_keys=("dasi_published", "language_level_1", "language_level_2"),
     ),
-    EpigraphFacetField("alphabet", "Alphabet"),
-    EpigraphFacetField("script_typology", "Script Typology"),
-    EpigraphFacetField("script_cursus", "Script Cursus", multi_value=True),
-    EpigraphFacetField("textual_typology", "Textual Typology"),
-    EpigraphFacetField("textual_typology_conjectural", "Textual Typology (Conjectural)"),
-    EpigraphFacetField("writing_techniques", "Writing Techniques", multi_value=True),
-    EpigraphFacetField("royal_inscription", "Royal Inscription"),
+    EpigraphFacetField("alphabet", "Alphabet", facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS),
+    EpigraphFacetField("script_typology", "Script Typology", facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS),
+    EpigraphFacetField(
+        "script_cursus",
+        "Script Cursus",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        multi_value=True,
+    ),
+    EpigraphFacetField(
+        "textual_typology",
+        "Textual Typology",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+    ),
+    EpigraphFacetField(
+        "textual_typology_conjectural",
+        "Textual Typology (Conjectural)",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+    ),
+    EpigraphFacetField(
+        "writing_techniques",
+        "Writing Techniques",
+        facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS,
+        multi_value=True,
+    ),
+    EpigraphFacetField("royal_inscription", "Royal Inscription", facet_filter_keys=PUBLISHED_FACET_FILTER_KEYS),
 )
 
 EPIGRAPH_FACET_FIELD_MAP = {field.key: field for field in EPIGRAPH_FACET_FIELDS}
@@ -82,6 +134,24 @@ def _get_epigraph_facet_sort_key(field: EpigraphFacetField, value: Any) -> Any:
         return parse_period(str(value))
 
     return str(value).casefold()
+
+
+def _build_facet_value_statement(field: EpigraphFacetField) -> tuple[Any, Any]:
+    if field.site_attribute is not None:
+        site_column = getattr(Site, field.site_attribute)
+        statement = (
+            select(site_column)
+            .distinct()
+            .select_from(Site)
+            .join(EpigraphSiteLink, EpigraphSiteLink.site_id == Site.id)
+            .join(Epigraph, Epigraph.id == EpigraphSiteLink.epigraph_id)
+            .where(site_column.is_not(None))
+        )
+        return statement, site_column
+
+    epigraph_column = getattr(Epigraph, field.key)
+    statement = select(epigraph_column).distinct().where(epigraph_column.is_not(None))
+    return statement, epigraph_column
 
 
 def _sort_epigraph_facet_values(field: EpigraphFacetField, values: list[Any]) -> list[Any]:
@@ -127,9 +197,7 @@ def get_epigraph_facet_values(
     field_values: dict[str, list[Any]] = {}
 
     for field in EPIGRAPH_FACET_FIELDS:
-        statement: Any = select(func.distinct(getattr(Epigraph, field.key))).where(
-            getattr(Epigraph, field.key).is_not(None)
-        )
+        statement, sort_column = _build_facet_value_statement(field)
 
         if filters:
             allowed_filter_keys = set(field.facet_filter_keys) if field.facet_filter_keys is not None else None
@@ -140,7 +208,7 @@ def get_epigraph_facet_values(
 
                 statement = _apply_epigraph_filter(statement, key, value)
 
-        statement = statement.order_by(asc(getattr(Epigraph, field.key)))
+        statement = statement.order_by(asc(sort_column))
         raw_values = [
             value
             for value in session.exec(statement).all()

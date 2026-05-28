@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 import openai
 from pydantic import BaseModel
 from sqlalchemy import String, cast as sa_cast, text
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, asc, desc, func, or_, select
 
 from app.core.config import settings
@@ -702,10 +703,17 @@ class SearchService:
             return
 
         try:
-            self.opensearch.create_index()
+            self.opensearch.create_index(recreate=True)
 
             epigraph_published_column = cast(Any, Epigraph.dasi_published)
-            query = select(Epigraph).where(epigraph_published_column.is_not(False))
+            query = (
+                select(Epigraph)
+                .where(epigraph_published_column.is_not(False))
+                .options(
+                    selectinload(Epigraph.sites_objs),
+                    selectinload(Epigraph.objects),
+                )
+            )
             epigraphs = list(self.session.exec(query).all())
 
             batch_size = 100
