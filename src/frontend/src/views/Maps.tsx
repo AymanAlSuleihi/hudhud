@@ -13,6 +13,7 @@ import {
   ScaleControl,
   Source,
 } from "react-map-gl/maplibre"
+import { MySlider } from "../components/Slider"
 
 type MapMode = "atlas" | "heatmap" | "language"
 type FitPadding = number | { top: number; right: number; bottom: number; left: number }
@@ -70,16 +71,16 @@ interface SiteMapResponse {
 }
 
 interface EpigraphHeatmapPoint {
+  epigraphDasiId: number
+  epigraphUri: string
+  epigraphTitle: string
   siteDasiId: number
   siteUri: string
   siteName: string
-  ancientName: string | null
   country: string
   typeOfSite: string
-  coordinatesAccuracy: string
   coordinates: [number, number]
   period: string
-  epigraphCount: number
 }
 
 interface EpigraphHeatmapResponse {
@@ -148,7 +149,20 @@ interface PointFeatureCollection {
   }>
 }
 
+interface LineFeatureCollection {
+  type: "FeatureCollection"
+  features: Array<{
+    type: "Feature"
+    geometry: {
+      type: "LineString"
+      coordinates: Array<[number, number]>
+    }
+    properties: Record<string, string | number>
+  }>
+}
+
 interface VisibleHeatmapPoint extends EpigraphHeatmapPoint {
+  displayCoordinates: [number, number]
   pointKey: string
 }
 
@@ -177,31 +191,24 @@ interface LanguageChronology {
 
 const modeDefinitions: Array<{ description: string; id: MapMode; shortTitle: string; title: string }> = [
   {
-    shortTitle: "Atlas",
+    shortTitle: "Sites",
     id: "atlas",
-    title: "Site atlas",
+    title: "Sites",
     description: "Browse the mapped site catalogue with country, type, and coordinate-accuracy filters.",
   },
   {
-    shortTitle: "Heatmap",
+    shortTitle: "Epigraphs",
     id: "heatmap",
-    title: "Epigraph heatmap",
-    description: "Track published epigraph density by site and period across the mapped corpus.",
+    title: "Epigraphs",
+    description: "Browse mapped published epigraphs by period across the corpus.",
   },
   {
-    shortTitle: "Language",
+    shortTitle: "Languages",
     id: "language",
-    title: "Language by period",
+    title: "Languages",
     description: "Compare where language groups cluster through time on the mapped site network.",
   },
 ]
-
-const accuracyColorMap: Record<string, string> = {
-  certain: "#0f766e",
-  approximate: "#d97706",
-  assumed: "#7c3aed",
-  unknown: "#6b7280",
-}
 
 const languagePalette = [
   "#0f766e",
@@ -223,9 +230,12 @@ const sideCardClass = "rounded-md border border-gray-200 bg-white p-3"
 const mapShellClass = "relative overflow-hidden rounded-md border border-gray-200 bg-white"
 const panelHeightClass = "h-[460px] sm:h-[540px]"
 const sectionClass = "space-y-4"
-const sectionHeadingClass = "text-xl font-semibold tracking-tight text-gray-900"
 const sectionLeadClass = "text-[13px] leading-5 text-gray-600"
 const mapBadgeBaseClass = "pointer-events-auto inline-flex max-w-max self-start items-center whitespace-nowrap rounded-full border bg-white/96 px-2 py-0.5 text-[10px] font-medium shadow-sm backdrop-blur-sm"
+const popupDismissDelayMs = 180
+const epigraphJitterBaseDistanceMeters = 60
+const epigraphJitterMaxDistanceMeters = 420
+const goldenAngleRadians = Math.PI * (3 - Math.sqrt(5))
 
 function getMapToneClass(tone: "amber" | "neutral" | "sky"): string {
   return tone === "amber" ? "border-amber-200 text-amber-950" : tone === "sky" ? "border-sky-200 text-sky-950" : "border-gray-300 text-gray-800"
@@ -318,6 +328,46 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
 
+function offsetCoordinatesByMeters(
+  coordinates: [number, number],
+  distanceMeters: number,
+  angleRadians: number,
+): [number, number] {
+  const [longitude, latitude] = coordinates
+  const metersPerDegreeLatitude = 111_320
+  const longitudeScale = Math.max(
+    Math.cos((latitude * Math.PI) / 180) * metersPerDegreeLatitude,
+    1e-6,
+  )
+
+  return [
+    longitude + (distanceMeters * Math.cos(angleRadians)) / longitudeScale,
+    latitude + (distanceMeters * Math.sin(angleRadians)) / metersPerDegreeLatitude,
+  ]
+}
+
+function getJitteredEpigraphCoordinates(
+  coordinates: [number, number],
+  index: number,
+  total: number,
+): [number, number] {
+  if (total <= 1) {
+    return coordinates
+  }
+
+  const jitterIndex = index + 1
+  const distanceMeters = Math.min(
+    epigraphJitterBaseDistanceMeters * Math.sqrt(jitterIndex),
+    epigraphJitterMaxDistanceMeters,
+  )
+
+  return offsetCoordinatesByMeters(
+    coordinates,
+    distanceMeters,
+    jitterIndex * goldenAngleRadians,
+  )
+}
+
 function useMinWidth(minWidth: number): boolean {
   const [matches, setMatches] = useState(false)
 
@@ -342,16 +392,51 @@ function useMinWidth(minWidth: number): boolean {
   return matches
 }
 
-function getPeriodLabelPositionStyle(index: number, total: number): React.CSSProperties {
-  if (index === 0) {
-    return { left: "0%", transform: "translateX(0)" }
+function useInteractivePopupHover<T>() {
+  const [hoveredItem, setHoveredItemState] = useState<T | null>(null)
+  const dismissTimeoutRef = useRef<number | null>(null)
+
+  const cancelPendingDismiss = () => {
+    if (dismissTimeoutRef.current === null) {
+      return
+    }
+
+    window.clearTimeout(dismissTimeoutRef.current)
+    dismissTimeoutRef.current = null
   }
 
-  if (index === total - 1) {
-    return { left: "100%", transform: "translateX(-100%)" }
+  const scheduleDismiss = () => {
+    cancelPendingDismiss()
+    dismissTimeoutRef.current = window.setTimeout(() => {
+      dismissTimeoutRef.current = null
+      setHoveredItemState(null)
+    }, popupDismissDelayMs)
   }
 
-  return { left: `${(index / Math.max(total - 1, 1)) * 100}%`, transform: "translateX(-50%)" }
+  const setHoveredItem = (nextItem: T | null) => {
+    if (!nextItem) {
+      scheduleDismiss()
+      return
+    }
+
+    cancelPendingDismiss()
+    setHoveredItemState(nextItem)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimeoutRef.current !== null) {
+        window.clearTimeout(dismissTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  return {
+    hoveredItem,
+    setHoveredItem,
+    cancelPendingDismiss,
+    scheduleDismiss,
+  }
 }
 
 function PeriodRange({
@@ -373,11 +458,16 @@ function PeriodRange({
 }) {
   const labels = ["All", ...periods]
   const selectedLabel = labels[value] ?? "All"
-  const periodLabelClass = "text-[10px] font-medium text-gray-500 whitespace-nowrap md:max-w-[64px] md:overflow-hidden md:text-ellipsis"
-  const embeddedPeriodLabelClass = "min-w-0 truncate text-[10px] font-semibold text-slate-700 md:text-[11px]"
   const shellClass = embedded
     ? "rounded-md border border-white/70 bg-white/90 px-3.5 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-sm"
     : statCardClass
+  const tickClassName = embedded ? "h-1.5 w-px bg-slate-400" : "h-1.5 w-px bg-stone-400"
+  const labelRowClassName = embedded ? "relative mt-2.5 min-h-6 text-[10px] font-medium text-slate-600" : "relative mt-2.5 min-h-6 text-[10px] font-medium text-stone-600"
+  const activeLabelClassName = embedded ? "text-slate-950" : "text-stone-900"
+
+  const handleSliderChange = (nextValue: number) => {
+    onChange(Math.round(nextValue))
+  }
 
   return (
     <div className={shellClass}>
@@ -398,57 +488,43 @@ function PeriodRange({
         </div>
       </div>
 
-      <div className={embedded ? "mt-1.5" : "mt-2"}>
-        {embedded ? (
-          <div className="relative h-4">
-            {labels.map((period, index) => (
-              <span
-                className={`absolute top-0 ${index > 0 && index % 2 !== 0 ? "hidden md:block" : ""}`}
-                key={`${period}-${index}`}
-                style={getPeriodLabelPositionStyle(index, labels.length)}
-                title={period}
-              >
-                <span
-                  className={`block ${embeddedPeriodLabelClass} ${index === value ? "text-slate-950" : ""} ${
-                    index === 0 ? "text-left" : index === labels.length - 1 ? "text-right" : "text-center"
-                  }`}
-                >
-                  {period}
-                </span>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="relative h-4">
-            {labels.map((period, index) => (
-              <span
-                className={`absolute top-0 ${index > 0 && index % 2 !== 0 ? "hidden md:block" : ""}`}
-                key={`${period}-${index}`}
-                style={getPeriodLabelPositionStyle(index, labels.length)}
-                title={period}
-              >
-                <span
-                  className={`block ${periodLabelClass} ${index === value ? "text-gray-700" : ""} ${
-                    index === 0 ? "text-left" : index === labels.length - 1 ? "text-right" : "text-center"
-                  }`}
-                >
-                  {period}
-                </span>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <input
-          aria-label={label}
-          className={`${embedded ? "mt-1.5 h-1.5 rounded-full bg-slate-200/90 accent-slate-900" : "mt-1.5 h-2 rounded-md bg-gray-200 accent-slate-800"} w-full cursor-pointer appearance-none`}
-          max={periods.length}
-          min={0}
-          onChange={(event: { target: { value: string } }) => onChange(Number(event.target.value))}
+      <div className="mt-2.5 px-2 sm:px-3">
+        <MySlider
+          label={label}
+          maxValue={Math.max(labels.length - 1, 0)}
+          minValue={0}
+          onChange={handleSliderChange}
           step={1}
-          type="range"
           value={value}
         />
+
+        <div className={labelRowClassName}>
+          {labels.map((period, index) => {
+            const positionPercentage = labels.length === 1 ? 50 : (index / (labels.length - 1)) * 100
+            const alignmentClassName =
+              labels.length === 1
+                ? "-translate-x-1/2 items-center text-center"
+                : index === 0
+                  ? "items-start text-left"
+                  : "-translate-x-1/2 items-center text-center"
+            const periodValueTextClassName = index === 0 ? "-translate-x-[2px] break-words" : "break-words"
+
+            return (
+              <div
+                className={`absolute top-0 flex min-w-0 flex-col gap-1 leading-tight ${alignmentClassName} ${index === value ? activeLabelClassName : ""}`}
+                key={`${period}-${index}`}
+                style={{
+                  left: `${positionPercentage}%`,
+                  width: `${labels.length === 1 ? 100 : 100 / labels.length}%`,
+                }}
+                title={period}
+              >
+                <span aria-hidden className={tickClassName} />
+                <span className={periodValueTextClassName}>{period}</span>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -633,10 +709,7 @@ function AtlasFilterControls({
   embedded = false,
   stacked = false,
   filters,
-  selectedAccuracy,
-  selectedCountry,
   selectedSiteType,
-  setSelectedAccuracy,
   setSelectedCountry,
   setSelectedSiteType,
 }: {
@@ -644,31 +717,12 @@ function AtlasFilterControls({
   embedded?: boolean
   stacked?: boolean
   filters: SiteMapResponse["filters"]
-  selectedAccuracy: string
-  selectedCountry: string
   selectedSiteType: string
-  setSelectedAccuracy: React.Dispatch<React.SetStateAction<string>>
   setSelectedCountry: React.Dispatch<React.SetStateAction<string>>
   setSelectedSiteType: React.Dispatch<React.SetStateAction<string>>
 }) {
   return (
-    <div className={`grid gap-2.5 ${stacked ? "grid-cols-1" : compact ? "sm:grid-cols-2" : "md:grid-cols-4"}`}>
-      <label className={`flex flex-col gap-1 text-[13px] ${embedded ? "text-gray-800" : "text-gray-700"}`}>
-        <span>Country</span>
-        <select
-          className={`rounded-md border px-2.5 py-1.5 text-[13px] ${embedded ? "border-gray-400 bg-white/92 text-gray-900" : "border-gray-300 bg-white"}`}
-          onChange={(event) => setSelectedCountry(event.target.value)}
-          value={selectedCountry}
-        >
-          <option value="All">All countries</option>
-          {filters.countries.map((country) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
-      </label>
-
+    <div className={`grid gap-2.5 ${stacked ? "grid-cols-1" : compact ? "sm:grid-cols-2" : "md:grid-cols-3"}`}>
       <label className={`flex flex-col gap-1 text-[13px] ${embedded ? "text-gray-800" : "text-gray-700"}`}>
         <span>Site type</span>
         <select
@@ -685,60 +739,18 @@ function AtlasFilterControls({
         </select>
       </label>
 
-      <label className={`flex flex-col gap-1 text-[13px] ${embedded ? "text-gray-800" : "text-gray-700"}`}>
-        <span>Coordinate accuracy</span>
-        <select
-          className={`rounded-md border px-2.5 py-1.5 text-[13px] ${embedded ? "border-gray-400 bg-white/92 text-gray-900" : "border-gray-300 bg-white"}`}
-          onChange={(event) => setSelectedAccuracy(event.target.value)}
-          value={selectedAccuracy}
-        >
-          <option value="All">All accuracy levels</option>
-          {filters.accuracies.map((accuracy) => (
-            <option key={accuracy} value={accuracy}>
-              {accuracy}
-            </option>
-          ))}
-        </select>
-      </label>
-
       <div className="flex items-end">
         <button
           className={`w-full rounded-md border px-2.5 py-1.5 text-[13px] font-medium transition hover:bg-gray-50 ${embedded ? "border-gray-400 bg-white/92 text-gray-900" : "border-gray-300 bg-white text-gray-700"}`}
           onClick={() => {
             setSelectedCountry("All")
             setSelectedSiteType("All")
-            setSelectedAccuracy("All")
           }}
           type="button"
         >
           Reset filters
         </button>
       </div>
-    </div>
-  )
-}
-
-function AtlasAccuracyLegend({
-  counts,
-  compact = false,
-}: {
-  compact?: boolean
-  counts: SiteCount[]
-}) {
-  return (
-    <div className={compact ? "space-y-1.5" : "space-y-2 text-[13px] text-gray-600"}>
-      {counts.map((item) => (
-        <div className="flex items-center justify-between gap-3" key={item.label}>
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-3 w-3 rounded-full"
-              style={{ backgroundColor: accuracyColorMap[item.label.toLowerCase()] ?? accuracyColorMap.unknown }}
-            />
-            <span className={compact ? "text-[12px] text-slate-700" : undefined}>{item.label}</span>
-          </div>
-          <span className={compact ? "text-[12px] font-medium text-slate-900" : "font-medium text-gray-900"}>{item.count.toLocaleString()}</span>
-        </div>
-      ))}
     </div>
   )
 }
@@ -764,8 +776,12 @@ function SiteAtlasPanel({
 }) {
   const [selectedCountry, setSelectedCountry] = useState("All")
   const [selectedSiteType, setSelectedSiteType] = useState("All")
-  const [selectedAccuracy, setSelectedAccuracy] = useState("All")
-  const [hoveredSite, setHoveredSite] = useState<SiteMapPoint | null>(null)
+  const {
+    hoveredItem: hoveredSite,
+    setHoveredItem: setHoveredSite,
+    cancelPendingDismiss: keepHoveredSiteVisible,
+    scheduleDismiss: scheduleHoveredSiteDismiss,
+  } = useInteractivePopupHover<SiteMapPoint>()
   const mapRef = useRef<MapRef>(null)
   const controlsInsideMap = useMinWidth(1024)
 
@@ -777,12 +793,9 @@ function SiteAtlasPanel({
       if (selectedSiteType !== "All" && point.typeOfSite !== selectedSiteType) {
         return false
       }
-      if (selectedAccuracy !== "All" && point.coordinatesAccuracy !== selectedAccuracy) {
-        return false
-      }
       return true
     })
-  }, [data.points, selectedCountry, selectedSiteType, selectedAccuracy])
+  }, [data.points, selectedCountry, selectedSiteType])
 
   const pointLookup = useMemo(() => {
     return new Map(filteredPoints.map((point) => [`site-${point.siteDasiId}`, point]))
@@ -799,7 +812,6 @@ function SiteAtlasPanel({
         },
         properties: {
           pointKey: `site-${point.siteDasiId}`,
-          coordinatesAccuracy: point.coordinatesAccuracy.toLowerCase(),
         },
       })),
     }
@@ -810,7 +822,7 @@ function SiteAtlasPanel({
       return
     }
 
-    fitMapToGeoJson(mapRef.current, geoJson, 7, controlsInsideMap ? { top: 88, right: 84, bottom: 64, left: 360 } : { top: 96, right: 84, bottom: 96, left: 56 })
+    fitMapToGeoJson(mapRef.current, geoJson, 7, controlsInsideMap ? { top: 88, right: 84, bottom: 248, left: 72 } : { top: 96, right: 84, bottom: 96, left: 56 })
     onInitialFitComplete()
   }, [controlsInsideMap, geoJson, isActive, onInitialFitComplete, shouldInitialFit])
 
@@ -828,14 +840,6 @@ function SiteAtlasPanel({
 
   return (
     <div aria-hidden={!isActive} className={isActive ? sectionClass : "hidden"}>
-      <div className="space-y-1.5">
-        <h2 className={sectionHeadingClass}>Mapped site atlas</h2>
-        <p className={sectionLeadClass}>
-          This view stays close to the site catalogue itself. It is useful for browsing mapped places, coordinate quality,
-          and site metadata without inferring inscription density from noisy raw site links.
-        </p>
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <div className={statCardClass}>
           <div className="text-xs uppercase tracking-wide text-gray-500">Mapped sites</div>
@@ -859,10 +863,7 @@ function SiteAtlasPanel({
         <AtlasFilterControls
           compact={false}
           filters={data.filters}
-          selectedAccuracy={selectedAccuracy}
-          selectedCountry={selectedCountry}
           selectedSiteType={selectedSiteType}
-          setSelectedAccuracy={setSelectedAccuracy}
           setSelectedCountry={setSelectedCountry}
           setSelectedSiteType={setSelectedSiteType}
         />
@@ -880,13 +881,13 @@ function SiteAtlasPanel({
           onMouseMove={(event) => {
             const pointKey = event.features?.[0]?.properties?.pointKey
             if (typeof pointKey !== "string") {
-              setHoveredSite(null)
+              scheduleHoveredSiteDismiss()
               return
             }
 
             setHoveredSite(pointLookup.get(pointKey) ?? null)
           }}
-          onMouseOut={() => setHoveredSite(null)}
+          onMouseOut={scheduleHoveredSiteDismiss}
           pitch={viewState.pitch}
           RTLTextPlugin="https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js"
           ref={mapRef}
@@ -902,17 +903,7 @@ function SiteAtlasPanel({
             <Layer
               id="site-points"
               paint={{
-                "circle-color": [
-                  "match",
-                  ["downcase", ["get", "coordinatesAccuracy"]],
-                  "certain",
-                  accuracyColorMap.certain,
-                  "approximate",
-                  accuracyColorMap.approximate,
-                  "assumed",
-                  accuracyColorMap.assumed,
-                  accuracyColorMap.unknown,
-                ],
+                "circle-color": "#0f172a",
                 "circle-opacity": 0.88,
                 "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 7, 7, 10, 10],
                 "circle-stroke-color": "#ffffff",
@@ -930,7 +921,11 @@ function SiteAtlasPanel({
               latitude={hoveredSite.coordinates[1]}
               longitude={hoveredSite.coordinates[0]}
             >
-              <div className="max-w-[210px] space-y-1 px-2 py-1 text-[13px]">
+              <div
+                className="max-w-[210px] space-y-1 px-2 py-1 text-[13px]"
+                onMouseEnter={keepHoveredSiteVisible}
+                onMouseLeave={scheduleHoveredSiteDismiss}
+              >
                 <div className="font-semibold text-gray-900">{hoveredSite.modernName}</div>
                 {hoveredSite.ancientName && hoveredSite.ancientName !== "Unknown" && (
                   <div className="text-gray-600">Ancient name: {hoveredSite.ancientName}</div>
@@ -960,12 +955,11 @@ function SiteAtlasPanel({
           </div>
 
           {controlsInsideMap ? (
-            <div className="pointer-events-none absolute left-2 top-2 bottom-2 z-10 w-[20.5rem]">
+            <div className="pointer-events-none absolute bottom-2 left-2 z-10 w-[20.5rem] max-w-[calc(100%-1rem)]">
               <div className="pointer-events-auto rounded-md border border-white/75 bg-white/92 p-3 shadow-xl shadow-slate-900/10 backdrop-blur-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Atlas controls</div>
-                    <div className="mt-1 text-[12px] leading-5 text-slate-600">Filter the visible sites and check coordinate confidence without leaving the map.</div>
                   </div>
                   <MapSummaryBadge>
                     {filteredPoints.length.toLocaleString()} / {data.summary.mappedSites.toLocaleString()} sites
@@ -976,18 +970,11 @@ function SiteAtlasPanel({
                     compact={false}
                     embedded
                     filters={data.filters}
-                    selectedAccuracy={selectedAccuracy}
-                    selectedCountry={selectedCountry}
                     selectedSiteType={selectedSiteType}
-                    setSelectedAccuracy={setSelectedAccuracy}
                     setSelectedCountry={setSelectedCountry}
                     setSelectedSiteType={setSelectedSiteType}
                     stacked
                   />
-                </div>
-                <div className="mt-3 border-t border-slate-200/80 pt-3">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Coordinate accuracy</div>
-                  <AtlasAccuracyLegend compact counts={data.accuracyCounts} />
                 </div>
               </div>
             </div>
@@ -997,12 +984,6 @@ function SiteAtlasPanel({
                 <MapSummaryBadge>
                   {filteredPoints.length.toLocaleString()} / {data.summary.mappedSites.toLocaleString()} sites
                 </MapSummaryBadge>
-              </div>
-              <div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[15rem]">
-                <div className="pointer-events-auto rounded-xl border border-white/70 bg-white/92 px-3 py-2 shadow-lg shadow-slate-900/10 backdrop-blur-sm">
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Coordinate accuracy</div>
-                  <AtlasAccuracyLegend compact counts={data.accuracyCounts} />
-                </div>
               </div>
             </>
           )}
@@ -1028,36 +1009,61 @@ function EpigraphHeatmapPanel({
   viewState: MapCameraState
 }) {
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
-  const [hoveredPoint, setHoveredPoint] = useState<VisibleHeatmapPoint | null>(null)
+  const {
+    hoveredItem: hoveredPoint,
+    setHoveredItem: setHoveredPoint,
+    cancelPendingDismiss: keepHoveredPointVisible,
+    scheduleDismiss: scheduleHoveredPointDismiss,
+  } = useInteractivePopupHover<VisibleHeatmapPoint>()
   const mapRef = useRef<MapRef>(null)
   const controlsInsideMap = useMinWidth(1024)
 
   const selectedPeriod = selectedPeriodIndex === 0 ? "All" : data.periods[selectedPeriodIndex - 1] ?? "All"
-  const selectedPeriodLabel = selectedPeriod === "All" ? "All periods" : selectedPeriod
 
   const visiblePoints = useMemo(() => {
-    const grouped = new Map<number, VisibleHeatmapPoint>()
+    const siteGroups = new Map<number, EpigraphHeatmapPoint[]>()
 
     for (const point of data.points) {
       if (selectedPeriod !== "All" && point.period !== selectedPeriod) {
         continue
       }
 
-      const existing = grouped.get(point.siteDasiId)
-      if (existing) {
-        existing.epigraphCount += point.epigraphCount
+      const existingPoints = siteGroups.get(point.siteDasiId)
+      if (existingPoints) {
+        existingPoints.push(point)
         continue
       }
 
-      grouped.set(point.siteDasiId, {
-        ...point,
-        period: selectedPeriod === "All" ? "All" : point.period,
-        pointKey: `heatmap-${point.siteDasiId}`,
+      siteGroups.set(point.siteDasiId, [point])
+    }
+
+    const nextVisiblePoints: VisibleHeatmapPoint[] = []
+
+    for (const [siteDasiId, sitePoints] of siteGroups.entries()) {
+      const sortedSitePoints = [...sitePoints].sort(
+        (left, right) =>
+          left.epigraphDasiId - right.epigraphDasiId ||
+          left.epigraphTitle.localeCompare(right.epigraphTitle),
+      )
+
+      sortedSitePoints.forEach((point, index) => {
+        nextVisiblePoints.push({
+          ...point,
+          displayCoordinates: getJitteredEpigraphCoordinates(
+            point.coordinates,
+            index,
+            sortedSitePoints.length,
+          ),
+          pointKey: `heatmap-${point.epigraphDasiId}-${siteDasiId}`,
+        })
       })
     }
 
-    return [...grouped.values()].sort(
-      (left, right) => right.epigraphCount - left.epigraphCount || left.siteName.localeCompare(right.siteName),
+    return nextVisiblePoints.sort(
+      (left, right) =>
+        left.period.localeCompare(right.period) ||
+        left.siteName.localeCompare(right.siteName) ||
+        left.epigraphTitle.localeCompare(right.epigraphTitle),
     )
   }, [data.points, selectedPeriod])
 
@@ -1066,10 +1072,14 @@ function EpigraphHeatmapPanel({
   }, [visiblePoints])
 
   const visibleOccurrences = useMemo(() => {
-    return visiblePoints.reduce((total, point) => total + point.epigraphCount, 0)
+    return visiblePoints.length
   }, [visiblePoints])
 
-  const geoJson = useMemo<PointFeatureCollection>(() => {
+  const visibleSiteCount = useMemo(() => {
+    return new Set(visiblePoints.map((point) => point.siteDasiId)).size
+  }, [visiblePoints])
+
+  const heatmapGeoJson = useMemo<PointFeatureCollection>(() => {
     return {
       type: "FeatureCollection",
       features: visiblePoints.map((point) => ({
@@ -1078,11 +1088,51 @@ function EpigraphHeatmapPanel({
           type: "Point",
           coordinates: point.coordinates,
         },
+        properties: {},
+      })),
+    }
+  }, [visiblePoints])
+
+  const pointGeoJson = useMemo<PointFeatureCollection>(() => {
+    return {
+      type: "FeatureCollection",
+      features: visiblePoints.map((point) => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: point.displayCoordinates,
+        },
         properties: {
           pointKey: point.pointKey,
-          epigraphCount: point.epigraphCount,
         },
       })),
+    }
+  }, [visiblePoints])
+
+  const connectorLineGeoJson = useMemo<LineFeatureCollection>(() => {
+    return {
+      type: "FeatureCollection",
+      features: visiblePoints.flatMap((point) => {
+        if (
+          point.displayCoordinates[0] === point.coordinates[0] &&
+          point.displayCoordinates[1] === point.coordinates[1]
+        ) {
+          return []
+        }
+
+        return [
+          {
+            type: "Feature" as const,
+            geometry: {
+              type: "LineString" as const,
+              coordinates: [point.coordinates, point.displayCoordinates],
+            },
+            properties: {
+              pointKey: point.pointKey,
+            },
+          },
+        ]
+      }),
     }
   }, [visiblePoints])
 
@@ -1100,13 +1150,6 @@ function EpigraphHeatmapPanel({
 
   return (
     <div aria-hidden={!isActive} className={isActive ? sectionClass : "hidden"}>
-      <div className="space-y-1.5">
-        <h2 className={sectionHeadingClass}>Epigraph heatmap by period</h2>
-        <p className={sectionLeadClass}>
-          This map aggregates published epigraphs onto mapped sites and lets you scrub through the period sequence.
-        </p>
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <div className={statCardClass}>
           <div className="text-xs uppercase tracking-wide text-gray-500">Published epigraphs</div>
@@ -1131,7 +1174,7 @@ function EpigraphHeatmapPanel({
           label="Period"
           onChange={setSelectedPeriodIndex}
           periods={data.periods}
-          summary={`${visibleOccurrences.toLocaleString()} occurrences at ${visiblePoints.length.toLocaleString()} sites`}
+          summary={`${visibleOccurrences.toLocaleString()} epigraphs at ${visibleSiteCount.toLocaleString()} sites`}
           summaryTone="amber"
           value={selectedPeriodIndex}
         />
@@ -1143,19 +1186,19 @@ function EpigraphHeatmapPanel({
           attributionControl={false}
           latitude={viewState.latitude}
           longitude={viewState.longitude}
-          interactiveLayerIds={["epigraph-site-circles"]}
+          interactiveLayerIds={["epigraph-points"]}
           mapStyle="https://tiles.openfreemap.org/styles/liberty"
           onMove={(event) => onViewStateChange(event.viewState as MapCameraState)}
           onMouseMove={(event) => {
             const pointKey = event.features?.[0]?.properties?.pointKey
             if (typeof pointKey !== "string") {
-              setHoveredPoint(null)
+              scheduleHoveredPointDismiss()
               return
             }
 
             setHoveredPoint(pointLookup.get(pointKey) ?? null)
           }}
-          onMouseOut={() => setHoveredPoint(null)}
+          onMouseOut={scheduleHoveredPointDismiss}
           pitch={viewState.pitch}
           RTLTextPlugin="https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js"
           ref={mapRef}
@@ -1167,7 +1210,7 @@ function EpigraphHeatmapPanel({
           <FullscreenControl position="top-right" />
           <NavigationControl position="top-right" />
 
-            <Source data={geoJson as never} id="epigraph-heatmap" type="geojson">
+            <Source data={heatmapGeoJson as never} id="epigraph-heatmap-density" type="geojson">
               <Layer
                 id="epigraph-heat"
                 paint={{
@@ -1189,25 +1232,35 @@ function EpigraphHeatmapPanel({
                   "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.7, 7, 2],
                   "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.9, 9, 0.2],
                   "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 14, 8, 36],
-                  "heatmap-weight": ["interpolate", ["linear"], ["get", "epigraphCount"], 1, 0.15, 20, 1],
+                  "heatmap-weight": 1,
                 }}
                 type="heatmap"
               />
+            </Source>
 
+            <Source data={connectorLineGeoJson as never} id="epigraph-heatmap-connectors" type="geojson">
               <Layer
-                id="epigraph-site-circles"
+                id="epigraph-point-connectors"
+                layout={{
+                  "line-cap": "round",
+                  "line-join": "round",
+                }}
+                paint={{
+                  "line-color": "#64748b",
+                  "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0, 8, 0.55],
+                  "line-width": ["interpolate", ["linear"], ["zoom"], 5, 0.5, 9, 1.1],
+                }}
+                type="line"
+              />
+            </Source>
+
+            <Source data={pointGeoJson as never} id="epigraph-heatmap-points" type="geojson">
+              <Layer
+                id="epigraph-points"
                 paint={{
                   "circle-color": "#9f1239",
                   "circle-opacity": ["interpolate", ["linear"], ["zoom"], 6.5, 0, 8, 0.82],
-                  "circle-radius": [
-                    "interpolate",
-                    ["linear"],
-                    ["zoom"],
-                    5,
-                    ["interpolate", ["linear"], ["get", "epigraphCount"], 1, 4, 20, 10],
-                    9,
-                    ["interpolate", ["linear"], ["get", "epigraphCount"], 1, 8, 20, 18],
-                  ],
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 9, 6],
                   "circle-stroke-color": "#ffffff",
                   "circle-stroke-width": 1.25,
                   "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 6.5, 0, 8, 0.82],
@@ -1221,22 +1274,26 @@ function EpigraphHeatmapPanel({
                 anchor="bottom"
                 closeButton={false}
                 closeOnClick={false}
-                latitude={hoveredPoint.coordinates[1]}
-                longitude={hoveredPoint.coordinates[0]}
+                latitude={hoveredPoint.displayCoordinates[1]}
+                longitude={hoveredPoint.displayCoordinates[0]}
               >
-                <div className="max-w-[210px] space-y-1 px-2 py-1 text-[13px]">
-                  <div className="font-semibold text-gray-900">{hoveredPoint.siteName}</div>
+                <div
+                  className="max-w-[210px] space-y-1 px-2 py-1 text-[13px]"
+                  onMouseEnter={keepHoveredPointVisible}
+                  onMouseLeave={scheduleHoveredPointDismiss}
+                >
+                  <div className="font-semibold text-gray-900">{hoveredPoint.epigraphTitle}</div>
+                  <div className="text-gray-600">Site: {hoveredPoint.siteName}</div>
                   <div className="text-gray-600">Country: {hoveredPoint.country}</div>
                   <div className="text-gray-600">Type: {hoveredPoint.typeOfSite}</div>
-                  <div className="text-gray-600">Period: {selectedPeriodLabel}</div>
-                  <div className="text-gray-600">Epigraphs: {hoveredPoint.epigraphCount.toLocaleString()}</div>
+                  <div className="text-gray-600">Period: {hoveredPoint.period}</div>
                   <a
                     className="inline-flex pt-1 text-xs font-medium text-blue-700 hover:text-blue-900"
-                    href={hoveredPoint.siteUri}
+                    href={hoveredPoint.epigraphUri}
                     rel="noreferrer"
                     target="_blank"
                   >
-                    DASI site {hoveredPoint.siteDasiId}
+                    Open epigraph on DASI
                   </a>
                 </div>
               </Popup>
@@ -1256,7 +1313,7 @@ function EpigraphHeatmapPanel({
                     label="Period"
                     onChange={setSelectedPeriodIndex}
                     periods={data.periods}
-                    summary={`${visibleOccurrences.toLocaleString()} occurrences at ${visiblePoints.length.toLocaleString()} sites`}
+                    summary={`${visibleOccurrences.toLocaleString()} epigraphs at ${visibleSiteCount.toLocaleString()} sites`}
                     summaryTone="amber"
                     value={selectedPeriodIndex}
                   />
@@ -1286,9 +1343,14 @@ function LanguagePeriodPanel({
 }) {
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
   const [selectedLanguageKey, setSelectedLanguageKey] = useState("All")
-  const [hoveredPoint, setHoveredPoint] = useState<VisibleLanguagePoint | null>(null)
+  const {
+    hoveredItem: hoveredPoint,
+    setHoveredItem: setHoveredPoint,
+    cancelPendingDismiss: keepHoveredLanguagePointVisible,
+    scheduleDismiss: scheduleHoveredLanguagePointDismiss,
+  } = useInteractivePopupHover<VisibleLanguagePoint>()
   const mapRef = useRef<MapRef>(null)
-  const controlsInsideMap = useMinWidth(1280)
+  const controlsInsideMap = useMinWidth(1024)
 
   const selectedPeriod = selectedPeriodIndex === 0 ? "All" : data.periods[selectedPeriodIndex - 1] ?? "All"
   const selectedPeriodLabel = selectedPeriod === "All" ? "All periods" : selectedPeriod
@@ -1299,14 +1361,6 @@ function LanguagePeriodPanel({
       groups.map((group, index) => [group, languagePalette[index % languagePalette.length]]),
     ) as Record<string, string>
   }, [data.languages])
-
-  const selectedLanguage = useMemo(() => {
-    if (selectedLanguageKey === "All") {
-      return null
-    }
-
-    return data.languages.find((language) => language.key === selectedLanguageKey) ?? null
-  }, [data.languages, selectedLanguageKey])
 
   const periodOrder = useMemo(() => {
     return Object.fromEntries(data.periods.map((period, index) => [period, index])) as Record<string, number>
@@ -1411,14 +1465,6 @@ function LanguagePeriodPanel({
 
   return (
     <div aria-hidden={!isActive} className={isActive ? sectionClass : "hidden"}>
-      <div className="space-y-1.5">
-        <h2 className={sectionHeadingClass}>Language by period</h2>
-        <p className={sectionLeadClass}>
-          This map groups published epigraphs by language and period, then projects them onto mapped sites so you can
-          compare how language clusters shift across the corpus over time.
-        </p>
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <div className={statCardClass}>
           <div className="text-xs uppercase tracking-wide text-gray-500">Published epigraphs</div>
@@ -1474,13 +1520,13 @@ function LanguagePeriodPanel({
             onMouseMove={(event) => {
               const pointKey = event.features?.[0]?.properties?.pointKey
               if (typeof pointKey !== "string") {
-                setHoveredPoint(null)
+                scheduleHoveredLanguagePointDismiss()
                 return
               }
 
               setHoveredPoint(pointLookup.get(pointKey) ?? null)
             }}
-            onMouseOut={() => setHoveredPoint(null)}
+            onMouseOut={scheduleHoveredLanguagePointDismiss}
             pitch={viewState.pitch}
             RTLTextPlugin="https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js"
             ref={mapRef}
@@ -1522,7 +1568,11 @@ function LanguagePeriodPanel({
                 latitude={hoveredPoint.coordinates[1]}
                 longitude={hoveredPoint.coordinates[0]}
               >
-                <div className="max-w-[220px] space-y-1 px-2 py-1 text-[13px]">
+                <div
+                  className="max-w-[220px] space-y-1 px-2 py-1 text-[13px]"
+                  onMouseEnter={keepHoveredLanguagePointVisible}
+                  onMouseLeave={scheduleHoveredLanguagePointDismiss}
+                >
                   <div className="font-semibold text-gray-900">{hoveredPoint.siteName}</div>
                   <div className="text-gray-600">Language: {hoveredPoint.languageLabel}</div>
                   <div className="text-gray-600">Group: {hoveredPoint.languageGroup}</div>
