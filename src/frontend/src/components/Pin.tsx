@@ -24,9 +24,7 @@ const Pin: React.FC<PinProps> = ({
         size={size}
         color={color}
         weight="fill"
-        className={`cursor-pointer ${
-          isHighlighted ? "stroke-white stroke-2" : "stroke-none stroke-0"
-        }`}
+        className="cursor-pointer"
       />
     </div>
   )
