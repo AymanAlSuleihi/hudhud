@@ -674,6 +674,75 @@ class SearchService:
             ),
         }
 
+    def opensearch_locate_epigraph_result(
+        self,
+        dasi_id: int,
+        page_size: int,
+        search_text: str,
+        fields: Optional[str] = None,
+        sort_field: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        filters: Optional[str | Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, int]]:
+        if not self.opensearch:
+            raise RuntimeError("OpenSearch is required for the epigraph result locator endpoint")
+
+        search_fields: Optional[List[str]] = None
+        if fields:
+            search_fields = [field.strip() for field in fields.split(",")]
+
+        search_filters: Dict[str, Any] = {}
+        if filters:
+            filters_dict = json.loads(filters) if isinstance(filters, str) else filters
+            search_filters.update(filters_dict)
+
+        search_filters.pop("dasi_published", None)
+
+        batch_size = 1000
+        skip = 0
+
+        while True:
+            opensearch_results = self.opensearch.search_epigraphs(
+                query=search_text,
+                fields=search_fields,
+                filters=search_filters,
+                sort_field=sort_field,
+                sort_order=sort_order or "asc",
+                skip=skip,
+                limit=batch_size,
+                source_includes=["dasi_id"],
+                include_highlight=False,
+            )
+
+            hits = opensearch_results["hits"]
+            if not hits:
+                return None
+
+            for index, hit in enumerate(hits):
+                source = hit.get("_source", {})
+                if not isinstance(source, dict):
+                    continue
+
+                hit_dasi_id = source.get("dasi_id")
+                if hit_dasi_id is None:
+                    continue
+
+                try:
+                    if int(hit_dasi_id) != dasi_id:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+
+                absolute_index = skip + index
+                return {
+                    "page": absolute_index // page_size + 1,
+                    "index": absolute_index,
+                }
+
+            skip += len(hits)
+            if skip >= int(opensearch_results["total"]):
+                return None
+
     @staticmethod
     def _normalise_epigraph_marker_coordinates(site: Dict[str, Any]) -> Optional[Tuple[float, float]]:
         coordinates = site.get("coordinates")

@@ -513,6 +513,7 @@ class OpenSearchService:
         skip: int = 0,
         limit: int = 100,
         source_includes: Optional[List[str]] = None,
+        include_highlight: bool = True,
     ) -> Dict[str, Any]:
         """Searches epigraphs in the OpenSearch index"""
 
@@ -958,7 +959,10 @@ class OpenSearchService:
             },
             "from": skip,
             "size": limit,
-            "highlight": {
+        }
+
+        if include_highlight:
+            search_body["highlight"] = {
                 "fields": {
                     "title": {},
                     "epigraph_text": {},
@@ -1002,7 +1006,6 @@ class OpenSearchService:
                     "decorations.animalGestures": {}
                 }
             }
-        }
 
         if source_includes:
             search_body["_source"] = source_includes

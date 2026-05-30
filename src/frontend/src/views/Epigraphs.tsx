@@ -57,6 +57,12 @@ type EpigraphMapMarkerRequest = {
   scope_keys?: string[]
   filters: Record<string, FilterValue>
 }
+type EpigraphResultLocationResponse = {
+  dasi_id: number
+  found: boolean
+  page: number | null
+  index: number | null
+}
 
 const LEGACY_SCOPE_PARAM_KEYS: Record<string, string[]> = {
   epigraphText: ["search_epigraph_text", "search_epigraphText"],
@@ -367,6 +373,7 @@ const Epigraphs: React.FC = () => {
   const [mapLayersExpanded, setMapLayersExpanded] = useState(false)
 
   const [visibleEpigraphId, setVisibleEpigraphId] = useState<string | null>(null)
+  const [pendingScrollEpigraphId, setPendingScrollEpigraphId] = useState<string | null>(null)
   const epigraphRefs = useRef<{[key: string]: HTMLDivElement | null}>({})
   const loadedResultMapMarkerRequestKeyRef = useRef<string | null>(null)
   const hasLoadedAllMapMarkersRef = useRef(false)
@@ -488,6 +495,37 @@ const Epigraphs: React.FC = () => {
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
   }
 
+  const sanitiseFilters = (currentFilters: Filters): Filters => {
+    return Object.fromEntries(
+      Object.entries(currentFilters).filter(([, value]) => {
+        return value !== "" && value !== undefined && (!Array.isArray(value) || value.length > 0)
+      }),
+    ) as Filters
+  }
+
+  const buildEpigraphQueryRequestBody = (
+    currentFilters: Filters,
+    searchQuery: string,
+    currentSearchFields: SearchScopeState,
+    currentSearchSchema: EpigraphSearchSchemaResponse,
+  ) => {
+    const effectiveSearchQuery = searchQuery.trim()
+    const sanitisedFilters = sanitiseFilters(currentFilters)
+
+    return {
+      effectiveSearchQuery,
+      sanitisedFilters,
+      requestBody: {
+        search_text: effectiveSearchQuery,
+        scope_keys: effectiveSearchQuery ? getSelectedScopeKeys(currentSearchFields, currentSearchSchema) : undefined,
+        filters: {
+          dasi_published: true,
+          ...sanitisedFilters,
+        } as Record<string, FilterValue>,
+      },
+    }
+  }
+
   const fetchMapMarkers = async (
     requestBody: EpigraphMapMarkerRequest,
   ): Promise<EpigraphMapMarkersResponse | null> => {
@@ -512,6 +550,59 @@ const Epigraphs: React.FC = () => {
     }
   }
 
+  const fetchEpigraphResultLocation = async (
+    epigraphId: string,
+    currentPageSize: number,
+    sort: string,
+    order: string,
+    currentFilters: Filters,
+    searchQuery: string,
+    currentSearchFields: SearchScopeState,
+    currentSearchSchema: EpigraphSearchSchemaResponse | null,
+  ): Promise<EpigraphResultLocationResponse | null> => {
+    if (!currentSearchSchema) {
+      return null
+    }
+
+    const dasiId = Number.parseInt(epigraphId, 10)
+    if (Number.isNaN(dasiId)) {
+      return null
+    }
+
+    const queryRequest = buildEpigraphQueryRequestBody(
+      currentFilters,
+      searchQuery,
+      currentSearchFields,
+      currentSearchSchema,
+    )
+
+    try {
+      const response = await fetch("/api/v1/epigraphs/query/locate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...queryRequest.requestBody,
+          dasi_id: dasiId,
+          page_size: currentPageSize,
+          sort_field: sort,
+          sort_order: order,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Locator request failed with status ${response.status}`)
+      }
+
+      return response.json() as Promise<EpigraphResultLocationResponse>
+    } catch (error) {
+      console.error("Error locating epigraph search result:", error)
+      return null
+    }
+  }
+
   const fetchEpigraphs = async (
     page: number = 1, 
     size: number = pageSize, 
@@ -530,13 +621,12 @@ const Epigraphs: React.FC = () => {
       clearFilterDebounce()
       setIsLoading(true)
 
-      const effectiveSearchQuery = searchQuery.trim()
-
-      const sanitizedFilters = Object.fromEntries(
-        Object.entries(currentFilters).filter(([, value]) => {
-          return value !== "" && value !== undefined && (!Array.isArray(value) || value.length > 0)
-        }),
-      ) as Filters
+      const queryRequest = buildEpigraphQueryRequestBody(
+        currentFilters,
+        searchQuery,
+        currentSearchFields,
+        currentSearchSchema,
+      )
 
       const nextSearchParams = new URLSearchParams()
       nextSearchParams.set("page", page.toString())
@@ -544,8 +634,8 @@ const Epigraphs: React.FC = () => {
       nextSearchParams.set("sort", sort)
       nextSearchParams.set("order", order)
 
-      if (effectiveSearchQuery) {
-        nextSearchParams.set("q", effectiveSearchQuery)
+      if (queryRequest.effectiveSearchQuery) {
+        nextSearchParams.set("q", queryRequest.effectiveSearchQuery)
         currentSearchSchema.scopes.forEach((scope) => {
           nextSearchParams.set(
             getPrimaryScopeParamKey(scope.key),
@@ -554,7 +644,7 @@ const Epigraphs: React.FC = () => {
         })
       }
 
-      Object.entries(sanitizedFilters)
+      Object.entries(queryRequest.sanitisedFilters)
         .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
         .forEach(([filterKey, filterValue]) => {
           encodeFilterParamValues(filterValue).forEach((value) => {
@@ -564,20 +654,10 @@ const Epigraphs: React.FC = () => {
 
       replaceSearchParams(nextSearchParams)
 
-      const apiFilters: Record<string, FilterValue> = {
-        dasi_published: true,
-        ...sanitizedFilters,
-      }
-
-      const markerRequestBody = {
-        search_text: effectiveSearchQuery,
-        scope_keys: effectiveSearchQuery ? getSelectedScopeKeys(currentSearchFields, currentSearchSchema) : undefined,
-        filters: apiFilters,
-      }
-      const markerRequestKey = JSON.stringify(markerRequestBody)
+      const markerRequestKey = JSON.stringify(queryRequest.requestBody)
       const resultMarkerRequestPromise =
         markerRequestKey !== loadedResultMapMarkerRequestKeyRef.current
-          ? fetchMapMarkers(markerRequestBody)
+          ? fetchMapMarkers(queryRequest.requestBody)
           : null
       const allMarkerRequestPromise =
         !hasLoadedAllMapMarkersRef.current
@@ -591,7 +671,7 @@ const Epigraphs: React.FC = () => {
 
       const result: EpigraphQueryResponse = await EpigraphsService.epigraphsQueryEpigraphs({
         requestBody: {
-          ...markerRequestBody,
+          ...queryRequest.requestBody,
           page,
           page_size: size,
           sort_field: sort,
@@ -1150,10 +1230,61 @@ const Epigraphs: React.FC = () => {
     }
   }, [epigraphs, visibleEpigraphId])
 
-  const scrollToEpigraph = (epigraphId: string) => {
+  useEffect(() => {
+    if (!pendingScrollEpigraphId) {
+      return
+    }
+
+    const ref = epigraphRefs.current[pendingScrollEpigraphId]
+    if (!ref) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      ref.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+    setVisibleEpigraphId(pendingScrollEpigraphId)
+    setPendingScrollEpigraphId(null)
+  }, [epigraphs, pendingScrollEpigraphId])
+
+  const scrollToEpigraph = async (epigraphId: string) => {
     const ref = epigraphRefs.current[epigraphId]
     if (ref) {
       ref.scrollIntoView({ behavior: "smooth", block: "start" })
+      setVisibleEpigraphId(epigraphId)
+      return
+    }
+
+    try {
+      const location = await fetchEpigraphResultLocation(
+        epigraphId,
+        pageSize,
+        sortField,
+        sortOrder,
+        filters,
+        searchTerm,
+        searchFields,
+        searchSchema,
+      )
+
+      if (!location?.found || location.page === null) {
+        router.push(`/epigraphs/${epigraphId}`)
+        return
+      }
+
+      setPendingScrollEpigraphId(epigraphId)
+      await fetchEpigraphs(
+        location.page,
+        pageSize,
+        sortField,
+        sortOrder,
+        filters,
+        searchTerm,
+        searchFields,
+        searchSchema,
+      )
+    } catch (error) {
+      console.error("Error navigating to epigraph in results:", error)
     }
   }
 

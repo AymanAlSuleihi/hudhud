@@ -167,6 +167,24 @@ class EpigraphMapMarkersResponse(BaseModel):
     mapped_count: int
 
 
+class EpigraphResultLocationRequest(BaseModel):
+    dasi_id: int
+    search_text: str = ""
+    fields: list[str] = Field(default_factory=list)
+    scope_keys: list[str] | None = None
+    filters: dict[str, Any] = Field(default_factory=dict)
+    page_size: int = Field(default=25, ge=1, le=250)
+    sort_field: str | None = None
+    sort_order: str | None = None
+
+
+class EpigraphResultLocationResponse(BaseModel):
+    dasi_id: int
+    found: bool
+    page: int | None = None
+    index: int | None = None
+
+
 def _build_epigraphs_out(epigraphs: Sequence[Epigraph], count: int) -> EpigraphsOut:
     return EpigraphsOut(
         epigraphs=[EpigraphOut.model_validate(epigraph) for epigraph in epigraphs],
@@ -425,6 +443,57 @@ def query_epigraphs(
         page_size=request.page_size,
         sort_field=sort_field,
         sort_order=sort_order,
+    )
+
+
+@router.post(
+    "/query/locate",
+    response_model=EpigraphResultLocationResponse,
+)
+def locate_epigraph_query_result(
+    request: EpigraphResultLocationRequest,
+    session: SessionDep,
+) -> EpigraphResultLocationResponse:
+    """Locate the page and absolute index of an epigraph within the canonical query result ordering."""
+    search_service = SearchService(session)
+
+    published_filters = {"dasi_published": True, **request.filters}
+    has_search_text = bool(request.search_text.strip())
+    default_sort = get_epigraph_default_sort(has_search_text)
+    sort_field = request.sort_field or default_sort["sortField"]
+    sort_order = request.sort_order or default_sort["sortOrder"]
+    resolved_fields = validate_epigraph_search_field_keys(request.fields)
+
+    if request.scope_keys is not None:
+        resolved_fields = expand_epigraph_search_scope_keys(request.scope_keys)
+
+    try:
+        location = search_service.opensearch_locate_epigraph_result(
+            dasi_id=request.dasi_id,
+            page_size=request.page_size,
+            search_text=request.search_text,
+            fields=",".join(resolved_fields) if resolved_fields else None,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            filters=published_filters,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    if location is None:
+        return EpigraphResultLocationResponse(
+            dasi_id=request.dasi_id,
+            found=False,
+        )
+
+    return EpigraphResultLocationResponse(
+        dasi_id=request.dasi_id,
+        found=True,
+        page=location["page"],
+        index=location["index"],
     )
 
 
