@@ -674,6 +674,105 @@ class SearchService:
             ),
         }
 
+    @staticmethod
+    def _normalise_epigraph_marker_coordinates(site: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+        coordinates = site.get("coordinates")
+        latitude: Any = None
+        longitude: Any = None
+
+        if isinstance(coordinates, dict):
+            latitude = coordinates.get("lat")
+            longitude = coordinates.get("lon")
+            if latitude is None:
+                latitude = coordinates.get("latitude")
+            if longitude is None:
+                longitude = coordinates.get("longitude")
+        elif isinstance(coordinates, (list, tuple)) and len(coordinates) == 2:
+            latitude = coordinates[0]
+            longitude = coordinates[1]
+
+        if latitude is None:
+            latitude = site.get("latitude")
+        if longitude is None:
+            longitude = site.get("longitude")
+
+        try:
+            return float(latitude), float(longitude)
+        except (TypeError, ValueError):
+            return None
+
+    def _build_epigraph_marker_from_hit(self, source: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        sites = source.get("sites")
+        if not isinstance(sites, list):
+            return None
+
+        for site in sites:
+            if not isinstance(site, dict):
+                continue
+
+            coordinates = self._normalise_epigraph_marker_coordinates(site)
+            if coordinates is None:
+                continue
+
+            title = str(source.get("title") or f"Epigraph {source.get('dasi_id')}")
+            site_name = site.get("modern_name") or site.get("name")
+
+            return {
+                "id": int(source["id"]),
+                "dasi_id": int(source["dasi_id"]),
+                "title": title,
+                "label": f"{title} - {site_name}" if site_name else title,
+                "coordinates": coordinates,
+                "site_name": site_name,
+            }
+
+        return None
+
+    def opensearch_query_epigraph_markers(
+        self,
+        search_text: str,
+        fields: Optional[str] = None,
+        filters: Optional[str | Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        if not self.opensearch:
+            raise RuntimeError("OpenSearch is required for the epigraph marker query endpoint")
+
+        search_fields: Optional[List[str]] = None
+        if fields:
+            search_fields = [field.strip() for field in fields.split(",")]
+
+        search_filters: Dict[str, Any] = {}
+        if filters:
+            filters_dict = json.loads(filters) if isinstance(filters, str) else filters
+            search_filters.update(filters_dict)
+
+        search_filters.pop("dasi_published", None)
+
+        opensearch_results = self.opensearch.search_epigraphs(
+            query=search_text,
+            fields=search_fields,
+            filters=search_filters,
+            skip=0,
+            limit=10_000,
+            source_includes=["id", "dasi_id", "title", "sites"],
+        )
+
+        markers: List[Dict[str, Any]] = []
+        for hit in opensearch_results["hits"]:
+            source = hit.get("_source", {})
+            if not isinstance(source, dict):
+                continue
+
+            marker = self._build_epigraph_marker_from_hit(source)
+            if marker is not None:
+                markers.append(marker)
+
+        return {
+            "markers": markers,
+            "result_count": int(opensearch_results["total"]),
+            "mapped_count": len(markers),
+        }
+
     def index_epigraph_to_opensearch(self, epigraph: Epigraph):
         """Index a single epigraph to OpenSearch."""
         if self.opensearch:

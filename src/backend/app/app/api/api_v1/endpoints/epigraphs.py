@@ -152,6 +152,21 @@ class EpigraphQueryResponse(BaseModel):
     sort_order: str
 
 
+class EpigraphMapMarkerResponse(BaseModel):
+    id: int
+    dasi_id: int
+    title: str
+    label: str
+    coordinates: tuple[float, float]
+    site_name: str | None = None
+
+
+class EpigraphMapMarkersResponse(BaseModel):
+    markers: list[EpigraphMapMarkerResponse]
+    result_count: int
+    mapped_count: int
+
+
 def _build_epigraphs_out(epigraphs: Sequence[Epigraph], count: int) -> EpigraphsOut:
     return EpigraphsOut(
         epigraphs=[EpigraphOut.model_validate(epigraph) for epigraph in epigraphs],
@@ -411,6 +426,38 @@ def query_epigraphs(
         sort_field=sort_field,
         sort_order=sort_order,
     )
+
+
+@router.post(
+    "/query/map-markers",
+    response_model=EpigraphMapMarkersResponse,
+)
+def query_epigraph_map_markers(
+    request: EpigraphQueryRequest,
+    session: SessionDep,
+) -> EpigraphMapMarkersResponse:
+    """Return lightweight map markers for all published epigraphs matching the canonical query filters."""
+    search_service = SearchService(session)
+
+    published_filters = {"dasi_published": True, **request.filters}
+    resolved_fields = validate_epigraph_search_field_keys(request.fields)
+
+    if request.scope_keys is not None:
+        resolved_fields = expand_epigraph_search_scope_keys(request.scope_keys)
+
+    try:
+        marker_result = search_service.opensearch_query_epigraph_markers(
+            search_text=request.search_text,
+            fields=",".join(resolved_fields) if resolved_fields else None,
+            filters=published_filters,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    return EpigraphMapMarkersResponse(**marker_result)
 
 
 @router.get(
