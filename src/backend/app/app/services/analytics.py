@@ -658,42 +658,39 @@ def get_site_map(session: Session) -> dict[str, Any]:
 def get_epigraph_heatmap(session: Session) -> dict[str, Any]:
     associations, base_summary = _load_epigraph_site_associations(session)
 
-    site_period_counts: Counter[tuple[int, str]] = Counter()
-    site_metadata: dict[int, dict[str, Any]] = {}
     periods: set[str] = set()
     mapped_epigraph_ids: set[int] = set()
     mapped_site_ids: set[int] = set()
+    points: list[dict[str, Any]] = []
 
     for association in associations:
         site_dasi_id = int(association["siteDasiId"])
+        epigraph_dasi_id = int(association["epigraphDasiId"])
         period = str(association["period"])
-        site_period_counts[(site_dasi_id, period)] += 1
-        site_metadata[site_dasi_id] = {
-            "siteDasiId": site_dasi_id,
-            "siteUri": association["siteUri"],
-            "siteName": association["siteName"],
-            "ancientName": association["ancientName"],
-            "country": association["country"],
-            "typeOfSite": association["typeOfSite"],
-            "coordinatesAccuracy": association["coordinatesAccuracy"],
-            "coordinates": association["coordinates"],
-        }
+
+        points.append(
+            {
+                "epigraphDasiId": epigraph_dasi_id,
+                "epigraphUri": association["epigraphUri"],
+                "epigraphTitle": association["epigraphTitle"],
+                "siteDasiId": site_dasi_id,
+                "siteUri": association["siteUri"],
+                "siteName": association["siteName"],
+                "country": association["country"],
+                "typeOfSite": association["typeOfSite"],
+                "coordinates": association["coordinates"],
+                "period": period,
+            }
+        )
+
         periods.add(period)
-        mapped_epigraph_ids.add(int(association["epigraphDasiId"]))
+        mapped_epigraph_ids.add(epigraph_dasi_id)
         mapped_site_ids.add(site_dasi_id)
 
-    points = [
-        {
-            **site_metadata[site_dasi_id],
-            "period": period,
-            "epigraphCount": epigraph_count,
-        }
-        for (site_dasi_id, period), epigraph_count in site_period_counts.items()
-    ]
     points.sort(
         key=lambda point: (
             _period_sort_key(point["period"]),
-            -int(point["epigraphCount"]),
+            str(point["epigraphTitle"]),
             str(point["siteName"]),
         )
     )
