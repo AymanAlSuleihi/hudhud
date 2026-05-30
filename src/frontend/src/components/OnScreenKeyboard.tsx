@@ -24,12 +24,12 @@ const SPECIAL_CHARS = [
 
 export const OnScreenKeyboard: React.FC<OnScreenKeyboardProps> = ({ onInsert }) => {
   return (
-    <div className="inline-flex flex-wrap gap-2 p-4 rounded-sm backdrop-blur-xs drop-shadow-md shadow-sm border border-gray-400">
+    <div className="flex flex-wrap gap-2">
       {SPECIAL_CHARS.map((char) => (
         <button
           key={char}
           type="button"
-          className="px-1 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 text-lg font-semibold transition-all w-10 h-10 bg-white/40 backdrop-blur-xs"
+          className="inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-stone-300 bg-white px-2 text-base font-semibold text-stone-700 shadow-sm transition-colors hover:border-stone-500 hover:text-stone-900"
           onClick={() => onInsert(char)}
         >
           {char}
