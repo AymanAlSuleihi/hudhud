@@ -23,7 +23,7 @@ def read_site_map(session: SessionDep) -> dict[str, Any]:
 
 @router.get("/epigraph_heatmap")
 def read_epigraph_heatmap(session: SessionDep) -> dict[str, Any]:
-    """Return published epigraph density by site and period for the public maps page."""
+    """Return mapped published epigraph points by period for the public maps page."""
     return get_epigraph_heatmap(session)
 
 
