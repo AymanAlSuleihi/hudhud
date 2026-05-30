@@ -511,7 +511,8 @@ class OpenSearchService:
         sort_field: Optional[str] = None,
         sort_order: str = "asc",
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        source_includes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Searches epigraphs in the OpenSearch index"""
 
@@ -1002,6 +1003,9 @@ class OpenSearchService:
                 }
             }
         }
+
+        if source_includes:
+            search_body["_source"] = source_includes
 
         filter_clauses = self._build_filter_clauses(filters)
         if filter_clauses:
