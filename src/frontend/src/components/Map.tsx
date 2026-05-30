@@ -359,7 +359,7 @@ export const MapComponent: React.FC<MapProps> = ({
             closeOnClick={false}
             className="map-popup"
           >
-            <div className={`p-2 ${minimap ? "max-w-[180px]" : "max-w-xs"}`}>
+            <div className={`${minimap ? "max-w-[180px]" : "max-w-xs"}`}>
               <h3 className="font-medium text-sm">{selectedMarker.label}</h3>
               {selectedMarker.popupContent && minimap && (
                 <div className="mt-1 text-xs">
@@ -373,7 +373,7 @@ export const MapComponent: React.FC<MapProps> = ({
                       await exitFullscreen()
                       await onEpigraphSelect(selectedMarker.id)
                     }}
-                    className="text-xs bg-zinc-600 text-white px-2 py-1 rounded hover:bg-zinc-700 transition-colors w-full"
+                    className="text-xs bg-zinc-600 text-white px-2 py-1 rounded hover:bg-zinc-700 transition-colors w-full hover:cursor-pointer"
                   >
                     View in results
                   </button>
@@ -382,7 +382,7 @@ export const MapComponent: React.FC<MapProps> = ({
                   onClick={() => {
                     openEpigraphInNewTab(selectedMarker.id)
                   }}
-                  className="text-xs border border-zinc-300 bg-white text-zinc-700 px-2 py-1 rounded hover:border-zinc-400 hover:text-zinc-900 transition-colors w-full"
+                  className="text-xs border border-zinc-300 bg-white text-zinc-700 px-2 py-1 rounded hover:border-zinc-400 hover:text-zinc-900 transition-colors w-full hover:cursor-pointer"
                 >
                   Open in new tab
                 </button>
