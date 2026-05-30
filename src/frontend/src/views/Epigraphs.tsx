@@ -1,13 +1,8 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { X, MagnifyingGlass, Funnel, MapTrifold, Keyboard, ToggleLeft, ToggleRight, Hash, ArrowRight } from "@phosphor-icons/react"
-import {
-  SearchField,
-  Label,
-  ToggleButton,
-} from "react-aria-components"
+import { MapTrifoldIcon, StackSimple } from "@phosphor-icons/react"
 import {
   EpigraphFacetBucket,
   EpigraphFacetSchemaFieldResponse,
@@ -17,11 +12,13 @@ import {
   EpigraphSearchSchemaResponse,
   EpigraphSearchSortOptionResponse,
 } from "../client"
+import { MyDisclosure } from "../components/Disclosure"
+import { EpigraphsFiltersPanel } from "../components/epigraphs/EpigraphsFiltersPanel"
 import { EpigraphCard } from "../components/EpigraphCard"
 import { Spinner } from "../components/Spinner"
-import { MySelect, MyItem } from "../components/Select"
-import { MySlider } from "../components/Slider"
-import { OnScreenKeyboard } from "../components/OnScreenKeyboard"
+import { EpigraphsPaginationControls } from "../components/epigraphs/EpigraphsPaginationControls"
+import { EpigraphsSearchPanel } from "../components/epigraphs/EpigraphsSearchPanel"
+import { EpigraphsSortControls } from "../components/epigraphs/EpigraphsSortControls"
 import { ClientMap } from "../next/components/ClientMap"
 
 type FilterValue = string | boolean | string[]
@@ -33,6 +30,32 @@ type FilterOption = {
   label: string
   value: FacetValue
   count?: number
+}
+type MapMarkerStyle = "results" | "outside"
+type MapLayerKey = MapMarkerStyle
+type MapMarker = {
+  id: string
+  coordinates: [number, number]
+  color: string
+  label: string
+  style: MapMarkerStyle
+}
+type EpigraphMapMarkersResponse = {
+  markers: Array<{
+    id: number
+    dasi_id: number
+    title: string
+    label: string
+    coordinates: [number, number]
+    site_name?: string | null
+  }>
+  result_count: number
+  mapped_count: number
+}
+type EpigraphMapMarkerRequest = {
+  search_text: string
+  scope_keys?: string[]
+  filters: Record<string, FilterValue>
 }
 
 const LEGACY_SCOPE_PARAM_KEYS: Record<string, string[]> = {
@@ -53,9 +76,48 @@ const BOOLEAN_FILTER_KEYS = [
 const LANGUAGE_FILTER_KEYS = ["language_level_1", "language_level_2", "language_level_3"] as const
 
 const NON_GENERIC_FILTER_KEYS = new Set<string>(["period", ...BOOLEAN_FILTER_KEYS, ...LANGUAGE_FILTER_KEYS])
+const FILTER_PARAM_PREFIX = "filter_"
 
 const SEARCH_DEBOUNCE_MS = 1000
 const FILTER_DEBOUNCE_MS = 1000
+
+const MAP_LAYER_CONFIG: Record<MapLayerKey, { label: string; color: string; strokeColor?: string }> = {
+  results: {
+    label: "Search results",
+    color: "#A16207",
+    strokeColor: "#A16207",
+  },
+  outside: {
+    label: "Other epigraphs",
+    color: "#999999",
+    strokeColor: "#444444",
+  },
+}
+
+const CURRENT_SCROLL_PIN_COLOR = MAP_LAYER_CONFIG.results.color
+
+const hasValidMarkerCoordinates = (coordinates: unknown): coordinates is [number, number] => {
+  return (
+    Array.isArray(coordinates) &&
+    coordinates.length === 2 &&
+    coordinates.every((value) => typeof value === "number")
+  )
+}
+
+const toMapMarkers = (
+  markers: EpigraphMapMarkersResponse["markers"],
+  style: MapMarkerStyle,
+): MapMarker[] => {
+  return markers
+    .filter((marker) => hasValidMarkerCoordinates(marker.coordinates))
+    .map((marker) => ({
+      id: marker.dasi_id.toString(),
+      coordinates: marker.coordinates,
+      color: MAP_LAYER_CONFIG[style].color,
+      label: marker.label,
+      style,
+    }))
+}
 
 const encodeFilterValue = (value: FilterValue | FacetValue): string => {
   if (Array.isArray(value)) {
@@ -121,6 +183,83 @@ const getPrimaryScopeParamKey = (scopeKey: string): string => {
   return getScopeParamKeys(scopeKey)[0]
 }
 
+type SearchParamsLike = Pick<URLSearchParams, "entries" | "get" | "getAll" | "keys">
+
+type InitialSearchState = {
+  page: number
+  pageSize: number
+  sortField: string | null
+  sortOrder: string | null
+  searchTerm: string
+  scopeParams: Record<string, string>
+  filters: Filters
+}
+
+const getFilterParamKey = (filterKey: string): string => {
+  return `${FILTER_PARAM_PREFIX}${filterKey}`
+}
+
+const encodeFilterParamValues = (value: FilterValue): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => encodeFilterValue(item))
+  }
+
+  return [encodeFilterValue(value)]
+}
+
+const decodeFilterParamValues = (values: string[]): FilterValue | undefined => {
+  const decodedValues = values.flatMap((value) => {
+    const decodedValue = decodeFilterValue(value)
+
+    if (Array.isArray(decodedValue)) {
+      return decodedValue.filter((item): item is string => typeof item === "string")
+    }
+
+    return [decodedValue]
+  })
+
+  if (decodedValues.length === 0) {
+    return undefined
+  }
+
+  if (decodedValues.length === 1) {
+    return decodedValues[0]
+  }
+
+  if (decodedValues.every((value): value is string => typeof value === "string")) {
+    return Array.from(new Set(decodedValues))
+  }
+
+  return decodedValues[decodedValues.length - 1]
+}
+
+const buildInitialSearchState = (searchParams: SearchParamsLike): InitialSearchState => {
+  const filters: Filters = {}
+
+  Array.from(new Set(searchParams.keys()))
+    .filter((key) => key.startsWith(FILTER_PARAM_PREFIX))
+    .forEach((paramKey) => {
+      const filterKey = paramKey.slice(FILTER_PARAM_PREFIX.length)
+      const filterValue = decodeFilterParamValues(searchParams.getAll(paramKey))
+
+      if (filterValue !== undefined) {
+        filters[filterKey] = filterValue
+      }
+    })
+
+  return {
+    page: Number(searchParams.get("page") || 1),
+    pageSize: Number(searchParams.get("pageSize") || 25),
+    sortField: searchParams.get("sort"),
+    sortOrder: searchParams.get("order"),
+    searchTerm: searchParams.get("q") || "",
+    scopeParams: Object.fromEntries(
+      Array.from(searchParams.entries()).filter(([key]) => key.startsWith("search_")),
+    ),
+    filters,
+  }
+}
+
 const buildInitialScopeState = (
   schema: EpigraphSearchSchemaResponse,
   searchParamEntries: Record<string, string>,
@@ -177,27 +316,30 @@ const getSelectedPeriodRange = (selectedValues: string[], periodValues: string[]
   return [Math.min(...indices), Math.max(...indices)]
 }
 
+const getSelectedStringFilterValues = (filterValue: FilterValue | undefined): string[] => {
+  if (Array.isArray(filterValue)) {
+    return filterValue.filter((value): value is string => typeof value === "string")
+  }
+
+  if (typeof filterValue === "string") {
+    return [filterValue]
+  }
+
+  return []
+}
+
 const Epigraphs: React.FC = () => {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
-  const initialSearchParamsRef = useRef({
-    page: Number(searchParams.get("page") || 1),
-    pageSize: Number(searchParams.get("pageSize") || 25),
-    sortField: searchParams.get("sort"),
-    sortOrder: searchParams.get("order"),
-    searchTerm: searchParams.get("q") || "",
-    scopeParams: Object.fromEntries(
-      Array.from(searchParams.entries()).filter(([key]) => key.startsWith("search_")),
-    ),
-  })
+  const initialSearchParamsRef = useRef(buildInitialSearchState(searchParams))
   const [epigraphs, setEpigraphs] = useState<EpigraphsOut | null>(null)
   const [currentPage, setCurrentPage] = useState(initialSearchParamsRef.current.page)
   const [pageSize, setPageSize] = useState(initialSearchParamsRef.current.pageSize)
   const [sortField, setSortField] = useState(initialSearchParamsRef.current.sortField || "dasi_id")
   const [sortOrder, setSortOrder] = useState(initialSearchParamsRef.current.sortOrder || "asc")
   const [isLoading, setIsLoading] = useState(false)
-  const [filters, setFilters] = useState<Filters>({})
+  const [filters, setFilters] = useState<Filters>(initialSearchParamsRef.current.filters)
   const [showFilters, setShowFilters] = useState(false)
   const [fieldValues, setFieldValues] = useState<Record<string, FacetValue[]>>({})
   const [facetCounts, setFacetCounts] = useState<Record<string, EpigraphFacetBucket[]>>({})
@@ -215,15 +357,19 @@ const Epigraphs: React.FC = () => {
   const [showKeyboard, setShowKeyboard] = useState(false)
   const [mapVisible, setMapVisible] = useState(true)
   const [dasiIdInput, setDasiIdInput] = useState("")
-  const [mapMarkers, setMapMarkers] = useState<Array<{
-    id: string
-    coordinates: [number, number]
-    color: string
-    label: string
-  }>>([])
+  const [mapMarkers, setMapMarkers] = useState<MapMarker[]>([])
+  const [resultMapMarkers, setResultMapMarkers] = useState<MapMarker[]>([])
+  const [allMapMarkers, setAllMapMarkers] = useState<MapMarker[]>([])
+  const [mapLayerVisibility, setMapLayerVisibility] = useState<Record<MapLayerKey, boolean>>({
+    results: true,
+    outside: true,
+  })
+  const [mapLayersExpanded, setMapLayersExpanded] = useState(false)
 
   const [visibleEpigraphId, setVisibleEpigraphId] = useState<string | null>(null)
   const epigraphRefs = useRef<{[key: string]: HTMLDivElement | null}>({})
+  const loadedResultMapMarkerRequestKeyRef = useRef<string | null>(null)
+  const hasLoadedAllMapMarkersRef = useRef(false)
 
   useEffect(() => {
     setPageInputValue(currentPage.toString())
@@ -241,10 +387,6 @@ const Epigraphs: React.FC = () => {
 
   const getSortOption = (key: string): EpigraphSearchSortOptionResponse | undefined => {
     return searchSchema?.sortOptions.find((sortOption) => sortOption.key === key)
-  }
-
-  const getFilterLabel = (fieldKey: string): string => {
-    return facetSchema.find((field) => field.key === fieldKey)?.label || fieldKey
   }
 
   const getSelectedScopeKeys = (
@@ -275,20 +417,25 @@ const Epigraphs: React.FC = () => {
           key: encodedValue,
           label: formatFacetValue(value),
           value,
+          count: 0,
         })
       }
     }
 
     const selectedValue = filters[fieldKey]
     if (selectedValue !== undefined) {
-      const encodedValue = encodeFilterValue(selectedValue)
-      if (!optionsByKey.has(encodedValue)) {
-        optionsByKey.set(encodedValue, {
-          key: encodedValue,
-          label: formatFacetValue(selectedValue),
-          value: selectedValue,
-          count: 0,
-        })
+      const selectedValues = Array.isArray(selectedValue) ? selectedValue : [selectedValue]
+
+      for (const value of selectedValues) {
+        const encodedValue = encodeFilterValue(value)
+        if (!optionsByKey.has(encodedValue)) {
+          optionsByKey.set(encodedValue, {
+            key: encodedValue,
+            label: formatFacetValue(value),
+            value,
+            count: 0,
+          })
+        }
       }
     }
 
@@ -314,19 +461,17 @@ const Epigraphs: React.FC = () => {
       : formatActiveFilterValue("period", selectedPeriodValues)
 
   const languageLevel1Options = getFilterOptions("language_level_1")
-    .map((option) => option.value)
-    .filter((value): value is string => typeof value === "string")
+    .filter((option) => typeof option.value === "string")
   const languageLevel2Options = getFilterOptions("language_level_2")
-    .map((option) => option.value)
-    .filter((value): value is string => typeof value === "string")
+    .filter((option) => typeof option.value === "string")
   const languageLevel3Options = getFilterOptions("language_level_3")
-    .map((option) => option.value)
-    .filter((value): value is string => typeof value === "string")
+    .filter((option) => typeof option.value === "string")
 
-  const selectedLanguageLevel1 = typeof filters.language_level_1 === "string" ? filters.language_level_1 : undefined
-  const selectedLanguageLevel2 = typeof filters.language_level_2 === "string" ? filters.language_level_2 : undefined
-  const selectedLanguageLevel3 = typeof filters.language_level_3 === "string" ? filters.language_level_3 : undefined
+  const selectedLanguageLevel1Values = getSelectedStringFilterValues(filters.language_level_1)
+  const selectedLanguageLevel2Values = getSelectedStringFilterValues(filters.language_level_2)
+  const selectedLanguageLevel3Values = getSelectedStringFilterValues(filters.language_level_3)
   const hasLanguageFilters = LANGUAGE_FILTER_KEYS.some((key) => filters[key] !== undefined)
+  const activeFilterCount = Object.keys(filters).length
 
   const booleanFacetFields = facetSchema.filter((field) => BOOLEAN_FILTER_KEYS.includes(field.key as (typeof BOOLEAN_FILTER_KEYS)[number]))
   const genericFacetFields = facetSchema.filter((field) => !NON_GENERIC_FILTER_KEYS.has(field.key))
@@ -338,17 +483,33 @@ const Epigraphs: React.FC = () => {
     }
   }
 
-  const replaceSearchParams = (params: Record<string, string>) => {
-    const nextSearchParams = new URLSearchParams()
-
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) {
-        nextSearchParams.set(key, value)
-      }
-    })
-
+  const replaceSearchParams = (nextSearchParams: URLSearchParams) => {
     const queryString = nextSearchParams.toString()
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+  }
+
+  const fetchMapMarkers = async (
+    requestBody: EpigraphMapMarkerRequest,
+  ): Promise<EpigraphMapMarkersResponse | null> => {
+    try {
+      const response = await fetch("/api/v1/epigraphs/query/map-markers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Marker request failed with status ${response.status}`)
+      }
+
+      return response.json() as Promise<EpigraphMapMarkersResponse>
+    } catch (error) {
+      console.error("Error fetching epigraph map markers:", error)
+      return null
+    }
   }
 
   const fetchEpigraphs = async (
@@ -371,38 +532,66 @@ const Epigraphs: React.FC = () => {
 
       const effectiveSearchQuery = searchQuery.trim()
 
-      const urlParams: Record<string, string> = {
-        page: page.toString(),
-        pageSize: size.toString(),
-        sort: sort,
-        order: order
-      }
+      const sanitizedFilters = Object.fromEntries(
+        Object.entries(currentFilters).filter(([, value]) => {
+          return value !== "" && value !== undefined && (!Array.isArray(value) || value.length > 0)
+        }),
+      ) as Filters
+
+      const nextSearchParams = new URLSearchParams()
+      nextSearchParams.set("page", page.toString())
+      nextSearchParams.set("pageSize", size.toString())
+      nextSearchParams.set("sort", sort)
+      nextSearchParams.set("order", order)
 
       if (effectiveSearchQuery) {
-        urlParams.q = effectiveSearchQuery
+        nextSearchParams.set("q", effectiveSearchQuery)
         currentSearchSchema.scopes.forEach((scope) => {
-          urlParams[getPrimaryScopeParamKey(scope.key)] = String(Boolean(currentSearchFields[scope.key]))
+          nextSearchParams.set(
+            getPrimaryScopeParamKey(scope.key),
+            String(Boolean(currentSearchFields[scope.key])),
+          )
         })
       }
 
-      replaceSearchParams(urlParams)
+      Object.entries(sanitizedFilters)
+        .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+        .forEach(([filterKey, filterValue]) => {
+          encodeFilterParamValues(filterValue).forEach((value) => {
+            nextSearchParams.append(getFilterParamKey(filterKey), value)
+          })
+        })
+
+      replaceSearchParams(nextSearchParams)
 
       const apiFilters: Record<string, FilterValue> = {
         dasi_published: true,
-        ...currentFilters
+        ...sanitizedFilters,
       }
 
-      Object.keys(apiFilters).forEach(key => {
-        if (apiFilters[key as keyof typeof apiFilters] === "" || apiFilters[key as keyof typeof apiFilters] === undefined) {
-          delete apiFilters[key as keyof typeof apiFilters]
-        }
-      })
+      const markerRequestBody = {
+        search_text: effectiveSearchQuery,
+        scope_keys: effectiveSearchQuery ? getSelectedScopeKeys(currentSearchFields, currentSearchSchema) : undefined,
+        filters: apiFilters,
+      }
+      const markerRequestKey = JSON.stringify(markerRequestBody)
+      const resultMarkerRequestPromise =
+        markerRequestKey !== loadedResultMapMarkerRequestKeyRef.current
+          ? fetchMapMarkers(markerRequestBody)
+          : null
+      const allMarkerRequestPromise =
+        !hasLoadedAllMapMarkersRef.current
+          ? fetchMapMarkers({
+              search_text: "",
+              filters: {
+                dasi_published: true,
+              },
+            })
+          : null
 
       const result: EpigraphQueryResponse = await EpigraphsService.epigraphsQueryEpigraphs({
         requestBody: {
-          search_text: effectiveSearchQuery,
-          scope_keys: effectiveSearchQuery ? getSelectedScopeKeys(currentSearchFields, currentSearchSchema) : undefined,
-          filters: apiFilters,
+          ...markerRequestBody,
           page,
           page_size: size,
           sort_field: sort,
@@ -418,6 +607,31 @@ const Epigraphs: React.FC = () => {
       setPageSize(size)
       setSortField(sort)
       setSortOrder(order)
+
+      const [resultMarkerResult, allMarkerResult] = await Promise.all([
+        resultMarkerRequestPromise,
+        allMarkerRequestPromise,
+      ])
+
+      if (resultMarkerRequestPromise) {
+        if (resultMarkerResult) {
+          loadedResultMapMarkerRequestKeyRef.current = markerRequestKey
+          setResultMapMarkers(toMapMarkers(resultMarkerResult.markers, "results"))
+        } else {
+          loadedResultMapMarkerRequestKeyRef.current = null
+          setResultMapMarkers([])
+        }
+      }
+
+      if (allMarkerRequestPromise) {
+        if (allMarkerResult) {
+          hasLoadedAllMapMarkersRef.current = true
+          setAllMapMarkers(toMapMarkers(allMarkerResult.markers, "outside"))
+        } else {
+          hasLoadedAllMapMarkersRef.current = false
+          setAllMapMarkers([])
+        }
+      }
     } catch (error) {
       console.error("Error fetching epigraphs:", error)
     } finally {
@@ -456,7 +670,7 @@ const Epigraphs: React.FC = () => {
           initialSearchParamsRef.current.pageSize,
           initialSortField,
           initialSortOrder,
-          {},
+          initialSearchParamsRef.current.filters,
           initialSearchParamsRef.current.searchTerm,
           initialScopeState,
           schema,
@@ -502,6 +716,15 @@ const Epigraphs: React.FC = () => {
     debounceRef.current = setTimeout(() => {
       handleSearch(value)
     }, SEARCH_DEBOUNCE_MS)
+  }
+
+  const handleImmediateSearch = (value: string) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+
+    handleSearch(value)
   }
 
   useEffect(() => {
@@ -572,6 +795,33 @@ const Epigraphs: React.FC = () => {
     updateFilter(filterKey, decodeFilterValue(value))
   }
 
+  const handleMultiFilterChange = (filterKey: string, values: string[]) => {
+    const decodedValues = Array.from(
+      new Set(
+        values.flatMap((value) => {
+          const decodedValue = decodeFilterValue(value)
+
+          if (Array.isArray(decodedValue)) {
+            return decodedValue.filter((item): item is string => typeof item === "string")
+          }
+
+          return typeof decodedValue === "string" ? [decodedValue] : []
+        }),
+      ),
+    )
+
+    if (decodedValues.length === 0) {
+      updateFilter(filterKey, undefined, FILTER_DEBOUNCE_MS)
+      return
+    }
+
+    updateFilter(
+      filterKey,
+      decodedValues.length === 1 ? decodedValues[0] : decodedValues,
+      FILTER_DEBOUNCE_MS,
+    )
+  }
+
   const handleBooleanFilterChange = (filterKey: string, value: boolean | null) => {
     updateFilter(filterKey, value === null ? undefined : value)
   }
@@ -613,6 +863,24 @@ const Epigraphs: React.FC = () => {
     applyFilters({})
   }
 
+  const handleToggleKeyboard = () => {
+    setShowKeyboard((value) => !value)
+  }
+
+  const handleDasiIdSubmit = (value: string) => {
+    const trimmedValue = value.trim()
+    if (!trimmedValue) {
+      return
+    }
+
+    const id = parseInt(trimmedValue, 10)
+    if (isNaN(id)) {
+      return
+    }
+
+    router.push(`/epigraphs/${id}`)
+  }
+
   const handleScopeChange = (scopeKey: string, selected: boolean) => {
     const newSearchFields = {
       ...searchFields,
@@ -635,118 +903,173 @@ const Epigraphs: React.FC = () => {
       const markers = epigraphs.epigraphs
         .filter(e => {
           const coords = Array.isArray(e.sites_objs) && e.sites_objs?.[0]?.coordinates
-          return Array.isArray(coords) && coords.length === 2 && coords.every(n => typeof n === "number")
+          return hasValidMarkerCoordinates(coords)
         })
-        .map(e => {
-          const isCurrent = visibleEpigraphId === e.dasi_id.toString()
-          let color = "#2563EB"
-          if (!isCurrent) {
-            const accuracy = e.sites_objs?.[0]?.coordinates_accuracy
-            color = accuracy === "approximate" ? "#F59E0B" : "#10B981" 
-          }
-          return {
-            id: e.dasi_id.toString(),
-            coordinates: e.sites_objs?.[0]?.coordinates as [number, number],
-            color,
-            label: `${e.title} - ${(e.sites_objs?.[0]?.modern_name) || "Unknown"}`,
-          }
-        })
+        .map(e => ({
+          id: e.dasi_id.toString(),
+          coordinates: e.sites_objs?.[0]?.coordinates as [number, number],
+          color: CURRENT_SCROLL_PIN_COLOR,
+          label: `${e.title} - ${(e.sites_objs?.[0]?.modern_name) || "Unknown"}`,
+          style: "results" as const,
+        }))
       setMapMarkers(markers)
     } else {
       setMapMarkers([])
     }
-  }, [epigraphs, visibleEpigraphId])
+  }, [epigraphs])
+
+  const resultMarkerIds = useMemo(() => new Set(resultMapMarkers.map((marker) => marker.id)), [resultMapMarkers])
+
+  const outsideResultMapMarkers = useMemo(
+    () => allMapMarkers.filter((marker) => !resultMarkerIds.has(marker.id)),
+    [allMapMarkers, resultMarkerIds],
+  )
+  const highlightedMapMarker = useMemo(() => {
+    if (!mapLayerVisibility.results || !visibleEpigraphId) {
+      return null
+    }
+
+    return mapMarkers.find((marker) => marker.id === visibleEpigraphId) || null
+  }, [mapLayerVisibility.results, mapMarkers, visibleEpigraphId])
+  const visibleBackgroundMapMarkers = useMemo(() => {
+    const visibleMarkers: MapMarker[] = []
+
+    if (mapLayerVisibility.results) {
+      visibleMarkers.push(
+        ...resultMapMarkers.filter((marker) => marker.id !== highlightedMapMarker?.id),
+      )
+    }
+
+    if (mapLayerVisibility.outside) {
+      visibleMarkers.push(...outsideResultMapMarkers)
+    }
+
+    return visibleMarkers
+  }, [highlightedMapMarker?.id, mapLayerVisibility.outside, mapLayerVisibility.results, outsideResultMapMarkers, resultMapMarkers])
+  const availableMapMarkers = useMemo(
+    () => [...resultMapMarkers, ...outsideResultMapMarkers],
+    [outsideResultMapMarkers, resultMapMarkers],
+  )
+  const mapLayerOptions = useMemo(
+    () => [
+      {
+        key: "results" as const,
+        label: MAP_LAYER_CONFIG.results.label,
+        color: MAP_LAYER_CONFIG.results.color,
+        count: resultMapMarkers.length,
+      },
+      {
+        key: "outside" as const,
+        label: MAP_LAYER_CONFIG.outside.label,
+        color: MAP_LAYER_CONFIG.outside.color,
+        count: outsideResultMapMarkers.length,
+      },
+    ],
+    [outsideResultMapMarkers.length, resultMapMarkers.length],
+  )
+  const hasAvailableMapMarkers = availableMapMarkers.length > 0
+  const visiblePinMarkers = highlightedMapMarker ? [highlightedMapMarker] : []
+  const markersForViewport =
+    visiblePinMarkers.length > 0 || visibleBackgroundMapMarkers.length > 0
+      ? [...visiblePinMarkers, ...visibleBackgroundMapMarkers]
+      : availableMapMarkers
 
   const getMapCenter = (): [number, number] => {
-    if (mapMarkers.length === 0) return [15, 45]
-    if (mapMarkers.length === 1) return mapMarkers[0].coordinates
-    const sum = mapMarkers.reduce(
+    if (markersForViewport.length === 0) return [15, 45]
+    if (markersForViewport.length === 1) return markersForViewport[0].coordinates
+    const sum = markersForViewport.reduce(
       (acc, marker) => [acc[0] + marker.coordinates[0], acc[1] + marker.coordinates[1]],
       [0, 0]
     )
-    return [sum[0] / mapMarkers.length, sum[1] / mapMarkers.length]
+    return [sum[0] / markersForViewport.length, sum[1] / markersForViewport.length]
   }
 
-  const renderPagination = () => {
-    if (!epigraphs) return null
-    const totalPages = Math.ceil(epigraphs.count / pageSize)
+  const toggleMapLayerVisibility = (layerKey: MapLayerKey) => {
+    setMapLayerVisibility((currentVisibility) => ({
+      ...currentVisibility,
+      [layerKey]: !currentVisibility[layerKey],
+    }))
+  }
 
-    const handlePageInputChange = (value: string) => {
-      setPageInputValue(value)
-    }
+  const mapLayerOverlay = (
+    <div className="absolute left-[10px] top-[146px] z-10 pointer-events-auto">
+      <button
+        type="button"
+        onClick={() => setMapLayersExpanded((expanded) => !expanded)}
+        className="flex h-[29px] w-[29px] items-center justify-center rounded-[4px] border border-stone-300 bg-white text-stone-700 shadow-sm transition-colors hover:bg-stone-100 hover:cursor-pointer focus:outline-none focus:ring-2 focus:ring-stone-500/25"
+        aria-expanded={mapLayersExpanded}
+        aria-controls="epigraph-map-layers"
+        aria-label={mapLayersExpanded ? "Hide map layers" : "Show map layers"}
+      >
+        <StackSimple size={15} weight={mapLayersExpanded ? "fill" : "regular"} />
+      </button>
 
-    const handlePageInputSubmit = (value: string) => {
-      const pageNum = parseInt(value)
-      if (pageNum >= 1 && pageNum <= totalPages) {
-        fetchEpigraphs(pageNum, pageSize, sortField, sortOrder, filters, searchTerm)
-      } else {
-        setPageInputValue(currentPage.toString())
-      }
-    }
+      {mapLayersExpanded && (
+        <div
+          id="epigraph-map-layers"
+          className="absolute left-full -top-11 ml-1.5 w-50 rounded-md border border-stone-300/90 bg-white/95 p-1.5 shadow-lg backdrop-blur-sm"
+        >
+          <p className="px-0.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+            Map layers
+          </p>
+          <div className="space-y-1">
+            {mapLayerOptions.map((layer) => {
+              const isVisible = mapLayerVisibility[layer.key]
+              const isDisabled = layer.count === 0
 
-    const handlePageInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        handlePageInputSubmit(e.currentTarget.value)
-      }
-    }
-    
-    return (
-      <div className="mt-6 flex flex-col sm:flex-row justify-between items-end gap-4">
-        <div className="sm:flex-1"></div>
-
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => fetchEpigraphs(currentPage - 1, pageSize, sortField, sortOrder, filters, searchTerm)}
-            disabled={currentPage <= 1 || isLoading}
-            className="px-3 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm cursor-pointer"
-          >
-            Previous
-          </button>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm whitespace-nowrap">Page</span>
-            <input
-              type="number"
-              min="1"
-              max={totalPages}
-              value={pageInputValue}
-              onChange={(e) => handlePageInputChange(e.target.value)}
-              onBlur={(e) => handlePageInputSubmit(e.target.value)}
-              onKeyDown={handlePageInputKeyDown}
-              className="w-16 px-2 py-1 text-center border border-gray-300 rounded text-sm h-8"
-            />
-            <span className="text-sm whitespace-nowrap">of {totalPages}</span>
+              return (
+                <label
+                  key={layer.key}
+                  className={`flex items-center justify-between gap-2 rounded-md border px-1.5 py-1 text-[11px] transition-colors ${
+                    isVisible
+                      ? "border-stone-300 bg-stone-50 text-stone-900"
+                      : "border-stone-200 bg-white text-stone-500"
+                  } ${isDisabled ? "opacity-50" : "cursor-pointer"}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={isVisible}
+                      disabled={isDisabled}
+                      onChange={() => toggleMapLayerVisibility(layer.key)}
+                      className="h-3 w-3 rounded border-stone-300 text-stone-900 focus:ring-stone-500"
+                    />
+                    <span
+                      className={`block h-2 w-2 flex-none rounded-full ${layer.key === "outside" ? "border" : ""}`}
+                      style={{
+                        backgroundColor: layer.color,
+                        borderColor: layer.color,
+                      }}
+                    />
+                    <span>{layer.label}</span>
+                  </span>
+                  <span className="tabular-nums text-stone-500">{layer.count}</span>
+                </label>
+              )
+            })}
           </div>
-
-          <button
-            onClick={() => fetchEpigraphs(currentPage + 1, pageSize, sortField, sortOrder, filters, searchTerm)}
-            disabled={currentPage >= totalPages || isLoading}
-            className="px-3 py-1 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap h-8 text-sm cursor-pointer"
-          >
-            Next
-          </button>
         </div>
+      )}
+    </div>
+  )
 
-        <div className="flex items-end gap-2 sm:flex-1 sm:justify-end">
-          <MySelect
-            label="Results per page"
-            selectedKey={pageSize.toString()}
-            onSelectionChange={(key: React.Key | null) => {
-              if (typeof key === "string") {
-                handlePageSizeChange(Number(key))
-              }
-            }}
-            buttonClassName="h-8 max-h-8"
-          >
-            <MyItem key="10" id="10">10</MyItem>
-            <MyItem key="25" id="25">25</MyItem>
-            <MyItem key="50" id="50">50</MyItem>
-            <MyItem key="100" id="100">100</MyItem>
-            <MyItem key="250" id="250">250</MyItem>
-          </MySelect>
-        </div>
-      </div>
-    )
+  const handlePageInputChange = (value: string) => {
+    setPageInputValue(value)
+  }
+
+  const handlePageInputSubmit = (value: string) => {
+    if (!epigraphs) {
+      return
+    }
+
+    const totalPages = Math.ceil(epigraphs.count / pageSize)
+    const pageNum = parseInt(value, 10)
+
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      fetchEpigraphs(pageNum, pageSize, sortField, sortOrder, filters, searchTerm)
+    } else {
+      setPageInputValue(currentPage.toString())
+    }
   }
 
   const handleInsertChar = (char: string) => {
@@ -838,364 +1161,82 @@ const Epigraphs: React.FC = () => {
     <div className="2xl:max-w-10/12 p-4 mx-auto">
       <h1 className="text-2xl font-bold mb-4">Epigraphs</h1>
       <div className="mb-1 space-y-3">
-        <div className="overflow-hidden rounded-md border border-stone-300 bg-[linear-gradient(135deg,rgba(250,250,249,1),rgba(245,245,244,0.92))] shadow-sm">
+        <div className="overflow-hidden rounded-md border border-gray-400 shadow-sm">
           <div className="px-4 py-3 sm:px-5 sm:py-4">
             <div className="space-y-3">
-              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(150px,180px)_auto]">
-                <SearchField className="flex-1">
-                  <Label className="sr-only">Search</Label>
-                  <div className="relative flex items-center w-full">
-                    <input 
-                      ref={searchInputRef}
-                      defaultValue={searchParams.get("q") || ""}
-                      aria-label="Search epigraphs"
-                      onFocus={(event) => handleTextInputFocus(event.currentTarget)}
-                      onChange={(e) => handleSearchInputChange(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") {
-                          if (debounceRef.current) {
-                            clearTimeout(debounceRef.current)
-                          }
-                          handleSearch(e.currentTarget.value)
-                        }
-                      }}
-                      className="h-11 w-full rounded-md border border-gray-400 bg-white p-2 pl-9 pr-14"
-                      placeholder="Search epigraphs"
-                    />
-                    <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                      <button
-                        type="button"
-                        className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-900 shadow transition-colors hover:border-gray-700 hover:text-gray-700"
-                        onClick={() => {
-                          if (debounceRef.current) {
-                            clearTimeout(debounceRef.current)
-                          }
-                          const inputValue = searchInputRef.current?.value || ""
-                          handleSearch(inputValue)
-                        }}
-                        title="Search"
-                      >
-                        <MagnifyingGlass size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </SearchField>
+              <EpigraphsSearchPanel
+                defaultSearchValue={initialSearchParamsRef.current.searchTerm}
+                searchSchema={searchSchema}
+                searchFields={searchFields}
+                searchInputRef={searchInputRef}
+                showKeyboard={showKeyboard}
+                dasiIdInput={dasiIdInput}
+                onSearchInputChange={handleSearchInputChange}
+                onSearchSubmit={handleImmediateSearch}
+                onSearchInputFocus={handleTextInputFocus}
+                onScopeChange={handleScopeChange}
+                onToggleKeyboard={handleToggleKeyboard}
+                onKeyboardInsert={handleInsertChar}
+                onDasiIdInputChange={(value) => setDasiIdInput(value)}
+                onDasiIdSubmit={handleDasiIdSubmit}
+              />
 
-                <div className="relative min-w-[150px] sm:min-w-[180px]">
-                <input
-                  type="number"
-                  placeholder="DASI ID"
-                  value={dasiIdInput}
-                  aria-label="Go to DASI ID"
-                  onChange={(e) => setDasiIdInput(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const val = dasiIdInput.trim()
-                      if (val) router.push(`/epigraphs/${parseInt(val, 10)}`)
-                    }
-                  }}
-                  className="h-10 w-full rounded-md border border-stone-300 bg-white pl-10 pr-10 text-sm text-stone-900 outline-none transition-colors focus:border-stone-500"
+              <MyDisclosure
+                title={
+                  <span className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <span>Filters</span>
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-stone-300 bg-white px-1 text-xs font-medium text-stone-700">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </span>
+                }
+                isExpanded={showFilters}
+                onExpandedChange={setShowFilters}
+                actions={
+                  activeFilterCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="inline-flex h-7 items-center rounded-md border border-stone-300 bg-white px-2 text-xs font-semibold text-stone-700 transition-colors hover:border-stone-500 hover:text-stone-900"
+                    >
+                      Clear Filters
+                    </button>
+                  ) : null
+                }
+              >
+                <EpigraphsFiltersPanel
+                  showFilters={showFilters}
+                  facetSchema={facetSchema}
+                  filters={filters}
+                  periodValues={periodValues}
+                  selectedPeriodSummary={selectedPeriodSummary}
+                  selectedPeriodStartIndex={selectedPeriodStartIndex}
+                  selectedPeriodEndIndex={selectedPeriodEndIndex}
+                  languageLevel1Options={languageLevel1Options}
+                  languageLevel2Options={languageLevel2Options}
+                  languageLevel3Options={languageLevel3Options}
+                  selectedLanguageLevel1Values={selectedLanguageLevel1Values}
+                  selectedLanguageLevel2Values={selectedLanguageLevel2Values}
+                  selectedLanguageLevel3Values={selectedLanguageLevel3Values}
+                  hasLanguageFilters={hasLanguageFilters}
+                  booleanFacetFields={booleanFacetFields}
+                  genericFacetFields={genericFacetFields}
+                  getFilterOptions={getFilterOptions}
+                  getBooleanFilterCount={getBooleanFilterCount}
+                  onFilterChange={handleFilterChange}
+                  onMultiFilterChange={handleMultiFilterChange}
+                  onBooleanFilterChange={handleBooleanFilterChange}
+                  onPeriodSliderChange={handlePeriodSliderChange}
+                  onClearLanguageFilters={clearLanguageFilters}
+                  formatActiveFilterValue={formatActiveFilterValue}
+                  encodeFilterValue={encodeFilterValue}
                 />
-                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none" size={15} />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const val = dasiIdInput.trim()
-                    if (!val) return
-                    const id = parseInt(val, 10)
-                    if (isNaN(id)) return
-                    router.push(`/epigraphs/${id}`)
-                  }}
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-900"
-                  title="Go to epigraph"
-                >
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-
-                <button
-                  type="button"
-                  className="flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 shadow-sm transition-colors hover:border-stone-500 hover:text-stone-900"
-                  onClick={() => setShowKeyboard((value) => !value)}
-                  title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
-                >
-                  <Keyboard size={16} />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {(searchSchema?.scopes || []).map((scope) => (
-                  <ToggleButton
-                    key={scope.key}
-                    isSelected={Boolean(searchFields[scope.key])}
-                    onChange={(selected) => handleScopeChange(scope.key, selected)}
-                    className={({isSelected}) => `
-                      flex items-center gap-2 px-2 sm:px-3 py-2 font-semibold rounded shadow border transition-colors h-8 whitespace-nowrap text-sm cursor-pointer
-                      ${isSelected 
-                        ? "border-gray-600 text-gray-800 bg-white"
-                        : "border-gray-900 hover:border-gray-700 hover:text-gray-700 bg-transparent"
-                      }
-                    `}
-                  >
-                    {searchFields[scope.key] ? <ToggleRight size={16} weight="fill" className="text-gray-700" /> : <ToggleLeft size={16} />}
-                    <span className="flex items-center gap-1">{scope.label}</span>
-                  </ToggleButton>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => setShowFilters((value) => !value)}
-                  className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-gray-900 px-3 text-sm font-semibold shadow transition-colors hover:border-gray-700 hover:text-gray-700"
-                >
-                  <Funnel size={14} />
-                  <span>{showFilters ? "Hide Filters" : "Filters"}</span>
-                  {Object.keys(filters).length > 0 && (
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-md bg-white px-1 text-xs font-medium text-zinc-600">
-                      {Object.keys(filters).length}
-                    </span>
-                  )}
-                </button>
-
-                {Object.keys(filters).length > 0 && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="inline-flex h-8 items-center gap-2 rounded-md border border-gray-900 px-3 text-sm font-semibold shadow transition-colors hover:border-gray-700 hover:text-gray-700"
-                  >
-                    Clear Filters
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-
-              {showFilters && facetSchema.length > 0 && (
-                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
-                  {periodValues.length > 0 && (
-                    <div className="rounded-md border border-gray-300 bg-white p-3 lg:col-span-2 xl:col-span-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-stone-900">Period</div>
-                        <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700">
-                          {selectedPeriodSummary}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 px-3 sm:px-4">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-stone-500">
-                          <span>
-                            From <span className="normal-case tracking-normal text-stone-700">{periodValues[selectedPeriodStartIndex] ?? "-"}</span>
-                          </span>
-                          <span>
-                            To <span className="normal-case tracking-normal text-stone-700">{periodValues[selectedPeriodEndIndex] ?? "-"}</span>
-                          </span>
-                        </div>
-
-                        <MySlider
-                          label="Period range"
-                          thumbLabels={["Period start", "Period end"]}
-                          minValue={0}
-                          maxValue={Math.max(periodValues.length - 1, 0)}
-                          step={1}
-                          value={[selectedPeriodStartIndex, selectedPeriodEndIndex]}
-                          onChange={handlePeriodSliderChange}
-                        />
-
-                        <div className="relative mt-3 min-h-14 text-[10px] font-medium text-stone-500">
-                          {periodValues.map((period, index) => {
-                            const positionPercentage =
-                              periodValues.length === 1 ? 50 : (index / (periodValues.length - 1)) * 100
-                            const alignmentClassName =
-                              periodValues.length === 1
-                                ? "-translate-x-1/2 items-center text-center"
-                                : index === 0
-                                  ? "items-start text-left"
-                                  : index === periodValues.length - 1
-                                    ? "-translate-x-full items-end text-right"
-                                    : "-translate-x-1/2 items-center text-center"
-
-                            return (
-                              <div
-                                key={`${period}-${index}`}
-                                className={`absolute top-0 flex min-w-0 flex-col gap-1 leading-tight ${alignmentClassName}`}
-                                style={{
-                                  left: `${positionPercentage}%`,
-                                  width: `${periodValues.length === 1 ? 100 : 100 / periodValues.length}%`,
-                                }}
-                              >
-                                <span aria-hidden className="h-2 w-px bg-stone-300" />
-                                <span className="break-words">{period}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="rounded-md border border-gray-300 bg-white p-3 lg:col-span-2">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-stone-900">Language</div>
-                      {hasLanguageFilters && (
-                        <button
-                          type="button"
-                          onClick={clearLanguageFilters}
-                          className="inline-flex h-7 items-center rounded-md border border-gray-300 px-2 text-xs font-semibold text-stone-700 transition-colors hover:border-stone-500 hover:text-stone-900"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <MySelect
-                        label="Family"
-                        selectedKey={selectedLanguageLevel1 || "all"}
-                        onSelectionChange={(value: React.Key | null) => {
-                          if (typeof value === "string") {
-                            handleFilterChange("language_level_1", value)
-                          }
-                        }}
-                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
-                        isDisabled={languageLevel1Options.length === 0}
-                      >
-                        <MyItem key="all" id="all">All families</MyItem>
-                        {languageLevel1Options.map((option) => (
-                          <MyItem key={option} id={option} textValue={option}>
-                            {option}
-                          </MyItem>
-                        ))}
-                      </MySelect>
-
-                      <MySelect
-                        label="Branch"
-                        selectedKey={selectedLanguageLevel2 || "all"}
-                        onSelectionChange={(value: React.Key | null) => {
-                          if (typeof value === "string") {
-                            handleFilterChange("language_level_2", value)
-                          }
-                        }}
-                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
-                        isDisabled={!selectedLanguageLevel1 || languageLevel2Options.length === 0}
-                      >
-                        <MyItem key="all" id="all">All branches</MyItem>
-                        {languageLevel2Options.map((option) => (
-                          <MyItem key={option} id={option} textValue={option}>
-                            {option}
-                          </MyItem>
-                        ))}
-                      </MySelect>
-
-                      <MySelect
-                        label="Leaf"
-                        selectedKey={selectedLanguageLevel3 || "all"}
-                        onSelectionChange={(value: React.Key | null) => {
-                          if (typeof value === "string") {
-                            handleFilterChange("language_level_3", value)
-                          }
-                        }}
-                        buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
-                        isDisabled={!selectedLanguageLevel2 || languageLevel3Options.length === 0}
-                      >
-                        <MyItem key="all" id="all">All leaves</MyItem>
-                        {languageLevel3Options.map((option) => (
-                          <MyItem key={option} id={option} textValue={option}>
-                            {option}
-                          </MyItem>
-                        ))}
-                      </MySelect>
-                    </div>
-                  </div>
-
-                  {booleanFacetFields.map((field) => {
-                    const selectedValue = typeof filters[field.key] === "boolean" ? filters[field.key] : undefined
-                    const filterChoices = [
-                      { label: "All", value: null, count: undefined },
-                      { label: "No", value: false, count: getBooleanFilterCount(field.key, false) },
-                      { label: "Yes", value: true, count: getBooleanFilterCount(field.key, true) },
-                    ]
-
-                    return (
-                      <div key={field.key} className="rounded-md border border-gray-300 bg-white p-3">
-                        <div className="text-sm font-semibold text-stone-900">{field.label}</div>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {filterChoices.map((choice) => {
-                            const isSelected = choice.value === null ? selectedValue === undefined : selectedValue === choice.value
-
-                            return (
-                              <button
-                                key={`${field.key}-${choice.label}`}
-                                type="button"
-                                onClick={() => handleBooleanFilterChange(field.key, choice.value)}
-                                className={`inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold transition-colors ${
-                                  isSelected
-                                    ? "border-stone-900 bg-stone-900 text-stone-50"
-                                    : "border-stone-300 text-stone-700 hover:border-stone-500 hover:text-stone-900"
-                                }`}
-                              >
-                                {choice.count !== undefined ? `${choice.label} (${choice.count})` : choice.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {genericFacetFields.map((field) => {
-                    const availableValues = getFilterOptions(field.key)
-
-                    return (
-                      <div key={field.key} className="rounded-md border border-gray-300 bg-white p-3">
-                        <MySelect
-                          label={field.label}
-                          selectedKey={filters[field.key] !== undefined ? encodeFilterValue(filters[field.key]) : "all"}
-                          onSelectionChange={(value: React.Key | null) => {
-                            if (typeof value === "string") {
-                              handleFilterChange(field.key, value)
-                            }
-                          }}
-                          buttonClassName="h-8 max-h-8 w-full text-xs sm:text-sm"
-                          isDisabled={availableValues.length === 0}
-                        >
-                          <MyItem key="all" id="all">All</MyItem>
-                          {availableValues.map((option) => (
-                            <MyItem key={option.key} id={option.key} textValue={option.label}>
-                              {option.count !== undefined ? `${option.label} (${option.count})` : option.label}
-                            </MyItem>
-                          ))}
-                        </MySelect>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {Object.keys(filters).length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(filters).map(([key, value]) => {
-                    const displayValue = formatActiveFilterValue(key, value)
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => handleFilterChange(key, "all")}
-                        className="inline-flex items-center gap-1 rounded-md border border-gray-900 px-2 py-1 text-xs font-semibold shadow-sm transition-colors hover:border-gray-700 hover:text-gray-700"
-                        title="Remove filter"
-                      >
-                        <span className="hidden sm:inline">{getFilterLabel(key)}:</span>
-                        <span className="sm:hidden">{getFilterLabel(key).split(" ")[0]}:</span>
-                        <span className="max-w-16 truncate sm:max-w-24 md:max-w-32">{displayValue}</span>
-                        <X size={10} className="flex-shrink-0" />
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              </MyDisclosure>
             </div>
           </div>
         </div>
-
-        {showKeyboard && (
-          <div className="mt-2"><OnScreenKeyboard onInsert={handleInsertChar} /></div>
-        )}
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-end gap-4 mb-6">
@@ -1207,42 +1248,14 @@ const Epigraphs: React.FC = () => {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end flex-wrap w-full sm:w-auto sm:justify-end">
-          <div className="flex flex-row gap-2 flex-wrap">
-            <MySelect
-              label="Sort By"
-              selectedKey={sortField}
-              onSelectionChange={(key: React.Key | null) => {
-                if (typeof key === "string") {
-                  handleSortChange(key)
-                }
-              }}
-              buttonClassName="h-8 max-h-8 min-w-24 sm:min-w-32 text-xs sm:text-sm"
-            >
-              {(searchSchema?.sortOptions || [])
-                .filter((sortOption) => hasActiveSearchQuery || !sortOption.searchOnly)
-                .map((sortOption) => (
-                  <MyItem key={sortOption.key} id={sortOption.key} textValue={sortOption.label}>
-                    {sortOption.label}
-                  </MyItem>
-                ))}
-            </MySelect>
-
-            <MySelect
-              label="Sort Order"
-              selectedKey={sortOrder}
-              onSelectionChange={(key: React.Key | null) => {
-                if (typeof key === "string") {
-                  handleOrderChange(key)
-                }
-              }}
-              buttonClassName="h-8 max-h-8 min-w-20 sm:min-w-28 text-xs sm:text-sm"
-            >
-              <MyItem key="asc" id="asc">Ascending</MyItem>
-              <MyItem key="desc" id="desc">Descending</MyItem>
-            </MySelect>
-          </div>
-        </div>
+        <EpigraphsSortControls
+          sortField={sortField}
+          sortOrder={sortOrder}
+          sortOptions={searchSchema?.sortOptions || []}
+          hasActiveSearchQuery={hasActiveSearchQuery}
+          onSortChange={handleSortChange}
+          onOrderChange={handleOrderChange}
+        />
       </div>
 
       {epigraphs && !isLoading ? (
@@ -1265,7 +1278,18 @@ const Epigraphs: React.FC = () => {
               </div>
             ))}
           </div>
-          {renderPagination()}
+          <EpigraphsPaginationControls
+            currentPage={currentPage}
+            totalPages={Math.ceil(epigraphs.count / pageSize)}
+            pageInputValue={pageInputValue}
+            pageSize={pageSize}
+            isLoading={isLoading}
+            onPageInputChange={handlePageInputChange}
+            onPageInputSubmit={handlePageInputSubmit}
+            onPreviousPage={() => fetchEpigraphs(currentPage - 1, pageSize, sortField, sortOrder, filters, searchTerm)}
+            onNextPage={() => fetchEpigraphs(currentPage + 1, pageSize, sortField, sortOrder, filters, searchTerm)}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </div>
       ) : (
         <div className="flex justify-center">
@@ -1273,27 +1297,29 @@ const Epigraphs: React.FC = () => {
         </div>
       )}
 
-      {mapMarkers.length > 0 && mapVisible && (
+      {hasAvailableMapMarkers && mapVisible && (
         <div className="fixed bottom-4 right-4 z-40 w-64">
           <ClientMap
             center={getMapCenter()}
-            zoom={mapMarkers.length > 1 ? 6 : 8}
-            markers={mapMarkers}
+            zoom={markersForViewport.length > 1 ? 6 : 8}
+            markers={visiblePinMarkers}
+            backgroundMarkers={visibleBackgroundMapMarkers}
             minimap={true}
             highlightedId={visibleEpigraphId}
             onEpigraphSelect={scrollToEpigraph}
             onClose={() => setMapVisible(false)}
+            overlayContent={mapLayerOverlay}
           />
         </div>
       )}
-      {mapMarkers.length > 0 && !mapVisible && (
+      {hasAvailableMapMarkers && !mapVisible && (
         <div className="fixed bottom-4 right-4 z-50">
           <button
             onClick={() => setMapVisible(true)}
             className="bg-white p-2 rounded-md shadow-lg hover:bg-gray-100 focus:outline-none flex items-center justify-center text-gray-700"
             aria-label="Show map"
           >
-            <MapTrifold size={24} weight="regular" />
+            <MapTrifoldIcon size={24} weight="regular" />
           </button>
         </div>
       )}
