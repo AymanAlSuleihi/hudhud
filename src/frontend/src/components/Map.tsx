@@ -8,44 +8,58 @@ import {
   NavigationControl,
   ScaleControl,
   FullscreenControl,
+  Source,
+  Layer,
   MapRef
 } from "react-map-gl/maplibre"
 import bbox from "@turf/bbox"
 import { X } from "@phosphor-icons/react"
 import Pin from "./Pin"
 
+type MapMarker = {
+  id: string
+  coordinates: [number, number]
+  color: string
+  label: string
+  style?: "results" | "outside"
+  popupContent?: React.ReactNode
+}
+
 export type MapProps = {
   center: [number, number]
   zoom: number
-  markers: Array<{
-    id: string
-    coordinates: [number, number]
-    color: string
-    label: string
-    popupContent?: React.ReactNode
-  }>
+  markers: MapMarker[]
+  backgroundMarkers?: MapMarker[]
   onMarkerClick?: (markerId: string) => void
   onEpigraphSelect?: (epigraphId: string) => void
   minimap?: boolean
   highlightedId?: string | null
   onClose?: () => void
+  overlayContent?: React.ReactNode
 }
 
 export const MapComponent: React.FC<MapProps> = ({ 
   center, 
   zoom, 
   markers,
+  backgroundMarkers = [],
   onMarkerClick,
   onEpigraphSelect,
   minimap = false,
   highlightedId = null,
-  onClose
+  onClose,
+  overlayContent,
 }) => {
   const [popupInfo, setPopupInfo] = useState<string | null>(null)
   const mapRef = useRef<MapRef>(null)
   const [currentCenter, setCurrentCenter] = useState(center)
   const [currentZoom, setCurrentZoom] = useState(zoom)
   const [manualPan, setManualPan] = useState(false)
+  const fitMarkers = useMemo(
+    () => (backgroundMarkers.length > 0 ? [...backgroundMarkers, ...markers] : markers),
+    [backgroundMarkers, markers],
+  )
+  const hasBackgroundMarkers = backgroundMarkers.length > 0
 
   const selectedMarker = useMemo(() => 
     markers.find(marker => marker.id === popupInfo),
@@ -68,22 +82,22 @@ export const MapComponent: React.FC<MapProps> = ({
   }, [highlightedId])
 
   useEffect(() => {
-    if (minimap && highlightedMarker && mapRef.current && !manualPan) {
+    if (minimap && highlightedMarker && mapRef.current && !manualPan && !hasBackgroundMarkers) {
       mapRef.current.flyTo({
         center: [highlightedMarker.coordinates[1], highlightedMarker.coordinates[0]],
         duration: 800,
         zoom: currentZoom
       })
     }
-  }, [highlightedId, minimap, currentZoom, manualPan])
+  }, [highlightedMarker, minimap, currentZoom, manualPan, hasBackgroundMarkers])
 
   useEffect(() => {
-    if (!mapRef.current || markers.length === 0) return
+    if (!mapRef.current || fitMarkers.length === 0) return
 
     try {
       const bboxResult = bbox({
         type: "FeatureCollection",
-        features: markers.map(marker => ({
+        features: fitMarkers.map(marker => ({
           type: "Feature",
           geometry: {
             type: "Point",
@@ -105,7 +119,44 @@ export const MapComponent: React.FC<MapProps> = ({
     } catch (error) {
       console.error("Error fitting bounds:", error)
     }
-  }, [markers])
+  }, [fitMarkers, minimap])
+
+  const backgroundMarkerPoints = useMemo(() => {
+    const markersByCoordinates: Record<string, MapMarker> = {}
+
+    for (const marker of backgroundMarkers) {
+      const coordinateKey = marker.coordinates.join(",")
+      const existingMarker = markersByCoordinates[coordinateKey]
+
+      if (!existingMarker) {
+        markersByCoordinates[coordinateKey] = marker
+        continue
+      }
+
+      const existingDrawOrder = existingMarker.style === "results" ? 1 : 0
+      const nextDrawOrder = marker.style === "results" ? 1 : 0
+
+      if (nextDrawOrder > existingDrawOrder) {
+        markersByCoordinates[coordinateKey] = marker
+      }
+    }
+
+    return {
+      type: "FeatureCollection" as const,
+      features: Object.values(markersByCoordinates).map((marker) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [marker.coordinates[1], marker.coordinates[0]] as [number, number],
+        },
+        properties: {
+          color: marker.color,
+          style: marker.style,
+          drawOrder: marker.style === "results" ? 1 : 0,
+        },
+      })),
+    }
+  }, [backgroundMarkers])
 
   const pins = useMemo(() => 
     markers.map((marker) => (
@@ -170,6 +221,33 @@ export const MapComponent: React.FC<MapProps> = ({
         <NavigationControl position="top-left" />
         <ScaleControl position="bottom-left" />
         <FullscreenControl position="top-left" />
+        {backgroundMarkers.length > 0 && (
+          <Source id="minimap-background-markers" type="geojson" data={backgroundMarkerPoints}>
+            <Layer
+              id="minimap-background-marker-circles"
+              type="circle"
+              layout={{
+                "circle-sort-key": ["get", "drawOrder"],
+              }}
+              paint={{
+                "circle-radius": [
+                  "match",
+                  ["get", "style"],
+                  "results",
+                  minimap ? 4.5 : 5.5,
+                  "outside",
+                  minimap ? 3 : 4,
+                  minimap ? 3.5 : 4.5,
+                ],
+                "circle-color": ["coalesce", ["get", "color"], "#999999"],
+                "circle-opacity": minimap ? 0.8 : 0.95,
+                "circle-stroke-width": minimap ? 0.55 : 1,
+                "circle-stroke-color": ["coalesce", ["get", "strokeColor"], "#444444"],
+                "circle-stroke-opacity": minimap ? 0.75 : 0.95,
+              }}
+            />
+          </Source>
+        )}
         {pins}
         {selectedMarker && (
           <Popup
@@ -206,6 +284,8 @@ export const MapComponent: React.FC<MapProps> = ({
           </Popup>
         )}
       </Map>
+
+      {overlayContent}
 
       {onClose && (
         <button 
