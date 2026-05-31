@@ -5,6 +5,7 @@ from app.api.api_v1.endpoints import (
     epigraphs,
     login,
     pipeline_runs,
+    sitemaps,
     users,
     words,
     sites,
@@ -21,6 +22,7 @@ api_router.include_router(analytics.router)
 api_router.include_router(epigraphs.router)
 api_router.include_router(login.router)
 api_router.include_router(pipeline_runs.router)
+api_router.include_router(sitemaps.router)
 api_router.include_router(users.router)
 api_router.include_router(words.router)
 api_router.include_router(sites.router)

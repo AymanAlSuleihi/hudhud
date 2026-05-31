@@ -20,7 +20,7 @@ celery_app.conf.update(
     task_track_started=True,
     broker_connection_retry_on_startup=True,
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
-    imports=("app.workers.pipeline_tasks",),
+    imports=("app.workers.pipeline_tasks", "app.workers.sitemap_tasks"),
 )
 
 beat_schedule = {}
