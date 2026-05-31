@@ -110,6 +110,29 @@ const hasValidMarkerCoordinates = (coordinates: unknown): coordinates is [number
   )
 }
 
+const normaliseMarkerCoordinates = (coordinates: unknown): [number, number] | null => {
+  if (Array.isArray(coordinates) && coordinates.length === 2) {
+    const latitude = Number(coordinates[0])
+    const longitude = Number(coordinates[1])
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return [latitude, longitude]
+    }
+  }
+
+  if (coordinates && typeof coordinates === "object") {
+    const coordinateRecord = coordinates as Record<string, unknown>
+    const latitude = Number(coordinateRecord.lat ?? coordinateRecord.latitude)
+    const longitude = Number(coordinateRecord.lon ?? coordinateRecord.longitude)
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return [latitude, longitude]
+    }
+  }
+
+  return null
+}
+
 const toMapMarkers = (
   markers: EpigraphMapMarkersResponse["markers"],
   style: MapMarkerStyle,
@@ -980,18 +1003,23 @@ const Epigraphs: React.FC = () => {
 
   useEffect(() => {
     if (epigraphs && epigraphs.epigraphs) {
-      const markers = epigraphs.epigraphs
-        .filter(e => {
-          const coords = Array.isArray(e.sites_objs) && e.sites_objs?.[0]?.coordinates
-          return hasValidMarkerCoordinates(coords)
+      const markers = epigraphs.epigraphs.flatMap((epigraph): MapMarker[] => {
+          const coordinates = Array.isArray(epigraph.sites_objs)
+            ? normaliseMarkerCoordinates(epigraph.sites_objs[0]?.coordinates)
+            : null
+
+          if (!coordinates) {
+            return []
+          }
+
+          return [{
+            id: epigraph.dasi_id.toString(),
+            coordinates,
+            color: CURRENT_SCROLL_PIN_COLOR,
+            label: `${epigraph.title} - ${(epigraph.sites_objs?.[0]?.modern_name) || "Unknown"}`,
+            style: "results" as const,
+          }]
         })
-        .map(e => ({
-          id: e.dasi_id.toString(),
-          coordinates: e.sites_objs?.[0]?.coordinates as [number, number],
-          color: CURRENT_SCROLL_PIN_COLOR,
-          label: `${e.title} - ${(e.sites_objs?.[0]?.modern_name) || "Unknown"}`,
-          style: "results" as const,
-        }))
       setMapMarkers(markers)
     } else {
       setMapMarkers([])
