@@ -106,8 +106,8 @@ export function createEpigraphStructuredData(epigraph: EpigraphOut): Record<stri
             ? {
                 geo: {
                   "@type": "GeoCoordinates",
-                  latitude: coordinates[0],
-                  longitude: coordinates[1],
+                  latitude: coordinates[1],
+                  longitude: coordinates[0],
                 },
               }
             : {}),
