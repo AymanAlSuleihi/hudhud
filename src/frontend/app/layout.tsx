@@ -26,6 +26,16 @@ export const metadata: Metadata = {
   description: defaultDescription,
   metadataBase: new URL(getSiteUrl()),
   applicationName: siteName,
+  icons: {
+    icon: [
+      {
+        url: "/hudhud.svg",
+        type: "image/svg+xml",
+        sizes: "any",
+      },
+    ],
+    shortcut: "/hudhud.svg",
+  },
 }
 
 interface RootLayoutProps {
