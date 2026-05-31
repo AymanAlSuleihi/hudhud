@@ -2,13 +2,16 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Navbar } from "../src/components/Navbar"
 import { CookieConsent } from "../src/components/CookieConsent"
-import { createDefaultMetadata } from "../src/next/lib/metadata"
-import { getSiteUrl } from "../src/next/lib/site"
+import { defaultDescription, getSiteUrl, siteName } from "../src/next/lib/site"
 
 export const metadata: Metadata = {
-  ...createDefaultMetadata(),
+  title: {
+    default: siteName,
+    template: `%s | ${siteName}`,
+  },
+  description: defaultDescription,
   metadataBase: new URL(getSiteUrl()),
-  applicationName: "Hudhud",
+  applicationName: siteName,
 }
 
 interface RootLayoutProps {
