@@ -1,13 +1,17 @@
 "use client"
 
 import React from "react"
+import dynamic from "next/dynamic"
 import { EpigraphOut } from "../client"
 import Link from "next/link"
 import { Eye, Image, ArrowSquareOut, WarningCircle, X, MagnifyingGlass } from "@phosphor-icons/react"
 import { MyDisclosure } from "./Disclosure"
-import TextRenderer from "./TextRenderer"
 import { Button, Tooltip, TooltipTrigger, OverlayArrow, ModalOverlay } from "react-aria-components"
 import Carousel from "./Carousel"
+
+const TextRenderer = dynamic(() => import("./TextRenderer"), {
+  ssr: false,
+})
 
 interface EpigraphCardProps {
   epigraph: EpigraphOut
