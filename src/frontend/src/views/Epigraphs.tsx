@@ -1026,11 +1026,6 @@ const Epigraphs: React.FC = () => {
     }
   }, [epigraphs])
 
-  const resultMarkersForMap = useMemo(
-    () => (resultMapMarkers.length > 0 ? resultMapMarkers : mapMarkers),
-    [mapMarkers, resultMapMarkers],
-  )
-
   const resultMarkerIds = useMemo(() => new Set(resultMapMarkers.map((marker) => marker.id)), [resultMapMarkers])
 
   const outsideResultMapMarkers = useMemo(
@@ -1042,14 +1037,14 @@ const Epigraphs: React.FC = () => {
       return null
     }
 
-    return resultMarkersForMap.find((marker) => marker.id === visibleEpigraphId) || null
-  }, [mapLayerVisibility.results, resultMarkersForMap, visibleEpigraphId])
+    return mapMarkers.find((marker) => marker.id === visibleEpigraphId) || null
+  }, [mapLayerVisibility.results, mapMarkers, visibleEpigraphId])
   const visibleBackgroundMapMarkers = useMemo(() => {
     const visibleMarkers: MapMarker[] = []
 
     if (mapLayerVisibility.results) {
       visibleMarkers.push(
-        ...resultMarkersForMap.filter((marker) => marker.id !== highlightedMapMarker?.id),
+        ...resultMapMarkers.filter((marker) => marker.id !== highlightedMapMarker?.id),
       )
     }
 
@@ -1058,10 +1053,10 @@ const Epigraphs: React.FC = () => {
     }
 
     return visibleMarkers
-  }, [highlightedMapMarker?.id, mapLayerVisibility.outside, mapLayerVisibility.results, outsideResultMapMarkers, resultMarkersForMap])
+  }, [highlightedMapMarker?.id, mapLayerVisibility.outside, mapLayerVisibility.results, outsideResultMapMarkers, resultMapMarkers])
   const availableMapMarkers = useMemo(
-    () => [...resultMarkersForMap, ...outsideResultMapMarkers],
-    [outsideResultMapMarkers, resultMarkersForMap],
+    () => [...resultMapMarkers, ...outsideResultMapMarkers],
+    [outsideResultMapMarkers, resultMapMarkers],
   )
   const mapLayerOptions = useMemo(
     () => [
@@ -1069,7 +1064,7 @@ const Epigraphs: React.FC = () => {
         key: "results" as const,
         label: MAP_LAYER_CONFIG.results.label,
         color: MAP_LAYER_CONFIG.results.color,
-        count: resultMarkersForMap.length,
+        count: resultMapMarkers.length,
       },
       {
         key: "outside" as const,
@@ -1078,7 +1073,7 @@ const Epigraphs: React.FC = () => {
         count: outsideResultMapMarkers.length,
       },
     ],
-    [outsideResultMapMarkers.length, resultMarkersForMap.length],
+    [outsideResultMapMarkers.length, resultMapMarkers.length],
   )
   const hasAvailableMapMarkers = availableMapMarkers.length > 0
   const visiblePinMarkers = highlightedMapMarker ? [highlightedMapMarker] : []
