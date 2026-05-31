@@ -5,6 +5,7 @@ import Link from "next/link"
 import safeLocalStorage from "../utils/safeLocalStorage"
 
 const COOKIE_CONSENT_KEY = "hudhud_cookie_consent"
+const COOKIE_CONSENT_DELAY_MS = 3000
 
 export const CookieConsent: React.FC = () => {
   const [showBanner, setShowBanner] = useState(false)
@@ -13,12 +14,24 @@ export const CookieConsent: React.FC = () => {
     try {
       const consent = safeLocalStorage.getItem(COOKIE_CONSENT_KEY)
       if (!consent) {
-        setShowBanner(true)
+        const timer = window.setTimeout(() => {
+          setShowBanner(true)
+        }, COOKIE_CONSENT_DELAY_MS)
+
+        return () => {
+          window.clearTimeout(timer)
+        }
       } else if (consent === "accepted") {
         enableAnalytics()
       }
     } catch (e) {
-      setShowBanner(true)
+      const timer = window.setTimeout(() => {
+        setShowBanner(true)
+      }, COOKIE_CONSENT_DELAY_MS)
+
+      return () => {
+        window.clearTimeout(timer)
+      }
     }
   }, [])
 
@@ -78,7 +91,7 @@ export const CookieConsent: React.FC = () => {
               </Link>
             </p>
           </div>
-          <div className="flex gap-3 flex-shrink-0">
+          <div className="flex gap-3 shrink-0">
             <button
               onClick={handleDecline}
               className="px-4 py-2 cursor-pointer text-sm font-medium text-gray-900 hover:text-gray-700 border border-gray-400 hover:border-gray-500 rounded-md transition-colors bg-transparent backdrop-blur-xs"
