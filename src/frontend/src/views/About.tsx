@@ -42,11 +42,28 @@ const About: React.FC = () => {
           </p>
           <p className="italic mb-2">
             DASI - Digital Archive for the Study of pre-Islamic Arabian 
-            Inscriptions. <a href="https://dasi.cnr.it/" className="hover:text-gray-500 text-gray-700 transition-colors font-semibold">https://dasi.cnr.it/</a>
+            Inscriptions. 
+            <a
+              href="https://dasi.cnr.it/"
+              className="hover:text-gray-500 text-gray-700 transition-colors font-semibold"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Digital Archive for the Study of pre-Islamic Arabian Inscriptions"
+              data-umami-event="About Page DASI Click"
+            >
+              https://dasi.cnr.it/
+            </a>
           </p>
           <p className="text-sm">
-            All epigraphic content is licensed under 
-            <a href="https://creativecommons.org/licenses/by/4.0/" className="hover:text-gray-500 text-gray-700 transition-colors font-semibold mx-1">
+            All epigraphic content is licensed under
+            <a
+              href="https://creativecommons.org/licenses/by/4.0/"
+              className="hover:text-gray-500 text-gray-700 transition-colors font-semibold mx-1"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Creative Commons Attribution 4.0 International License"
+              data-umami-event="About Page CC Click"
+            >
               Creative Commons Attribution 4.0 International License (CC BY 4.0)
             </a>
           </p>
@@ -79,7 +96,12 @@ const About: React.FC = () => {
         <h2 className="text-xl font-semibold mb-3">Contact</h2>
         <p>
           For questions, feedback, or collaboration opportunities, please contact me at{" "}
-          <a href="mailto:contact@shebascaravan.com" className="hover:text-gray-500 text-gray-700 transition-colors font-semibold">
+          <a
+            href="mailto:contact@shebascaravan.com"
+            className="hover:text-gray-500 text-gray-700 transition-colors font-semibold"
+            aria-label="Email"
+            data-umami-event="About Page Email Click"
+          >
             contact@shebascaravan.com
           </a>
         </p>
