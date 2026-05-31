@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { CaretUpDownIcon, CheckIcon } from "@phosphor-icons/react"
+import { CaretUpDown, Check } from "@phosphor-icons/react"
 import { Button, DialogTrigger, ListBox, ListBoxItem, Popover } from "react-aria-components"
 
 type MultiSelectOption = {
@@ -79,7 +79,7 @@ export const EpigraphsFilterMultiSelect: React.FC<EpigraphsFilterMultiSelectProp
           }`}
         >
           <span className="truncate">{summaryLabel}</span>
-          <CaretUpDownIcon className="flex-shrink-0 text-stone-500" size={14} />
+          <CaretUpDown className="flex-shrink-0 text-stone-500" size={14} />
         </Button>
         <Popover className="max-h-64 w-[var(--trigger-width)] cursor-default overflow-auto rounded-md border border-stone-200 bg-white shadow-xl ring-1 ring-black/5">
           <div className="py-1">
@@ -94,7 +94,7 @@ export const EpigraphsFilterMultiSelect: React.FC<EpigraphsFilterMultiSelectProp
               } ${isFocusVisible ? "ring-2 ring-inset ring-stone-400" : ""}`}
             >
               <span>{allLabel}</span>
-              <CheckIcon
+              <Check
                 size={14}
                 className={normalizedSelectedKeys.length === 0 ? "opacity-100" : "opacity-0"}
               />
@@ -125,7 +125,7 @@ export const EpigraphsFilterMultiSelect: React.FC<EpigraphsFilterMultiSelectProp
                   {({ isSelected }) => (
                     <>
                       <span className="truncate pr-2">{formatOptionLabel(option)}</span>
-                      <CheckIcon size={14} className={isSelected ? "opacity-100" : "opacity-0"} />
+                      <Check size={14} className={isSelected ? "opacity-100" : "opacity-0"} />
                     </>
                   )}
                 </ListBoxItem>

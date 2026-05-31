@@ -2,12 +2,12 @@
 
 import React from "react"
 import {
-  ArrowRightIcon,
-  HashIcon,
-  KeyboardIcon,
-  MagnifyingGlassIcon,
-  ToggleLeftIcon,
-  ToggleRightIcon,
+  ArrowRight,
+  Hash,
+  Keyboard,
+  MagnifyingGlass,
+  ToggleLeft,
+  ToggleRight,
 } from "@phosphor-icons/react"
 import { OnScreenKeyboard } from "../OnScreenKeyboard"
 import { Label, SearchField, ToggleButton } from "react-aria-components"
@@ -68,7 +68,7 @@ export const EpigraphsSearchPanel: React.FC<EpigraphsSearchPanelProps> = ({
               className="h-10 w-full rounded-md border border-gray-400 bg-white p-2 pl-9 pr-14 outline-none transition-colors focus:border-gray-500"
               placeholder="Search epigraphs"
             />
-            <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
 
             <div className="absolute right-10 top-1/2 -translate-y-1/2 flex gap-1">
               <button
@@ -77,7 +77,7 @@ export const EpigraphsSearchPanel: React.FC<EpigraphsSearchPanelProps> = ({
                 onClick={onToggleKeyboard}
                 title={showKeyboard ? "Hide Keyboard" : "Show Keyboard"}
               >
-                <KeyboardIcon size={16} />
+                <Keyboard size={16} />
               </button>
             </div>
             <div className="absolute right-[5px] top-1/2 -translate-y-1/2 flex gap-1">
@@ -87,7 +87,7 @@ export const EpigraphsSearchPanel: React.FC<EpigraphsSearchPanelProps> = ({
                 onClick={() => onSearchSubmit(searchInputRef.current?.value || "")}
                 title="Search"
               >
-                <MagnifyingGlassIcon size={16} />
+                <MagnifyingGlass size={16} />
               </button>
             </div>
           </div>
@@ -107,14 +107,14 @@ export const EpigraphsSearchPanel: React.FC<EpigraphsSearchPanelProps> = ({
             }}
             className="h-10 w-full rounded-md border border-gray-400 bg-white pl-10 pr-10 outline-none transition-colors focus:border-gray-500"
           />
-          <HashIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={15} />
+          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={15} />
           <button
             type="button"
             onClick={() => onDasiIdSubmit(dasiIdInput)}
             className="absolute right-[5px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md border border-gray-600 shadow transition-colors hover:border-gray-700 hover:text-gray-700"
             title="Go to epigraph"
           >
-            <ArrowRightIcon size={16} />
+            <ArrowRight size={16} />
           </button>
         </div>
 
@@ -135,9 +135,11 @@ export const EpigraphsSearchPanel: React.FC<EpigraphsSearchPanelProps> = ({
               onChange={(selected) => onScopeChange(scope.key, selected)}
               className="group flex items-center gap-2 px-3 py-2 h-8 rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 transition-colors cursor-pointer w-auto font-semibold whitespace-nowrap text-sm"
             >
-              {searchFields[scope.key]
-                ? <ToggleRightIcon size={16} weight="fill" className="text-gray-700" />
-                : <ToggleLeftIcon size={16} />}
+              {searchFields[scope.key] ? (
+                <ToggleRight size={16} weight="fill" className="text-gray-700" />
+              ) : (
+                <ToggleLeft size={16} />
+              )}
               <span className="flex items-center gap-1">{scope.label}</span>
             </ToggleButton>
           ))}

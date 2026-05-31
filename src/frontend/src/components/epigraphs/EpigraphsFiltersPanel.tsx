@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { XIcon } from "@phosphor-icons/react"
+import { X } from "@phosphor-icons/react"
 import type { EpigraphFacetSchemaFieldResponse } from "../../client"
 import { EpigraphsFilterMultiSelect } from "./EpigraphsFilterMultiSelect"
 import { MySlider } from "../Slider"
@@ -198,7 +198,7 @@ export const EpigraphsFiltersPanel: React.FC<EpigraphsFiltersPanelProps> = ({
         title="Remove filter"
       >
         <span className="max-w-36 truncate sm:max-w-44">{label}</span>
-        <XIcon size={10} className="flex-shrink-0" />
+        <X size={10} className="flex-shrink-0" />
       </button>
     )
   }

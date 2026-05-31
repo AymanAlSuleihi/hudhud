@@ -48,7 +48,7 @@ services:
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.tls=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.priority=50
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend.service=${STACK_NAME?Variable not set}-frontend
-      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=80
+      - traefik.http.services.${STACK_NAME?Variable not set}-frontend.loadbalancer.server.port=5002
     networks:
       - traefik-public
 

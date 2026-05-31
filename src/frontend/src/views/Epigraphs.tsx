@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { MapTrifoldIcon, StackSimple } from "@phosphor-icons/react"
+import { MapTrifold, StackSimple } from "@phosphor-icons/react"
 import {
   EpigraphFacetBucket,
   EpigraphFacetSchemaFieldResponse,
@@ -1450,7 +1450,7 @@ const Epigraphs: React.FC = () => {
             className="bg-white p-2 rounded-md shadow-lg hover:bg-gray-100 focus:outline-none flex items-center justify-center text-gray-700"
             aria-label="Show map"
           >
-            <MapTrifoldIcon size={24} weight="regular" />
+            <MapTrifold size={24} weight="regular" />
           </button>
         </div>
       )}
