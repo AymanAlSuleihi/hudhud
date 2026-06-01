@@ -733,7 +733,7 @@ class ImportService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     ) -> Optional[str]:
         await asyncio.sleep(rate_limit_delay)
 
-        image_url = f"https://dasi.cnr.it/de/cgi-bin/wsimg.pl?recId={rec_id}&size={size}"
+        image_url = f"https://de.dasi.cnr.it/cgi-bin/wsimg.pl?recId={rec_id}&size={size}"
 
         try:
             async with aiohttp.ClientSession() as session:

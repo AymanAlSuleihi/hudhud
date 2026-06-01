@@ -229,7 +229,7 @@ export const EpigraphCard: React.FC<EpigraphCardProps> = ({
                         </div>
 
                         <button 
-                          onClick={() => window.open(`https://dasi.cnr.it/de/cgi-bin/wsimg.pl?recId=${image.image_id}&size=high`, "_blank", "noopener,noreferrer")}
+                          onClick={() => window.open(`https://de.dasi.cnr.it/cgi-bin/wsimg.pl?recId=${image.image_id}&size=high`, "_blank", "noopener,noreferrer")}
                           className="rounded shadow border border-gray-900 hover:border-gray-700 hover:text-gray-700 text-xs font-semibold px-3 py-2 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                           umami-event={`Epigraph Image DASI Click - ${epigraph.dasi_id} - ${image.image_id}`}
                         >
