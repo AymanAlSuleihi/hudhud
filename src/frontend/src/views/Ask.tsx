@@ -64,14 +64,22 @@ const Ask: React.FC = () => {
   const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false)
   const [pendingScrollToEpigraphId, setPendingScrollToEpigraphId] = useState<number | null | undefined>(undefined)
 
-  const [sidebarWidth, setSidebarWidth] = useState<number>(50)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(49.5)
   const [isResizing, setIsResizing] = useState<boolean>(false)
   const [dragPosition, setDragPosition] = useState<number | null>(null)
   const [mobileView, setMobileView] = useState<"chat" | "info">("chat")
+  const [syncedFooterHeight, setSyncedFooterHeight] = useState<number | null>(null)
+  const [chatFooterHeight, setChatFooterHeight] = useState<number | null>(null)
+  const [infoFooterHeight, setInfoFooterHeight] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const epigraphRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const infoPanelRef = useRef<HTMLDivElement>(null)
+  const chatFooterContentRef = useRef<HTMLDivElement>(null)
+  const infoFooterContentRef = useRef<HTMLDivElement>(null)
+
+  const chatFooterOverlayHeight = syncedFooterHeight ?? chatFooterHeight ?? 88
+  const infoFooterOverlayHeight = syncedFooterHeight ?? infoFooterHeight ?? (epigraphPages.size > 1 ? 148 : 108)
 
   const fetchEpigraphsByIds = async (ids: number[]): Promise<any[]> => {
     if (ids.length === 0) return []
@@ -294,6 +302,55 @@ const Ask: React.FC = () => {
   }, [pendingScrollToEpigraphId, currentPageEpigraphs])
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof ResizeObserver === "undefined") return
+
+    const desktopMediaQuery = window.matchMedia("(min-width: 768px)")
+
+    const syncFooterHeight = () => {
+      const chatHeight = chatFooterContentRef.current?.getBoundingClientRect().height ?? 0
+      const infoHeight = infoFooterContentRef.current?.getBoundingClientRect().height ?? 0
+      const nextChatHeight = chatHeight > 0 ? Math.ceil(chatHeight + 25) : null
+      const nextInfoHeight = infoHeight > 0 ? Math.ceil(infoHeight + 25) : null
+
+      setChatFooterHeight(previousHeight => previousHeight === nextChatHeight ? previousHeight : nextChatHeight)
+      setInfoFooterHeight(previousHeight => previousHeight === nextInfoHeight ? previousHeight : nextInfoHeight)
+
+      if (!desktopMediaQuery.matches) {
+        setSyncedFooterHeight(null)
+        return
+      }
+
+      if (!nextChatHeight || !nextInfoHeight) return
+
+      const nextHeight = Math.max(nextChatHeight, nextInfoHeight)
+      setSyncedFooterHeight(previousHeight => previousHeight === nextHeight ? previousHeight : nextHeight)
+    }
+
+    syncFooterHeight()
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncFooterHeight()
+    })
+
+    if (chatFooterContentRef.current) {
+      resizeObserver.observe(chatFooterContentRef.current)
+    }
+
+    if (infoFooterContentRef.current) {
+      resizeObserver.observe(infoFooterContentRef.current)
+    }
+
+    desktopMediaQuery.addEventListener("change", syncFooterHeight)
+    window.addEventListener("resize", syncFooterHeight)
+
+    return () => {
+      resizeObserver.disconnect()
+      desktopMediaQuery.removeEventListener("change", syncFooterHeight)
+      window.removeEventListener("resize", syncFooterHeight)
+    }
+  }, [])
+
+  useEffect(() => {
     const currentEpigraphIds = new Set(currentPageEpigraphs.map((ep: any) => String(ep.id)))
     Object.keys(epigraphRefs.current).forEach(key => {
       if (!currentEpigraphIds.has(key)) {
@@ -411,7 +468,7 @@ const Ask: React.FC = () => {
 
     // Adjust textarea height
     if (inputRef.current) {
-      inputRef.current.style.height = "auto"
+      inputRef.current.style.height = ""
     }
 
     // Create assistant message that will be updated with streaming content
@@ -628,7 +685,7 @@ const Ask: React.FC = () => {
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value)
     e.target.style.height = "auto"
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"
+    e.target.style.height = Math.min(Math.max(e.target.scrollHeight, 52), 200) + "px"
   }
 
   const formatMessage = (text: string, messageId: string) => {
@@ -757,7 +814,7 @@ const Ask: React.FC = () => {
       <div className="fixed top-0 left-0 right-0 bottom-0 flex overflow-hidden bg-white z-10">
         {/* Left Side - Chat Messages */}
         <div 
-          className={`flex flex-col transition-opacity duration-150 mobile-full-width ${mobileView === 'info' ? 'hidden md:flex' : 'flex'}`}
+          className={`relative flex flex-col transition-opacity duration-150 mobile-full-width ${mobileView === 'info' ? 'hidden md:flex' : 'flex'}`}
           style={{ 
             width: isResizing && dragPosition !== null 
               ? `${dragPosition}px` 
@@ -765,7 +822,10 @@ const Ask: React.FC = () => {
             opacity: isResizing ? 0.6 : 1
           }}
         >
-          <div className="flex-1 overflow-y-auto bg-white scrollbar-offset-top pt-[80px] pb-[33px] mb-[25px]">
+          <div
+            className="flex-1 overflow-y-auto bg-white scrollbar-offset-top pt-[80px]"
+            style={{ paddingBottom: `${chatFooterOverlayHeight}px` }}
+          >
             <div className="px-4 py-6">
               <div className="max-w-3xl mx-auto">
                 {/* Clear Chat Button - Top Right */}
@@ -800,7 +860,7 @@ const Ask: React.FC = () => {
                       >
                         {message.type === "error" && (
                           <div className="flex items-start mb-2">
-                            <Warning size={20} className="mr-2 flex-shrink-0 mt-0.5" />
+                            <Warning size={20} className="mr-2 shrink-0 mt-0.5" />
                             <span className="font-semibold text-sm">Error</span>
                           </div>
                         )}
@@ -845,16 +905,19 @@ const Ask: React.FC = () => {
           </div>
 
           {/* Input Area - Sticky at bottom */}
-          <div className="sticky bottom-[25px] px-2 pt-1 pb-0 z-20 border-t border-gray-200 bg-white">
-            <div className="max-w-3xl mx-auto">
-              <form onSubmit={handleSubmit} className="relative">
+          <div
+            className="pointer-events-none absolute bottom-[25px] left-0 right-0 z-20 px-4 py-3 bg-transparent md:flex md:items-center"
+            style={{ height: `${chatFooterOverlayHeight}px` }}
+          >
+            <div ref={chatFooterContentRef} className="pointer-events-auto mx-auto w-full max-w-3xl">
+              <form onSubmit={handleSubmit} className="relative flex items-end">
                 <textarea
                   ref={inputRef}
                   value={query}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Ask a question about Ancient South Arabia..."
-                  className="text-sm w-full px-3 py-3 pr-14 border border-gray-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-transparent"
+                  className="text-sm w-full h-[52px] overflow-hidden rounded-md border border-gray-200 bg-white px-3 py-[15px] pr-16 resize-none leading-5 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-zinc-500"
                   rows={1}
                   disabled={isLoading}
                   style={{ maxHeight: "200px" }}
@@ -862,7 +925,7 @@ const Ask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading || !query.trim()}
-                  className="absolute right-1 bottom-[10px] bg-zinc-600 hover:bg-zinc-500 disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-2.5 rounded-md transition-colors"
+                  className="absolute bottom-1.5 right-2 flex h-10 w-10 items-center justify-center rounded-md bg-zinc-600 text-white transition-colors hover:bg-zinc-500 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   <PaperPlaneRight size={20} weight="bold" />
                 </button>
@@ -874,7 +937,7 @@ const Ask: React.FC = () => {
         {/* Resize Handle */}
         <div
           onMouseDown={handleMouseDown}
-          className={`hidden md:block w-[1px] cursor-col-resize transition-all relative ${
+          className={`hidden md:block w-px cursor-col-resize transition-all relative ${
             isResizing ? 'bg-zinc-500 ' : 'bg-gray-200 hover:bg-zinc-400'
           }`}
         >
@@ -883,7 +946,7 @@ const Ask: React.FC = () => {
 
         {/* Right Side - Info Panel */}
         <div 
-          className={`flex flex-col transition-opacity duration-150 mobile-full-width ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}
+          className={`relative flex flex-col transition-opacity duration-150 mobile-full-width ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}
           style={{ 
             width: isResizing && dragPosition !== null 
               ? `calc(100% - ${dragPosition}px)` 
@@ -892,7 +955,11 @@ const Ask: React.FC = () => {
           }}
         >
           {/* Scrollable content area */}
-          <div ref={infoPanelRef} className="flex-1 overflow-y-auto scrollbar-offset-top pt-[80px] pb-[33px] mb-[25px]">
+          <div
+            ref={infoPanelRef}
+            className="flex-1 overflow-y-auto scrollbar-offset-top pt-[80px]"
+            style={{ paddingBottom: `${infoFooterOverlayHeight}px` }}
+          >
             <div className="px-4 py-6">
               {isLoadingPage && (
                 <div className="mb-6 flex items-center justify-center gap-3 py-8">
@@ -1001,53 +1068,58 @@ const Ask: React.FC = () => {
           </div>
 
           {/* Control Panel - Sticky at bottom */}
-          <div className="sticky bottom-[25px] bg-white border-t border-gray-200 px-4 py-4 z-20 h-[58px]">
-            {/* Mobile Back Button */}
-            <button
-              onClick={() => setMobileView('chat')}
-              className="md:hidden flex items-center justify-center gap-2 mb-3 px-4 py-2 w-full text-sm text-white bg-zinc-600 hover:bg-zinc-500 rounded-lg transition-colors"
-            >
-              <ArrowLeft size={18} weight="bold" />
-              Back to Chat
-            </button>
+          <div
+            className="pointer-events-none absolute bottom-[25px] left-0 right-0 z-20 bg-transparent px-4 py-3 md:flex md:items-center"
+            style={{ height: `${infoFooterOverlayHeight}px` }}
+          >
+            <div ref={infoFooterContentRef} className="pointer-events-auto mx-auto flex w-full max-w-3xl flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+              {/* Mobile Back Button */}
+              <button
+                onClick={() => setMobileView('chat')}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-zinc-600 px-4 py-2 text-sm text-white transition-colors hover:bg-zinc-500 md:hidden"
+              >
+                <ArrowLeft size={18} weight="bold" />
+                Back to Chat
+              </button>
 
-            {/* Navigation Controls */}
-            {epigraphPages.size > 1 && (
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <button
-                  onClick={() => navigateEpigraphs('prev')}
-                  disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) <= 0}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 rounded transition-colors"
-                >
-                  <CaretLeft size={14} weight="bold" />
-                  Previous
-                </button>
-                <span className="text-xs text-gray-500 px-2">
-                  {currentPageMessageId ? Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) + 1 : 0} of {epigraphPages.size}
-                </span>
-                <button
-                  onClick={() => navigateEpigraphs('next')}
-                  disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) >= epigraphPages.size - 1}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 rounded transition-colors"
-                >
-                  Next
-                  <CaretRight size={14} weight="bold" />
-                </button>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-gray-600">
-                {isLoadingPage ? (
-                  <span className="flex items-center gap-2">
-                    <Spinner colour="#666" size="w-3 h-3" />
-                    <span>Loading sources...</span>
+              {/* Navigation Controls */}
+              {epigraphPages.size > 1 && (
+                <div className="flex flex-wrap items-center justify-center gap-2 md:order-2 md:justify-end">
+                  <button
+                    onClick={() => navigateEpigraphs('prev')}
+                    disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) <= 0}
+                    className="flex items-center gap-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-100 disabled:bg-white/70 disabled:text-gray-400"
+                  >
+                    <CaretLeft size={14} weight="bold" />
+                    Previous
+                  </button>
+                  <span className="px-2 text-xs text-gray-500">
+                    {currentPageMessageId ? Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) + 1 : 0} of {epigraphPages.size}
                   </span>
-                ) : currentPageEpigraphs.length > 0 ? (
-                  <span className="font-medium">{currentPageEpigraphs.length} source{currentPageEpigraphs.length !== 1 ? 's' : ''} loaded</span>
-                ) : (
-                  <span>No sources loaded</span>
-                )}
+                  <button
+                    onClick={() => navigateEpigraphs('next')}
+                    disabled={!currentPageMessageId || Array.from(epigraphPages.keys()).indexOf(currentPageMessageId) >= epigraphPages.size - 1}
+                    className="flex items-center gap-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-100 disabled:bg-white/70 disabled:text-gray-400"
+                  >
+                    Next
+                    <CaretRight size={14} weight="bold" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex min-h-6 items-center justify-between md:order-1 md:flex-1">
+                <div className="text-xs text-gray-600">
+                  {isLoadingPage ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner colour="#666" size="w-3 h-3" />
+                      <span>Loading sources...</span>
+                    </span>
+                  ) : currentPageEpigraphs.length > 0 ? (
+                    <span className="font-medium">{currentPageEpigraphs.length} source{currentPageEpigraphs.length !== 1 ? 's' : ''} loaded</span>
+                  ) : (
+                    null
+                  )}
+                </div>
               </div>
             </div>
           </div>
