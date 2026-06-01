@@ -43,9 +43,9 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile.dev
-    depends_on:
-      backend:
-        condition: service_healthy
+    # depends_on:
+    #   backend:
+    #     condition: service_healthy
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
