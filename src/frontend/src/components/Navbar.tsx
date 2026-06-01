@@ -64,17 +64,17 @@ export const Navbar: React.FC = () => {
           </div>
 
           <div className="relative z-10 bg-transparent px-2 sm:px-4 md:px-6 flex-shrink-0">
-            <Link href="/">
+            <Link href="/" className="navbar-logo-link">
               <img 
                 src="/hudhud_logo.png" 
                 alt="Hudhud Logo" 
-                className="3xs:h-18 h-12 w-auto object-contain drop-shadow-sm"
+                className="block 3xs:h-18 h-12 w-auto object-contain drop-shadow-sm"
               />
             </Link>
           </div>
 
-          <div className="absolute right-16 3xs:right-4 sm:right-8 md:right-20 lg:right-32 xl:right-40 2xl:right-52 top-1/2 3xs:top-1/3 transform -translate-y-1/2 3xs:translate-x-[9px]">
-            <span className="text-lg font-medium text-gray-900 tracking-[10px]">𐩠𐩵𐩠𐩵</span>
+          <div className="absolute right-16 3xs:right-4 sm:right-8 md:right-20 lg:right-32 xl:right-40 2xl:right-52 top-1/2 3xs:top-1/3 transform -translate-y-1/2">
+            <span className="navbar-old-south-arabian-mark text-lg font-medium text-gray-900 tracking-[10px]">𐩠𐩵𐩠𐩵</span>
           </div>
 
           <button

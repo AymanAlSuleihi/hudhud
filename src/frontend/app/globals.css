@@ -19,6 +19,43 @@ body {
   min-height: 100vh;
 }
 
+.navbar-logo-link {
+  position: relative;
+  display: block;
+  left: -2px;
+}
+
+@media (min-width: 475px) {
+  .navbar-logo-link {
+    left: 3px;
+  }
+}
+
+@supports (-moz-appearance: none) {
+  .navbar-logo-link {
+    left: 3px;
+  }
+}
+
+.navbar-old-south-arabian-mark {
+  position: relative;
+  display: inline-block;
+}
+
+@media (min-width: 475px) {
+  .navbar-old-south-arabian-mark {
+    left: 9px;
+  }
+}
+
+@supports (-moz-appearance: none) {
+  @media (min-width: 475px) {
+    .navbar-old-south-arabian-mark {
+      left: 0px;
+    }
+  }
+}
+
 .select-listbox {
   animation: enable-interactions 150ms ease-out forwards;
 }
