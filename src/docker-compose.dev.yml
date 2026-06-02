@@ -30,7 +30,7 @@ services:
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.tls=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-api.service=${STACK_NAME?Variable not set}-backend-api
       - traefik.http.services.${STACK_NAME?Variable not set}-backend-api.loadbalancer.server.port=8081
-      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/epigraphs/`) || PathPrefix(`/word/`)) && HeadersRegexp(`User-Agent`, `(?i)(facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|slackbot|skypeuripreview|discordbot|applebot|googlebot|bingbot)`)
+      - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.rule=Host(`hudhud-dev.${DOMAIN}`) && (PathPrefix(`/epigraphs/`) || PathPrefix(`/word/`)) && HeadersRegexp(`User-Agent`, `(?i)(facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|slackbot|skypeuripreview|discordbot|applebot)`)
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.tls=true
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.priority=100
       - traefik.http.routers.${STACK_NAME?Variable not set}-backend-social.service=${STACK_NAME?Variable not set}-backend-social

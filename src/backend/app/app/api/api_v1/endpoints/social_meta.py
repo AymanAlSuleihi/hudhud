@@ -24,8 +24,6 @@ def is_social_media_bot(user_agent: str) -> bool:
         "SkypeUriPreview",
         "discordbot",
         "Applebot",
-        "Googlebot",
-        "bingbot"
     ]
 
     user_agent_lower = user_agent.lower()
