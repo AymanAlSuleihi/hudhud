@@ -11,6 +11,9 @@ class WordBase(SQLModel):
     word: str
     classification: Optional[str] = None
     attributes: Optional[dict] = Field(sa_column=Column(JSONB), default={})
+    language_level_1: Optional[str] = None
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
 
 
 class WordCreate(WordBase):
@@ -21,6 +24,9 @@ class WordUpdate(SQLModel):
     word: Optional[str] = None
     classification: Optional[str] = None
     attributes: Optional[dict] = Field(sa_column=Column(JSONB), default={})
+    language_level_1: Optional[str] = None
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
 
 
 class Word(
@@ -30,6 +36,9 @@ class Word(
 ):
     id: int = Field(default=None, primary_key=True)
     frequency: int = Field(default=1)
+    language_level_1: Optional[str] = None
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
 
     epigraphs: list["Epigraph"] = Relationship(back_populates="words", link_model=EpigraphWordLink)
 
