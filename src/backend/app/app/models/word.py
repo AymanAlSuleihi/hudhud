@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.models import TimeStampModel
 from app.models.links import EpigraphWordLink, WordLink
+from app.models.minimal import EpigraphMinimal
 
 
 class WordBase(SQLModel):
@@ -55,21 +56,34 @@ class Word(
 class WordMinimal(SQLModel):
     id: int
     word: str
+    classification: Optional[str] = None
+    attributes: Optional[dict] = {}
+    language_level_1: Optional[str] = None
+    language_level_2: Optional[str] = None
+    language_level_3: Optional[str] = None
+    frequency: int = 1
+    epigraph_count: int = 0
 
 
 class WordConnection(SQLModel):
     id: int
     word: str
-    # count: int
+    count: int = 0
 
 
 class WordOut(WordBase):
     id: int
     frequency: int
-    # epigraphs: list = []
+    epigraph_count: int = 0
     words: list[WordConnection] = []
+    epigraphs: list[EpigraphMinimal] = []
 
 
 class WordsOut(SQLModel):
     words: list[WordOut]
+    count: int
+
+
+class WordsMinimalOut(SQLModel):
+    words: list[WordMinimal]
     count: int
