@@ -1,7 +1,4 @@
-import json
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select, func, asc, desc
 
 from app.api.deps import (
     SessionDep,
@@ -10,71 +7,68 @@ from app.api.deps import (
 from app.api.params import JsonFiltersParam, PageLimit, PageOffset, ResourceIdPath, SortFieldParam, SortOrderParam
 from app.crud.crud_word import word as crud_word
 from app.models.word import (
-    Word,
     WordCreate,
     WordUpdate,
     WordOut,
     WordsOut,
+    WordsMinimalOut,
 )
-from app.models.links import EpigraphWordLink, WordLink
 
 
-router = APIRouter()
 router = APIRouter(prefix="/words", tags=["words"])
 
 @router.get(
-    "/",
+    "",
     response_model=WordsOut,
 )
 def read_words(
-        session: SessionDep,
-        skip: PageOffset = 0,
-        limit: PageLimit = 100,
-        sort_field: SortFieldParam = None,
-        sort_order: SortOrderParam = None,
-        filters: JsonFiltersParam = None,
+    session: SessionDep,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
+    related_epigraphs_limit: int = 10,
+    related_words_limit: int = 10,
 ) -> WordsOut:
     """
     Retrieve words.
     """
-    total_count_statement = select(func.count()).select_from(Word)
-    total_count = session.exec(total_count_statement).one()
+    return crud_word.get_words_out(
+        session,
+        skip=skip,
+        limit=limit,
+        sort_field=sort_field,
+        sort_order=sort_order,
+        filters=filters,
+        related_epigraphs_limit=related_epigraphs_limit,
+        related_words_limit=related_words_limit,
+    )
 
-    words_statement = select(Word).offset(skip).limit(limit)
 
-    if filters:
-        filters_dict = json.loads(filters)
-        for key, value in filters_dict.items():
-            if isinstance(value, bool):
-                words_statement = words_statement.where(
-                    getattr(Word, key).is_(value)
-                )
-            else:
-                words_statement = words_statement.where(
-                    getattr(Word, key) == value
-                )
-
-    if sort_field:
-        if sort_field == "words":
-            sort_field = (
-                select(func.count(WordLink.to_word_id))
-                .where(WordLink.from_word_id == Word.id)
-                .scalar_subquery()
-            )
-        elif sort_field == "epigraphs":
-            sort_field = (
-                select(func.count(EpigraphWordLink.epigraph_id))
-                .where(EpigraphWordLink.word_id == Word.id)
-                .scalar_subquery()
-            )
-        if sort_order == "desc":
-            words_statement = words_statement.order_by(desc(sort_field))
-        else:
-            words_statement = words_statement.order_by(asc(sort_field))
-
-    words = session.exec(words_statement).all()
-
-    return WordsOut(words=words, count=total_count)
+@router.get(
+    "/minimal",
+    response_model=WordsMinimalOut,
+)
+def read_words_minimal(
+    session: SessionDep,
+    skip: PageOffset = 0,
+    limit: PageLimit = 100,
+    sort_field: SortFieldParam = None,
+    sort_order: SortOrderParam = None,
+    filters: JsonFiltersParam = None,
+) -> WordsMinimalOut:
+    """
+    Retrieve words with minimal fields.
+    """
+    return crud_word.get_words_minimal_out(
+        session,
+        skip=skip,
+        limit=limit,
+        sort_field=sort_field,
+        sort_order=sort_order,
+        filters=filters,
+    )
 
 
 @router.get(
@@ -84,16 +78,24 @@ def read_words(
 def read_word(
     word_id: ResourceIdPath,
     session: SessionDep,
+    related_epigraphs_limit: int = 10,
+    related_words_limit: int = 10,
 ) -> WordOut:
     """
     Retrieve a word by ID.
     """
-    word = crud_word.get(session, id=word_id)
+    word = crud_word.get_word_out(
+        session,
+        id=word_id,
+        related_epigraphs_limit=related_epigraphs_limit,
+        related_words_limit=related_words_limit
+    )
     if not word:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Word not found",
         )
+
     return word
 
 
