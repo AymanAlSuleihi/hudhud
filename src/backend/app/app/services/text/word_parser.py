@@ -52,7 +52,12 @@ class WordParser:
         inherited_classification: Optional[str],
         inherited_attributes: dict,
     ) -> tuple[Optional[str], dict]:
-        if tag in self._STRUCTURAL_TAGS or self._is_boundary_element(tag, attributes) or tag == "lb":
+        if tag in self._STRUCTURAL_TAGS or self._is_boundary_element(tag, attributes):
+            if tag == "rs" and attributes.get("type"):
+                return tag, dict(attributes)
+            return inherited_classification, inherited_attributes
+
+        if inherited_classification is not None and tag in self._ANNOTATION_TAGS:
             return inherited_classification, inherited_attributes
 
         return tag, dict(attributes)
