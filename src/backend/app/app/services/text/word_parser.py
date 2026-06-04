@@ -89,12 +89,6 @@ class WordParser:
                 self._flush_token()
                 continue
 
-            if self._buffer_parts and (
-                classification != self._buffer_classification
-                or attributes != self._buffer_attributes
-            ):
-                self._flush_token()
-
             if not self._buffer_parts:
                 self._buffer_classification = classification
                 self._buffer_attributes = dict(attributes)
