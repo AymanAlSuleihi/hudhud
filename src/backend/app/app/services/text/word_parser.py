@@ -18,8 +18,23 @@ class ParsedWordToken:
 
 
 class WordParser:
-    _STRUCTURAL_TAGS = {"ab", "app", "choice", "subst"}
+    _STRUCTURAL_TAGS = {
+        "ab",
+        "app",
+        "choice",
+        "subst",
+        "w",
+        "g",
+        "rdg",
+        "lem",
+        "corr",
+        "surplus",
+        "seg",
+        "rs",
+        "num",
+    }
     _BOUNDARY_TAGS = {"cb", "gap", "milestone", "pb"}
+    _ANNOTATION_TAGS = {"unclear", "supplied"}
 
     def __init__(self, session: Session, epigraph: Epigraph):
         self.session = session
