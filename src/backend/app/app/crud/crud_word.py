@@ -343,10 +343,10 @@ class CRUDWord(CRUDBase[Word, WordCreate, WordUpdate]):
         ).first()
 
         if link:
-            if link.positions is None:
-                link.positions = []
-            if position is not None and position not in link.positions:
-                link.positions.append(position)
+            positions = list(link.positions) if link.positions else []
+            if position is not None and position not in positions:
+                positions.append(position)
+                link.positions = positions
                 db.add(link)
                 db.commit()
             return word
