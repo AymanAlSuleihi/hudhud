@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, ARRAY, Column, Integer
 
 
 class EpigraphSiteLink(SQLModel, table=True):
@@ -19,6 +19,7 @@ class EpigraphWordLink(SQLModel, table=True):
     word_id: Optional[int] = Field(
         default=None, foreign_key="word.id", primary_key=True
     )
+    positions: Optional[list[int]] = Field(sa_column=Column(ARRAY(Integer)), default=[])
 
 
 class EpigraphObjectLink(SQLModel, table=True):

@@ -15,6 +15,7 @@ class ParsedWordToken:
     text: str
     classification: Optional[str] = None
     attributes: dict = field(default_factory=dict)
+    position: Optional[int] = None
 
 
 class WordParser:
@@ -88,6 +89,7 @@ class WordParser:
                     text=word_text,
                     classification=self._buffer_classification,
                     attributes=dict(self._buffer_attributes),
+                    position=len(self._tokens),
                 )
             )
 
@@ -197,6 +199,7 @@ class WordParser:
                 self.session,
                 word=word,
                 epigraph_id=self.epigraph.id,
+                position=token.position,
             )
             if words:
                 word = crud_word.link_words(

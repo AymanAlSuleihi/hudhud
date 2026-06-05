@@ -325,7 +325,14 @@ class CRUDWord(CRUDBase[Word, WordCreate, WordUpdate]):
         db.commit()
         return from_word
 
-    def link_to_epigraph(self, db: Session, *, word: Word, epigraph_id: int) -> Word:
+    def link_to_epigraph(
+        self,
+        db: Session,
+        *,
+        word: Word,
+        epigraph_id: int,
+        position: Optional[int] = None,
+    ) -> Word:
         epigraph = db.query(Epigraph).get(epigraph_id)
         if not epigraph:
             raise ValueError(f"Epigraph with id {epigraph_id} not found")
@@ -336,9 +343,15 @@ class CRUDWord(CRUDBase[Word, WordCreate, WordUpdate]):
         ).first()
 
         if link:
+            if link.positions is None:
+                link.positions = []
+            if position is not None and position not in link.positions:
+                link.positions.append(position)
+                db.add(link)
+                db.commit()
             return word
 
-        link = EpigraphWordLink(epigraph_id=epigraph_id, word_id=word.id)
+        link = EpigraphWordLink(epigraph_id=epigraph_id, word_id=word.id, positions=[position] if position is not None else [])
         db.add(link)
         db.commit()
         return word
