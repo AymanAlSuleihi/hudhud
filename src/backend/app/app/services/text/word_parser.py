@@ -56,6 +56,15 @@ class WordParser:
             return tag.rsplit("}", 1)[1]
         return tag
 
+    def _clean_attributes(self, attributes: Optional[dict]) -> dict:
+        if not attributes:
+            return {}
+        return {
+            k: v
+            for k, v in attributes.items()
+            if k not in ("prev", "next", "{http://www.w3.org/XML/1998/namespace}id")
+        }
+
     def _is_boundary_element(self, tag: str, attributes: dict[str, str]) -> bool:
         if tag in self._BOUNDARY_TAGS:
             return True
@@ -69,16 +78,16 @@ class WordParser:
         inherited_attributes: dict,
     ) -> tuple[Optional[str], dict]:
         if tag == "gap":
-            return inherited_classification, inherited_attributes
+            return inherited_classification, self._clean_attributes(inherited_attributes)
         if tag in self._STRUCTURAL_TAGS or self._is_boundary_element(tag, attributes):
             if tag == "rs" and attributes.get("type"):
-                return tag, dict(attributes)
-            return inherited_classification, inherited_attributes
+                return tag, self._clean_attributes(attributes)
+            return inherited_classification, self._clean_attributes(inherited_attributes)
 
         if inherited_classification is not None and tag in self._ANNOTATION_TAGS:
-            return inherited_classification, inherited_attributes
+            return inherited_classification, self._clean_attributes(inherited_attributes)
 
-        return tag, dict(attributes)
+        return tag, self._clean_attributes(attributes)
 
     def _flush_token(self) -> None:
         if not self._buffer_parts:
