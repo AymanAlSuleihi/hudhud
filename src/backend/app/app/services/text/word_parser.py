@@ -34,7 +34,7 @@ class WordParser:
         "rs",
         "num",
     }
-    _BOUNDARY_TAGS = {"cb", "gap", "milestone", "pb"}
+    _BOUNDARY_TAGS = {"cb", "milestone", "pb"}
     _ANNOTATION_TAGS = {"unclear", "supplied"}
 
     def __init__(self, session: Session, epigraph: Epigraph):
@@ -68,6 +68,8 @@ class WordParser:
         inherited_classification: Optional[str],
         inherited_attributes: dict,
     ) -> tuple[Optional[str], dict]:
+        if tag == "gap":
+            return inherited_classification, inherited_attributes
         if tag in self._STRUCTURAL_TAGS or self._is_boundary_element(tag, attributes):
             if tag == "rs" and attributes.get("type"):
                 return tag, dict(attributes)
@@ -106,7 +108,7 @@ class WordParser:
         if not text:
             return
 
-        for chunk in re.findall(r"\S+|\s+", text):
+        for chunk in re.findall(r"\[[^\]]+\]|\S+|\s+", text):
             if chunk.isspace():
                 self._flush_token()
                 continue
@@ -137,6 +139,11 @@ class WordParser:
             inherited_attributes,
         )
 
+        if tag == "gap":
+            gap_text = self._format_gap(attributes)
+            self._append_text(gap_text, classification, context_attributes)
+            return
+
         self._append_text(element.text, classification, context_attributes)
         for child in element:
             self._walk_element(child, classification, context_attributes)
@@ -149,6 +156,20 @@ class WordParser:
                     tail = None
 
             self._append_text(tail, classification, context_attributes)
+
+    def _format_gap(self, attributes: dict) -> str:
+        quantity = attributes.get("quantity")
+        extent = attributes.get("extent")
+        if quantity:
+            try:
+                n = int(quantity)
+            except (TypeError, ValueError):
+                n = 1
+            n = max(1, n)
+            return "[" + ("." * n) + "]"
+        if extent == "unknown":
+            return "[... ...]"
+        return "[...]"
 
     def parse_tokens(self) -> list[ParsedWordToken]:
         self._reset_state()
