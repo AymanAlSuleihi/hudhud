@@ -153,6 +153,20 @@ class WordParser:
             self._append_text(gap_text, classification, context_attributes)
             return
 
+        if tag == "g" and attributes.get("type") == "wordSeparator":
+            for child in element:
+                self._walk_element(child, classification, context_attributes)
+                tail = child.tail
+                child_tag = self._normalize_tag(child.tag)
+                child_attribs = dict(child.attrib)
+                if child_tag == "lb" and child_attribs.get("break") == "no" and tail:
+                    tail = tail.lstrip()
+                    if tail == "":
+                        tail = None
+
+                self._append_text(tail, classification, context_attributes)
+            return
+
         self._append_text(element.text, classification, context_attributes)
         for child in element:
             self._walk_element(child, classification, context_attributes)
