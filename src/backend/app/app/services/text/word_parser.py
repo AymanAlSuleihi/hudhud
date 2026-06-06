@@ -84,7 +84,7 @@ class WordParser:
                 return tag, self._clean_attributes(attributes)
             return inherited_classification, self._clean_attributes(inherited_attributes)
 
-        if inherited_classification is not None and tag in self._ANNOTATION_TAGS:
+        if tag in self._ANNOTATION_TAGS:
             return inherited_classification, self._clean_attributes(inherited_attributes)
 
         return tag, self._clean_attributes(attributes)
